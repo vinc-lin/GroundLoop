@@ -6,10 +6,12 @@
 > canonical testing strategy for GroundLoop.
 >
 > **Scope / naming.** "GroundLoop" is the integrated system the charter calls *KnowledgeLoop*.
-> Requirements referenced as FR-*/NFR-* and the §-cited repo-matching design live in the **sibling
-> `loop-agent` repo**:
-> [`../../loop-agent/docs/knowledgeloop-background-and-requirements.md`](../../loop-agent/docs/knowledgeloop-background-and-requirements.md),
-> [`../../loop-agent/docs/superpowers/specs/2026-07-04-knowledgeloop-repo-matching-integration-design.md`](../../loop-agent/docs/superpowers/specs/2026-07-04-knowledgeloop-repo-matching-integration-design.md).
+> Requirements referenced as FR-*/NFR-* live in [`charter.md`](charter.md); the §-cited repo-matching
+> design (spec M1–M5, matcher = spec M3) is summarized in [`roadmap.md`](roadmap.md); the original
+> design lives in the loop-agent spec (cited below). **Original spec provenance** is the sibling
+> `loop-agent` repo —
+> [background & requirements](../../loop-agent/docs/knowledgeloop-background-and-requirements.md),
+> [repo-matching integration design](../../loop-agent/docs/superpowers/specs/2026-07-04-knowledgeloop-repo-matching-integration-design.md).
 > GroundLoop-local companions: [`m1-index-build.md`](m1-index-build.md), [`type2-eval-setup.md`](type2-eval-setup.md).
 >
 > The test suite already references this strategy by section (`tests/conftest.py`,
@@ -19,12 +21,14 @@
 
 ## 1. Purpose & the two test surfaces
 
-Two surfaces, two questions, two standards. The architecture makes the split natural: control flow is
+Two surfaces, two questions, two standards — the two parts of the test design: **Type 1 = "Test 1"**
+(system development testing) and **Type 2 = "Test 2"** (overall evaluation). The architecture makes the
+split natural: control flow is
 a **deterministic Python control plane** (`groundloop.core.workflow.run_ticket`) and every cognitive
 or external dependency sits behind a **port** (`groundloop/core/ports.py`) with a swappable adapter —
 so Type-1 wires canned adapters and Type-2 wires real ones over the *same* `run_ticket`.
 
-| Axis | **Type 1 — Development tests** | **Type 2 — Evaluation environment** |
+| Axis | **Type 1 (Test 1) — Development tests** | **Type 2 (Test 2) — Evaluation environment** |
 |---|---|---|
 | Question | *Is the code correct?* | *Is the system effective?* |
 | Verdict | Pass / fail | Graded scorecard |
@@ -39,7 +43,7 @@ so Type-1 wires canned adapters and Type-2 wires real ones over the *same* `run_
 
 ---
 
-## 2. Type 1 — Development tests (largely landed)
+## 2. Type 1 (Test 1) — Development tests (largely landed)
 
 Hermetic, deterministic, no network, no real LLM — driven by `CannedModel`
 (`groundloop/adapters/mock/model.py`) over a tiny micro-fleet. Mandated by NFR-8: *"hermetic,
@@ -60,7 +64,7 @@ no-network test suite; live tests gated on credentials."* The shared substrate l
 | D — Bind | `test_mock_gerrit.py` | `MockGerrit.submit` (Change-Id `I`+40hex, JIRA key in subject, content-hashed → deterministic) + `bind` (ledger + `Resolved` transition) |
 | grade | `test_grader.py` | `grade(record, oracle)` → `Scores` |
 | infra | `test_ports.py`, `test_types.py`, `test_workflow.py`, `test_cli.py`, `test_settings.py` | ports/protocols, dataclasses, `gloop` CLI, `Settings` (embed-model pin) |
-| engines | `tests/engines/test_{store,retrieve,build_units,repo_head,deploy,helpers,produce_smoke}.py` | atlas store/retrieve internals, produce |
+| engines | `tests/engines/test_{store_smoke,retrieve,build_units,repo_head,deploy,helpers,produce_smoke}.py` | atlas store/retrieve internals, produce |
 
 ### 2.2 Anti-leak invariants — green regression guards (`test_invariants.py`)
 These encode constraints that, if violated, silently corrupt the eval. **They are green today** — a
@@ -79,7 +83,7 @@ failure means a real leak was reintroduced. Numbering matches the code:
 6. **Deterministic control flow** — same inputs → identical event sequence, choice, ranked order,
    and `Change-Id`.
    *Bridge to Type-2:* `test_atlas_matcher_honors_invariants` asserts the **real** `AtlasIndex` picks
-   the owner from log signals alone and beats the `1/N` guess (fleet-integrity backstop, §3.5).
+   the owner from log signals alone and beats the `1/N` guess (fleet-integrity backstop, §3.4).
 
 ### 2.3 Remaining Type-1 gaps
 - **(a)** Un-skip invariant #3 (full `@base = fix^` scrub) once the real `RepoEstate` lands.
@@ -91,14 +95,14 @@ failure means a real leak was reintroduced. Numbering matches the code:
   engine, semantic rerank).
 
 ### 2.4 Cadence
-Every change; hermetic/no-network by default. The two `tests/e2e/` cases
-(`test_index_build_live.py`, `test_produce_live.py`) are **gated** on
-`KLOOP_EMBED_API_KEY + KLOOP_CBM_READY + KLOOP_PRODUCE_READY` and run live on **DeepSeek** (the only
-live model here — charter §9 / NFR-2).
+Every change; hermetic/no-network by default. The two `tests/e2e/` cases run live on **DeepSeek** (the
+only live model here — charter §9 / NFR-2): `test_index_build_live.py` is **gated** on
+`KLOOP_EMBED_API_KEY + KLOOP_CBM_READY + KLOOP_PRODUCE_READY`, while `test_produce_live.py` is **gated**
+on `KLOOP_PRODUCE_READY` (+ `KLOOP_PRODUCE_TEST_REPO` for the repo path).
 
 ---
 
-## 3. Type 2 — Evaluation environment (mostly pending)
+## 3. Type 2 (Test 2) — Evaluation environment (mostly pending)
 
 Measure effectiveness against grounded-but-hidden ground truth and **report** it. The spec §9 harness,
 extended downstream for full end-to-end.
@@ -125,6 +129,16 @@ Not yet built (this is the Type-2 work): the **multi-ticket harness**, the **arm
   (`GatewayEmbedder`, scaffolded) → **+LLM-judge**. Membership-only is the **naive baseline** the
   semantic matcher must beat.
 - **Signal arms:** text-only vs **+logs** — quantifies how much the logs help (NFR-2 cost).
+- **Fix-stage arms (downstream / BFL provenance — forward-looking).** From the loop-agent fix-loop
+  track (BFL-M0..M9; [`downstream-fix-loop.md`](downstream-fix-loop.md), original roadmap
+  [`../../loop-agent/docs/roadmap.md`](../../loop-agent/docs/roadmap.md)): `single_shot` is the
+  **default runner arm**, with an agentic `tool_loop` (investigate-then-submit) as a non-default
+  measured arm; and a **grep retriever ran ~25% cheaper** than no-retrieval on real-sized repos with
+  **no localization loss** (a cost lever, not an accuracy one). Caveat carried over verbatim: on a
+  *synthetic* seed the benchmark **rewards confident guessing and penalizes honest grounded refusal**,
+  so the `tool_loop` arm's true value is *unprovable* until a genuinely-buggy benchmark exists — the
+  same "grounding over narrative" concern §3.4 encodes. GroundLoop's fix stage is a `CannedFixEngine`
+  stub today (Stage-3), so these arms are forward-looking here.
 - Per-difficulty-bucket slicing is **out of scope** (YAGNI, §8) — the arms carry the ablation signal.
 
 ### 3.4 Grounded-refusal / confidence — *not just forced top-k*
@@ -145,7 +159,7 @@ per run: repo SHAs, atlas indexed HEADs, and the **embedding model version** —
 (=`bge-m3`) is a **pinned reuse contract** (§4); a change silently invalidates cross-run `recall@k`.
 
 ### 3.6 Model matrix
-DeepSeek (default workhorse; only live model here) · Qwen 3.6 (portability target, absent → gated) ·
+DeepSeek (default workhorse; only live model here) · Qwen3 (portability target, absent → gated) ·
 Claude (reference, needs key → gated). Cost first-class throughout (`$/ticket-matched`, `$/solved`).
 
 ### 3.7 Scorecard format
@@ -169,6 +183,53 @@ aggregation (to be surfaced as a `groundloop` eval module extending `grade()`).
   "summary_md": "human-readable rollup"
 }
 ```
+
+### 3.8 Evaluation methodology (why these metrics)
+
+Distilled from the knowledgeLoop repo-atlas evaluation lap-log
+([`../../knowledgeLoop/docs/repo-atlas-evaluation.md`](../../knowledgeLoop/docs/repo-atlas-evaluation.md)),
+which ran the same "grounding over narrative" discipline against a real `bge-m3` atlas and learned —
+the hard way — where a retrieval metric can be trusted. Its lessons shape the choices above.
+
+**The evaluation pyramid — measure the cheap deterministic layers directly; reserve the expensive
+agentic test for *outcome validation*, not tuning.**
+
+```
+  4. Agentic A/B (outcome)         expensive, noisy   → validate, don't tune
+  3. Context-injection             (dozens of runs)
+  2. Grounding   precision/recall  cheap, deterministic
+  1. Retrieval   Success@k / MRR   (ms/case, no agent) → tune here
+```
+
+Layers 1–2 are agent-free and run in seconds, so a strategy/signal arm can be tuned offline with real
+statistical power (N in the hundreds is feasible). Layer 4 is the only thing that measures the actual
+goal, but is statistically weak at the N we can afford — it *validates* that offline gains translate,
+it is not the day-to-day instrument.
+
+- **Any-of, not all-of.** Relevance is often *"find me any acceptable target"*: several files can be
+  equally valid, and surfacing any one is success. So the primary retrieval metrics are **`Success@k`**
+  (any acceptable gold in the top-k) + **`MRR`** (rank of the first), and **`Recall@k` is demoted to a
+  coverage stat** (it understates by design when a case has several valid alternatives). Each case
+  carries a **set** of acceptable golds; curation keeps that set *canonical* (anti-gaming) and the
+  scorecard reports **median golds/case** so breadth is visible. *In GroundLoop this bites at Stage-2
+  localization* (`file_recall@k`, §3.2) — several files may legitimately own a fix. Stage-1 is
+  different: the **owning repo is a single hidden oracle**, so `repo_recall@1` / `repo_mrr` are
+  exact-match, not any-of.
+- **Grounding is scored against source reality, not the store.** The "real" symbol set is
+  **grep-verified from repo source**, never sampled from the index — so a real symbol the store fails
+  to confirm counts *against* it. This surfaces under-indexing as a *product* risk (the tool telling an
+  agent a real API "doesn't exist"), not a metric artifact — the discipline behind the grounded-use /
+  grounded-refusal checks (§3.4).
+- **Mechanism-resolved evaluation.** A binary success rate over small N is uninterpretable, so the
+  agentic layer traces the **causal chain per task** — *surfaced the right prior art? → the agent used
+  it? → did the outcome beat baseline?* — and classifies each task (`causal-win` / `surfaced-ignored` /
+  `retrieval-miss` / `regression` / `no-effect`). Any non-win is then *attributed* to an adoption gap
+  vs a retrieval gap vs no-headroom — far more informative than a noisy aggregate rate.
+- **The N≈10 / ±20pp noise floor.** At the N an agentic A/B can afford, the lap-log measured two
+  *behaviourally identical* conditions scoring **20% vs 40%** — pinning the **N=10 noise floor at
+  ≈ ±20pp**. Treat any agentic arm difference below that as noise. This is exactly why the primary
+  effort sits on the deterministic layers, and why GroundLoop's Type-2 arms (§3.3) and the
+  grounded-refusal view (§3.4) are the load-bearing signal, with agentic outcomes used only to validate.
 
 ---
 
@@ -195,10 +256,10 @@ MUST equal the index-time embedder** or cosine ranking is silently corrupted
 | Signal extractor (FR-2) | **DONE** | `domains/android_ivi/signal_extractor.py` |
 | Mock JIRA / Mock Gerrit (Stage A/D) | **DONE** | `adapters/mock/{jira,gerrit}.py` |
 | Catalog + oracle(`owning_repo`) + logs fixtures | **DONE** | `tests/fixtures/android_ivi/` |
-| `AtlasIndex` (FTS5) + `gloop index` build | **DONE** | `adapters/index/atlas.py`; M1 landed |
+| `AtlasIndex` (FTS5) + `gloop index` build | **DONE** | `adapters/index/atlas.py`; GL-M1 landed |
 | conftest + micro-fleet + invariants | **DONE** | `tests/conftest.py`, `test_invariants.py` |
 | Real `RepoEstate` (`@base = fix^`, scrub) | **PENDING** | un-skips invariant #3 |
-| Mining (real tickets/logs/oracle) | **PENDING** | `gloop mine` |
+| Mining (real tickets/logs/oracle) | **PENDING** | `gloop mine` *(aspirational — not built)* |
 | Semantic vector rerank arm | **SCAFFOLDED** | `GatewayEmbedder` migrated; hermetic uses FTS5 |
 | Eval-env: arms + recall@k/MRR/cost + refusal + scorecard | **PENDING** | the core Type-2 build |
 | Expanded confusable fleet + fleet CodeWikis | **PENDING** | grows `1/N` denominator |
@@ -207,14 +268,16 @@ MUST equal the index-time embedder** or cosine ranking is silently corrupted
 
 ## 6. Roadmap alignment (which tests come online when)
 
-- **M0 — walking skeleton** *(done)* — ports, mock adapters, hermetic vertical slice, anti-leak
+- **GL-M0 — walking skeleton** *(done)* — ports, mock adapters, hermetic vertical slice, anti-leak
   invariants.
-- **M1 — index build** *(done)* — real `AtlasIndex`, `gloop index/produce/doctor`, gated live build test.
+- **GL-M1 — index build** *(done)* — real `AtlasIndex`, `gloop index/produce/doctor`, gated live build test.
 - **Next — real `RepoEstate`** — materialize `@base = fix^`; **un-skip invariant #3**.
-- **Next — mining** — `gloop mine`: real GitHub-issue tickets + logs + hidden `owning_repo`.
+- **Next — mining** — `gloop mine` *(aspirational — not built yet)*: real GitHub-issue tickets + logs +
+  hidden `owning_repo`.
 - **Next — semantic rerank arm** — turn on the `GatewayEmbedder` path (bge-m3), with the §2.3(b) guard.
 - **Then — Eval env online** — multi-ticket arms harness, `recall@k`/MRR/cost/confusion,
-  grounded-refusal, JSON scorecard + summary; extend to Stage-2/3/4 downstream metrics.
+  grounded-refusal, JSON scorecard + summary; extend to Stage-2/3/4 downstream metrics (§3.8 pyramid:
+  tune on the deterministic layers, validate on the agentic).
 
 ---
 
@@ -234,7 +297,9 @@ knowledgeLoop `@k`/`mrr` metrics, the produce/CodeWiki engine, `gloop index`/`do
 - No ANN yet — FTS5 first-stage filter at pilot scale.
 - No real JIRA/Gerrit — file-and-index fixtures; `MockGerrit`'s simulated `Change-Id` + ledger is the
   bind surface.
-- No full 130-repo fleet — a curated confusable pilot proves the pipeline first.
+- No full 130+ -repo fleet — a curated confusable pilot proves the pipeline first (fleet layers:
+  target 130+ AAOS repos → charter pilot ~11 OSS → 3 built corpora at pinned SHAs → 4-repo hermetic
+  fixture).
 
 ---
 

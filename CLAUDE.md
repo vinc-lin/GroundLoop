@@ -28,26 +28,44 @@ orchestrator owns control flow; **the loop never sees the oracle** (grading is a
   Multi-domain is a design-for-later seam; no plugin framework yet (YAGNI).
 - `groundloop/config/settings.py` — the single env-reading surface (`KLOOP_*`).
 
-Ports: IssueSource, SignalExtractor (domain), RepoEstate, CodeIndex (`rank_repos` + `retrieve`),
-FixEngine, ChangeSink, Model/Embedder, Grader (offline). `rank_repos(signals, catalog) -> [RepoScore]`
-is the ticket→repo MATCH method; top-1 = predicted owning repo.
+The **7 core ports** (`core/ports.py`): IssueSource, SignalExtractor (domain), RepoEstate, CodeIndex
+(`rank_repos` + `retrieve`), FixEngine, ChangeSink, Model. (`Embedder` is an engine-internal Protocol in
+`engines/atlas/embed.py`; `grade()` is an offline **function** in `groundloop/grade/grader.py` — neither
+is a core port.) `rank_repos(signals, catalog) -> [RepoScore]` is the ticket→repo MATCH method; top-1 =
+predicted owning repo. Full rationale: `docs/architecture.md`.
 
 ## Status
 Current state, blockers, and next steps live in **`docs/STATUS.md`** — read it first when resuming.
-Milestones **M0** (walking skeleton) + **M1** (real `AtlasIndex` + `gloop index` build) have landed.
-Design/reference docs: `docs/m1-index-build.md`, `docs/type2-eval-setup.md`,
-`docs/groundloop-testing-strategy.md`. M1 plan (for provenance):
+Milestones **GL-M0** (walking skeleton) + **GL-M1** (real `AtlasIndex` + `gloop index` build) have landed
+— GroundLoop's own track, distinct from the `bfl` **BFL-M0..M9** and the repo-matching spec **M1–M5**
+tracks (never write a bare "M1"; see `docs/roadmap.md`).
+
+## Docs — single source of truth
+**GroundLoop `docs/` is the single source of truth** (consolidated 2026-07-04 from `../loop-agent` +
+`../knowledgeLoop`; those repos carry "canonical → GroundLoop" banners atop the absorbed docs):
+- `docs/charter.md` — mission, FR-1..8 / NFR-1..8, the four stages, metrics, fleet layers, glossary.
+- `docs/application-guide.md` — how GroundLoop is applied: the pipeline + benchmark uses and scenarios.
+- `docs/architecture.md` — hexagonal ports & adapters, the deterministic control plane, migration.
+- `docs/engines.md` — produce / lore / CBM / atlas engine operations (migrated from knowledgeLoop).
+- `docs/roadmap.md` — mining, the two-stage matcher, milestone tracks, downstream phasing.
+- `docs/downstream-fix-loop.md` — design provenance for localize → fix → grade (fix stage is a stub).
+- `docs/m1-index-build.md` · `docs/type2-eval-setup.md` · `docs/groundloop-testing-strategy.md`.
+GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
 ## Working in this repo
 - Python 3.12, `.venv` (uv-managed). `pyproject.toml` — CBM + CodeWiki `produce` are **default deps**
   (the CBM Level-1 decision: `mcp` + `codebase-memory-mcp==0.8.1` + the produce stack in base deps).
+- Setup: `uv sync --extra dev` (base deps + `pytest`/`ruff`; plain `uv sync` omits the test tooling).
 - Tests: `.venv/bin/python -m pytest -q`  ·  Lint: `.venv/bin/ruff check groundloop tests` (line 110).
+  Single test: `.venv/bin/python -m pytest tests/test_atlas_index.py -q` (or `-k <pattern>`).
+  Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/type2-eval-setup.md`.
 - CLI: `.venv/bin/gloop {run,index,produce,doctor}`.
-- **Two test surfaces** (`docs/groundloop-testing-strategy.md`): **Type-1** hermetic (no network / no
-  real LLM; runs every change; shared fixtures in `tests/conftest.py`, anti-leak invariants in
-  `tests/test_invariants.py`) and **Type-2** live eval (real models + a real atlas.db; `skipif`-gated).
-  Live-eval setup + build steps: `docs/type2-eval-setup.md`.
+- **Two test surfaces** (`docs/groundloop-testing-strategy.md`): **Type-1 (Test 1)** hermetic
+  development tests (no network / no real LLM; runs every change; shared fixtures in
+  `tests/conftest.py`, anti-leak invariants in `tests/test_invariants.py`) and **Type-2 (Test 2)** live
+  eval / evaluation environment (real models + a real atlas.db; `skipif`-gated). Live-eval setup +
+  build steps: `docs/type2-eval-setup.md`.
 
 ## Conventions & guardrails
 - **Never modify `groundloop/core/`.** Never alter the SQLite schema in `engines/atlas/store.py` (there
