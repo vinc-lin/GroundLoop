@@ -14,3 +14,22 @@ def test_cli_run_returns_zero(tmp_path, monkeypatch, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "android-gpuimage-plus" in out
+
+
+def test_cli_index_dispatches_and_prints_counts(tmp_path, monkeypatch, capsys):
+    """Monkeypatched: index_all stub returns {"repoA": 3}; main(["index","--registry",...]) rc 0."""
+    # Write a minimal registry file (raw TOML, no third-party writer needed)
+    registry_path = tmp_path / "atlas.toml"
+    registry_path.write_text(
+        f'[[repo]]\nname = "repoA"\nrepo_path = "{tmp_path}"\nwiki_dir = "{tmp_path}"\n'
+    )
+
+    async def _stub_index_all(entries, store, embedder):
+        return {"repoA": 3}
+
+    monkeypatch.setattr("groundloop.engines.atlas.index.index_all", _stub_index_all)
+
+    rc = main(["index", "--registry", str(registry_path)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "indexed repoA: 3" in out
