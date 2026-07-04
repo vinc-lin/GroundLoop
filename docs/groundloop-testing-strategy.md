@@ -104,6 +104,12 @@ on `KLOOP_PRODUCE_READY` (+ `KLOOP_PRODUCE_TEST_REPO` for the repo path).
 
 ## 3. Type 2 (Test 2) — Evaluation environment (mostly pending)
 
+> **Canonical → [`type2-evaluation.md`](type2-evaluation.md).** The complete Type-2 definition — fleet,
+> dataset, arms, metrics, scorecard, harness — now lives there. This §3 is retained as the higher-level
+> map; **where the two differ, `type2-evaluation.md` wins** — notably it scopes **Stage 3/4 as reserved
+> hooks only** (not the target `resolved_rate` / `traceability_pass` metrics implied in §3.2 below) and
+> defines the authoritative scorecard shape (its §7.4, not §3.7 here).
+
 Measure effectiveness against grounded-but-hidden ground truth and **report** it. The spec §9 harness,
 extended downstream for full end-to-end.
 

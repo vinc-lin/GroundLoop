@@ -167,7 +167,7 @@ These are **different layers, not a contradiction**; the eval fleet **grows by r
 | Layer | Membership | Purpose |
 |---|---|---|
 | **Target (production goal)** | **130+** AAOS vehicle repos on Gerrit/JIRA | the real estate GroundLoop must scale to (NFR-3) |
-| **Charter pilot** | **~11** OSS IVI repos (androidx/media, google/ExoPlayer, TeamNewPipe/NewPipe, AntennaPod, google/oboe, organicmaps, osmandapp/OsmAnd, natario1/CameraView, wysaid/android-gpuimage-plus, android/car-samples, COVESA/dlt-daemon) | GitHub‑issue‑derived proxy tickets + hard negatives |
+| **Charter pilot** | **~11** OSS IVI repos (androidx/media, google/ExoPlayer, TeamNewPipe/NewPipe, AntennaPod, google/oboe, organicmaps, osmandapp/OsmAnd, natario1/CameraView, wysaid/android-gpuimage-plus, android/car-samples, COVESA/dlt-daemon) | GitHub‑issue‑derived proxy tickets + hard negatives; **finalized eval fleet (9) → [`type2-evaluation.md`](type2-evaluation.md) §3.1** (drops ExoPlayer→absorbed into media3, car-samples→0 linkage) |
 | **Built corpora** | **3** at pinned SHAs — android-gpuimage-plus, libxcam, ndk-samples (`/mnt/x/code/corpora/corpus.toml`, a sibling dir — not in-repo) | real atlas.db substrate for Type‑2 live eval |
 | **Hermetic GL‑M1 fixture** | **4** repos (hand-built fixture atlas.db) | Type‑1 no‑network matcher tests |
 

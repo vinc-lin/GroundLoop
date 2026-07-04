@@ -49,6 +49,8 @@ tracks (never write a bare "M1"; see `docs/roadmap.md`).
 - `docs/engines.md` — produce / lore / CBM / atlas engine operations (migrated from knowledgeLoop).
 - `docs/roadmap.md` — mining, the two-stage matcher, milestone tracks, downstream phasing.
 - `docs/downstream-fix-loop.md` — design provenance for localize → fix → grade (fix stage is a stub).
+- `docs/type2-evaluation.md` — **canonical for the Type-2 (Test 2) evaluation**: fleet, dataset, arms,
+  metrics/scorecard, and the eval harness (supersedes the detail in `groundloop-testing-strategy.md` §3).
 - `docs/m1-index-build.md` · `docs/type2-eval-setup.md` · `docs/groundloop-testing-strategy.md`.
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.

@@ -30,6 +30,8 @@ scores far below a real match. The layers (distinct concerns, not a contradictio
 
 - **Target** — 130+ AAOS in-vehicle repos (the production goal).
 - **Charter pilot** — ~11 OSS Android-IVI repos spanning the IVI function map (see [charter.md](charter.md)).
+  The **finalized Type-2 eval fleet (9 repos)** — after a feasibility sweep dropping ExoPlayer + car-samples
+  — is defined in [type2-evaluation.md](type2-evaluation.md) §3.1.
 - **Built corpora** — 3 repos at pinned SHAs in `corpora/corpus.toml`: `android-gpuimage-plus`,
   `libxcam`, `ndk-samples`.
 - **Hermetic GL-M1 fixture** — 4 repos in the Type-1 substrate (see
@@ -182,7 +184,9 @@ Three **separate** milestone tracks share vocabulary but must never be conflated
   state. Always namespace them; never write a bare "M1".
 - **spec M1–M5** is the integration design's internal numbering: M1 shared substrate (largely realized
   by GL-M1's shared atlas.db + registry), M2 mining, **M3 the matcher** (first-stage membership +
-  semantic rerank), M4 the matching benchmark, M5 downstream reuse. Its "M3" is the matcher, unrelated to
+  semantic rerank), **M4 the matching benchmark** (specified in
+  [type2-evaluation.md](type2-evaluation.md) — its eval-harness build stages E1–E3 are distinct from
+  these milestone tracks), M5 downstream reuse. Its "M3" is the matcher, unrelated to
   any GroundLoop or bfl M3.
 - **BFL-M0…M9** belong to the loop-agent fix-loop track and are done there; GroundLoop reuses its lessons
   (§6) and its localize→fix machinery ([downstream-fix-loop.md](downstream-fix-loop.md)), not its
