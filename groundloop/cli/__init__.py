@@ -136,6 +136,27 @@ def _run_produce(args) -> int:
     return 0
 
 
+def _run_build_atlas(args) -> int:
+    from groundloop.config.settings import Settings
+    from groundloop.build.atlas_build import build_atlas
+
+    settings = Settings.load()
+    registry = args.registry or settings.registry
+    if not registry:
+        print("gloop build-atlas: --registry is required (or set KLOOP_REGISTRY)")
+        return 2
+    report = build_atlas(registry, jobs=args.jobs, concurrency=args.concurrency,
+                         force=args.force)
+    for name, r in report.produce.items():
+        print(f"produce {name}: {getattr(r, 'status', '?')}")
+    print(f"index rc={report.index_rc}  doctor rc={report.doctor_rc}")
+    if not report.ok:
+        print(f"build-atlas FAILED at stage: {report.failed_stage}")
+        return 1
+    print("build-atlas OK")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -164,6 +185,13 @@ def main(argv: list[str] | None = None) -> int:
                       help="modules generated in parallel within this repo "
                            "(default 1, or KLOOP_PRODUCE_CONCURRENCY)")
 
+    ba = sub.add_parser("build-atlas", help="clone fleet + produce (parallel) + index + doctor")
+    ba.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
+    ba.add_argument("--jobs", type=int, default=3, help="repos produced in parallel (default 3)")
+    ba.add_argument("--concurrency", type=int, default=4,
+                    help="modules per repo in parallel (default 4); total in-flight ~= jobs*concurrency")
+    ba.add_argument("--force", action="store_true", help="re-produce even if a wiki exists")
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
@@ -183,4 +211,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_doctor(args)
     if args.cmd == "produce":
         return _run_produce(args)
+    if args.cmd == "build-atlas":
+        return _run_build_atlas(args)
     return 1
