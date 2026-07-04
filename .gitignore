@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 # built index artifacts (a real atlas.db is configured via KLOOP_ATLAS_DB, never committed)
 *.db
+# local environment (secrets / machine paths) — never commit
+.env
+.env.local
