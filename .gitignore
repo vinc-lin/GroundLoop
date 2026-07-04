@@ -2,3 +2,5 @@
 __pycache__/
 *.egg-info/
 *.pyc
+# built index artifacts (a real atlas.db is configured via KLOOP_ATLAS_DB, never committed)
+*.db
