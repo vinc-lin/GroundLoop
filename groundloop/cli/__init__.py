@@ -98,6 +98,36 @@ def _run_doctor(args) -> int:
     return 0
 
 
+def _run_produce(args) -> int:
+    """Invoke the migrated CodeWiki generator for --repo <path> --out <wiki_dir>."""
+    import os
+    from pathlib import Path
+    from groundloop.engines.produce.cli.adapters.doc_generator import CLIDocumentationGenerator
+
+    repo_path = Path(args.repo).expanduser().resolve()
+    output_dir = Path(args.out).expanduser().resolve()
+
+    # Build a minimal config from env vars (mirrors kl produce generate env-driven config)
+    config = {
+        "main_model": os.environ.get("KLOOP_PRODUCE_MAIN_MODEL", "gpt-4o-mini"),
+        "cluster_model": os.environ.get("KLOOP_PRODUCE_CLUSTER_MODEL", "gpt-4o-mini"),
+        "fallback_model": os.environ.get("KLOOP_PRODUCE_FALLBACK_MODEL", "gpt-4o-mini"),
+        "base_url": os.environ.get("KLOOP_PRODUCE_BASE_URL", ""),
+        "api_key": os.environ.get("KLOOP_PRODUCE_API_KEY", os.environ.get("OPENAI_API_KEY", "")),
+        "provider": os.environ.get("KLOOP_PRODUCE_PROVIDER", "openai-compatible"),
+        "aws_region": os.environ.get("KLOOP_PRODUCE_AWS_REGION", "us-east-1"),
+    }
+
+    generator = CLIDocumentationGenerator(
+        repo_path=repo_path,
+        output_dir=output_dir,
+        config=config,
+        verbose=False,
+    )
+    generator.generate()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -119,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
     doc.add_argument("--atlas-db", default="",
                      help="path to atlas.db (overrides KLOOP_ATLAS_DB)")
 
+    prod = sub.add_parser("produce", help="generate a CodeWiki for a repo")
+    prod.add_argument("--repo", required=True, help="path to the repository to document")
+    prod.add_argument("--out", required=True, help="output directory for the generated wiki")
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
@@ -136,4 +170,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_index(args)
     if args.cmd == "doctor":
         return _run_doctor(args)
+    if args.cmd == "produce":
+        return _run_produce(args)
     return 1
