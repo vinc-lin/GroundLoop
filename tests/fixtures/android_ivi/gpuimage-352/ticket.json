@@ -1,0 +1,8 @@
+{
+  "id": "GP-352",
+  "summary": "App crashes on GL thread when applying an image filter",
+  "description": "On some devices the app crashes immediately when a filter is applied. Attaching the logcat.",
+  "component": "",
+  "status": "Open",
+  "logs": [{"path": "logs/crash.txt", "kind": "logcat"}]
+}

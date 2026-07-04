@@ -1,0 +1,6 @@
+{
+  "owning_repo": "android-gpuimage-plus",
+  "expected_files": ["library/src/main/jni/interface/cgeImageHandlerAndroid.cpp"],
+  "required_apis": ["nativeCreateHandler"],
+  "issue": {"number": 352, "url": "https://github.com/wysaid/android-gpuimage-plus/issues/352"}
+}

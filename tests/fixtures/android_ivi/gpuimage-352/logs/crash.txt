@@ -1,0 +1,5 @@
+E/AndroidRuntime: FATAL EXCEPTION: GLThread 549
+java.lang.UnsatisfiedLinkError: No implementation found for long org.wysaid.nativePort.CGEImageHandler.nativeCreateHandler()
+  at org.wysaid.nativePort.CGEImageHandler.nativeCreateHandler(Native Method)
+  at org.wysaid.nativePort.CGEImageHandler.<init>(CGEImageHandler.java:31)
+E/libCGE_java: Load library for 'cge' failed!: couldn't find "libffmpeg.so"

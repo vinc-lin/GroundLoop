@@ -1,0 +1,6 @@
+{
+  "android-gpuimage-plus": ["org.wysaid", "org.wysaid.nativePort.CGEImageHandler", "libCGE", "libffmpeg.so"],
+  "organicmaps": ["app.organicmaps", "storage::Storage"],
+  "androidx-media": ["androidx.media3", "ExoPlayer"],
+  "cameraview": ["com.otaliastudios.cameraview"]
+}
