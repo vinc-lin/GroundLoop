@@ -972,27 +972,31 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 20 "${KLOOP_EMBED_BASE_URL%/
 ```
 Expected: `200`. (DeepSeek/produce readiness per `docs/type2-eval-setup.md`.)
 
-- [ ] **Step 2: Clone the fleet + pin SHAs (records `owning_repo_sha` for the miner)**
+- [ ] **Step 2: Run the one-shot build (clone → produce → index → doctor), backgrounded**
 
-```bash
-.venv/bin/python -c "
-from groundloop.engines.atlas.registry import load_registry
-from groundloop.build.atlas_build import _entries_to_fleet
-from groundloop.build.clone_fleet import clone_fleet
-e = load_registry('/mnt/x/code/corpora/atlas.toml')
-res = clone_fleet(_entries_to_fleet(e), jobs=4)
-for n, r in res.items(): print(n, r.status, r.sha)
-"
-```
-Then paste each printed SHA into the matching `sha = \"PIN_AT_CLONE\"` in `corpus.toml` (Task 4).
-
-- [ ] **Step 3: Run the parallel produce + index + doctor (long-running; background it)**
-
+`gloop build-atlas` auto-loads the sibling `corpus.toml` (Task 4) for clone URLs, shallow-clones any
+missing repos (HEAD — the `PIN_AT_CLONE` placeholders normalize to "" = clone HEAD), then runs the
+parallel produce (DeepSeek) + index (bge-m3) + doctor, stopping at the first failed stage.
 ```bash
 set -a; . ./.env; set +a
 .venv/bin/gloop build-atlas --registry /mnt/x/code/corpora/atlas.toml --jobs 3 --concurrency 4
 ```
-Expected: `produce <name>: ok` per repo, then `index rc=0  doctor rc=0`, then `build-atlas OK`. Watch cost/latency; tune `--jobs`/`--concurrency` down if the gateway rate-limits (note the working value in `docs/type2-eval-setup.md`). Large repos (`organicmaps`, `osmand`, `media3`) dominate wall-clock — this is exactly why the track starts early.
+Expected: `clone <name>: cloned|present` per repo, then `produce <name>: ok` per repo, then
+`index rc=0  doctor rc=0`, then `build-atlas OK`. Long-running (`organicmaps`/`osmand`/`media3` clones
+are GBs; DeepSeek produce dominates wall-clock) — background it. Tune `--jobs`/`--concurrency` down if the
+gateway rate-limits (in-flight ≈ jobs×concurrency = 12; note the working value in
+`docs/type2-eval-setup.md`). This is exactly why the track starts early.
+
+- [ ] **Step 3: Pin the resolved SHAs into `corpus.toml` (records `owning_repo_sha` for the miner)**
+
+After the clone stage completes, record each repo's HEAD and paste it into the matching `sha` in
+`corpus.toml`, so the eval fleet is reproducibly pinned (plan E1-B's miner reads these as
+`owning_repo_sha`):
+```bash
+for d in osmand organicmaps antennapod newpipe oboe cameraview dlt-daemon media3 android-gpuimage-plus; do
+  echo "$d $(git -C /mnt/x/code/corpora/$d rev-parse HEAD)"
+done
+```
 
 - [ ] **Step 4: Sanity-check the built atlas**
 
