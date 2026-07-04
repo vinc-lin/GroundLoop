@@ -1,0 +1,20 @@
+[project]
+name = "groundloop"
+version = "0.0.0"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+gloop = "groundloop.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["groundloop*"]
+
+[tool.ruff]
+line-length = 110
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
