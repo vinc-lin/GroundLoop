@@ -36,6 +36,68 @@ def _run_index(args) -> int:
     return 0
 
 
+def _run_doctor(args) -> int:
+    """Check index readiness; rc 0 if atlas.db is usable."""
+    import os
+    from groundloop.config.settings import Settings
+
+    settings = Settings.load()
+    atlas_db = getattr(args, "atlas_db", None) or settings.atlas_db
+
+    if not atlas_db:
+        print("doctor: atlas.db not configured — pass --atlas-db or set KLOOP_ATLAS_DB")
+        return 1
+
+    # Check atlas.db exists + is readable
+    if not os.path.isfile(atlas_db):
+        print(f"doctor: atlas.db not found: {atlas_db}")
+        return 1
+
+    try:
+        from groundloop.engines.atlas.store import Store
+        store = Store(atlas_db)
+        repo_states = store.list_repo_states()
+        repo_count = len(repo_states)
+        unit_total = sum(rs.unit_count for rs in repo_states)
+        print(f"atlas.db  OK  {atlas_db}")
+        print(f"  repos: {repo_count}  units: {unit_total}")
+        for rs in repo_states:
+            print(f"  - {rs.repo}  units={rs.unit_count}  head={rs.indexed_repo_head or 'n/a'}")
+    except Exception as exc:
+        print(f"doctor: atlas.db not readable: {exc}")
+        return 1
+
+    # Embed gateway check (optional — gated by configuration)
+    embed_base_url = settings.embed_base_url
+    if embed_base_url:
+        try:
+            import httpx
+            resp = httpx.get(embed_base_url.rstrip("/") + "/health", timeout=3.0)
+            if resp.status_code < 400:
+                print(f"embed gateway  OK  {embed_base_url}")
+            else:
+                print(f"embed gateway  WARN  {embed_base_url} (status {resp.status_code})")
+        except Exception as exc:
+            print(f"embed gateway  WARN  {embed_base_url} (unreachable: {exc})")
+    else:
+        print("embed gateway  SKIP  (KLOOP_EMBED_BASE_URL not set)")
+
+    # CBM check (optional — gated by configuration)
+    cbm_ready = os.environ.get("KLOOP_CBM_READY", "")
+    if cbm_ready:
+        try:
+            from groundloop.engines.lore.deploy import resolve_launch_spec
+            spec = resolve_launch_spec(environ=dict(os.environ))
+            print(f"CBM  OK  launch={spec}")
+        except Exception as exc:
+            print(f"CBM  WARN  ({exc})")
+    else:
+        print("CBM  SKIP  (KLOOP_CBM_READY not set)")
+
+    print("\nreadiness: READY (atlas.db usable)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -53,6 +115,10 @@ def main(argv: list[str] | None = None) -> int:
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
 
+    doc = sub.add_parser("doctor", help="check index readiness")
+    doc.add_argument("--atlas-db", default="",
+                     help="path to atlas.db (overrides KLOOP_ATLAS_DB)")
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
@@ -68,4 +134,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "index":
         return _run_index(args)
+    if args.cmd == "doctor":
+        return _run_doctor(args)
     return 1

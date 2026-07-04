@@ -57,3 +57,34 @@ def test_cli_run_with_index_db_no_index_flag(tmp_path, monkeypatch, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "android-gpuimage-plus" in out
+
+
+def test_cli_doctor_atlas_present(tmp_path, capsys):
+    """doctor over a real fixture atlas.db: rc 0, summary shows repos found."""
+    from tests.fixtures.atlas_fixture import build_atlas_fixture
+
+    atlas_db = build_atlas_fixture(str(tmp_path / "atlas.db"))
+    rc = main(["doctor", "--atlas-db", atlas_db])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # Must report atlas.db as OK and mention repo count
+    assert "atlas.db" in out.lower() or "atlas" in out.lower()
+    assert "ok" in out.lower() or "ready" in out.lower()
+
+
+def test_cli_doctor_atlas_missing(tmp_path, capsys):
+    """doctor with a non-existent atlas.db: rc 1, error message."""
+    missing = str(tmp_path / "nonexistent.db")
+    rc = main(["doctor", "--atlas-db", missing])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "atlas" in out.lower()
+
+
+def test_cli_doctor_no_atlas_db_no_env(monkeypatch, capsys):
+    """doctor with no --atlas-db and no KLOOP_ATLAS_DB env: rc 1, informative message."""
+    monkeypatch.delenv("KLOOP_ATLAS_DB", raising=False)
+    rc = main(["doctor"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "atlas" in out.lower()
