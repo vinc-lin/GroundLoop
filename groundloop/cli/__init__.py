@@ -109,9 +109,11 @@ def _run_produce(args) -> int:
 
     # Build a minimal config from env vars (mirrors kl produce generate env-driven config)
     config = {
-        "main_model": os.environ.get("KLOOP_PRODUCE_MAIN_MODEL", "gpt-4o-mini"),
-        "cluster_model": os.environ.get("KLOOP_PRODUCE_CLUSTER_MODEL", "gpt-4o-mini"),
-        "fallback_model": os.environ.get("KLOOP_PRODUCE_FALLBACK_MODEL", "gpt-4o-mini"),
+        # deepseek-chat is the served, live-validated produce model on the LiteLLM gateway
+        # (no OpenAI access in this environment). Override via KLOOP_PRODUCE_*_MODEL.
+        "main_model": os.environ.get("KLOOP_PRODUCE_MAIN_MODEL", "deepseek-chat"),
+        "cluster_model": os.environ.get("KLOOP_PRODUCE_CLUSTER_MODEL", "deepseek-chat"),
+        "fallback_model": os.environ.get("KLOOP_PRODUCE_FALLBACK_MODEL", "deepseek-chat"),
         "base_url": os.environ.get("KLOOP_PRODUCE_BASE_URL", ""),
         "api_key": os.environ.get("KLOOP_PRODUCE_API_KEY", os.environ.get("OPENAI_API_KEY", "")),
         "provider": os.environ.get("KLOOP_PRODUCE_PROVIDER", "openai-compatible"),
