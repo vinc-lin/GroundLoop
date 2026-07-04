@@ -107,6 +107,11 @@ def _run_produce(args) -> int:
     repo_path = Path(args.repo).expanduser().resolve()
     output_dir = Path(args.out).expanduser().resolve()
 
+    # --concurrency wins if given; otherwise fall back to KLOOP_PRODUCE_CONCURRENCY (default 1).
+    concurrency = args.concurrency
+    if concurrency is None:
+        concurrency = int(os.environ.get("KLOOP_PRODUCE_CONCURRENCY", "1"))
+
     # Build a minimal config from env vars (mirrors kl produce generate env-driven config)
     config = {
         # deepseek-chat is the served, live-validated produce model on the LiteLLM gateway
@@ -118,6 +123,7 @@ def _run_produce(args) -> int:
         "api_key": os.environ.get("KLOOP_PRODUCE_API_KEY", os.environ.get("OPENAI_API_KEY", "")),
         "provider": os.environ.get("KLOOP_PRODUCE_PROVIDER", "openai-compatible"),
         "aws_region": os.environ.get("KLOOP_PRODUCE_AWS_REGION", "us-east-1"),
+        "concurrency": concurrency,
     }
 
     generator = CLIDocumentationGenerator(
@@ -154,6 +160,9 @@ def main(argv: list[str] | None = None) -> int:
     prod = sub.add_parser("produce", help="generate a CodeWiki for a repo")
     prod.add_argument("--repo", required=True, help="path to the repository to document")
     prod.add_argument("--out", required=True, help="output directory for the generated wiki")
+    prod.add_argument("--concurrency", type=int, default=None,
+                      help="modules generated in parallel within this repo "
+                           "(default 1, or KLOOP_PRODUCE_CONCURRENCY)")
 
     args = ap.parse_args(argv)
     if args.cmd == "run":
