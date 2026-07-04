@@ -137,16 +137,31 @@ def _run_produce(args) -> int:
 
 
 def _run_build_atlas(args) -> int:
+    import os
+    import tomllib
+    from pathlib import Path
     from groundloop.config.settings import Settings
     from groundloop.build.atlas_build import build_atlas
+    from groundloop.build.corpus import load_corpus
 
     settings = Settings.load()
     registry = args.registry or settings.registry
     if not registry:
         print("gloop build-atlas: --registry is required (or set KLOOP_REGISTRY)")
         return 2
+    corpus_path = args.corpus or str(Path(registry).with_name("corpus.toml"))
+    corpus = None
+    if os.path.isfile(corpus_path):
+        try:
+            corpus = load_corpus(corpus_path)
+        except tomllib.TOMLDecodeError as exc:
+            print(f"gloop build-atlas: corpus.toml is malformed ({corpus_path}): {exc}")
+            return 2
     report = build_atlas(registry, jobs=args.jobs, concurrency=args.concurrency,
-                         force=args.force)
+                         force=args.force, corpus=corpus)
+    for name, r in report.clone.items():
+        print(f"clone {name}: {getattr(r, 'status', '?')}"
+              + (f" ({getattr(r, 'detail', '')})" if getattr(r, "status", "") == "failed" else ""))
     for name, r in report.produce.items():
         print(f"produce {name}: {getattr(r, 'status', '?')}")
     print(f"index rc={report.index_rc}  doctor rc={report.doctor_rc}")
@@ -191,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
     ba.add_argument("--concurrency", type=int, default=4,
                     help="modules per repo in parallel (default 4); total in-flight ~= jobs*concurrency")
     ba.add_argument("--force", action="store_true", help="re-produce even if a wiki exists")
+    ba.add_argument("--corpus", default="",
+                    help="path to corpus.toml (repo url+sha for cloning); "
+                         "defaults to a corpus.toml sibling of the registry")
 
     args = ap.parse_args(argv)
     if args.cmd == "run":

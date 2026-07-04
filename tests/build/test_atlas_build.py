@@ -78,3 +78,23 @@ def test_index_nonzero_marks_build_failed(tmp_path):
     )
     assert report.ok is False
     assert report.failed_stage == "index"
+
+
+def test_build_atlas_passes_corpus_urls_to_clone(tmp_path):
+    seen = {}
+
+    def fake_clone(fleet, **kw):
+        for fr in fleet:
+            seen[fr.name] = (fr.url, fr.sha)
+        return {"a": type("R", (), {"status": "cloned", "sha": "s", "name": "a"})()}
+
+    build_atlas(
+        _fake_toml(tmp_path),
+        corpus={"a": ("https://example.test/a.git", "sha123")},
+        clone_fn=fake_clone,
+        produce_fn=lambda e, **k: {"a": type("R", (), {"status": "ok", "name": "a", "detail": ""})()},
+        index_fn=lambda registry: 0,
+        doctor_fn=lambda: 0,
+    )
+
+    assert seen["a"] == ("https://example.test/a.git", "sha123")
