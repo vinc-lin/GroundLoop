@@ -54,9 +54,12 @@ def test_happy_path_emits_applying_patch(tmp_path):
 
 
 def test_match_abstain_yields_no_patch(tmp_path):
+    # membership+text extracts from the description ONLY (no logcat), which carries no discriminative
+    # tokens for gpuimage-352, so Stage-1 finds zero evidence -> no_repo_match abstain (no fix stage).
+    # (Note: build_arms sets a per-arm tau of (1.0, 1.0); the runner-level tau is a fallback only.)
     db = build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
-    runner, cases = _runner(tmp_path, tau_score=1e9)   # impossible score floor -> Stage-1 abstain
+    runner, cases = _runner(tmp_path, tau_score=1.0)
     recs = runner.run(cases, build_arms(membership_index=AtlasIndex(db)),
                       fixer=ModelPatchEngine(CannedModel({"default": GOLD})))
-    r = recs[0]
-    assert r.abstained and r.abstain_reason == "no_repo_match" and not r.patch_emitted
+    text = next(r for r in recs if r.arm == "membership+text")
+    assert text.abstained and text.abstain_reason == "no_repo_match" and not text.patch_emitted
