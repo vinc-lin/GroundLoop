@@ -29,6 +29,14 @@ def test_gloop_eval_writes_scorecard(tmp_path):
     assert "arms" in card and "membership+logs" in card["arms"]
     assert (tmp_path / "card.md").is_file()   # markdown twin next to --out
 
+    pred = tmp_path / "card.predictions.jsonl"   # per-case prediction dump next to --out
+    assert pred.is_file()
+    rows = [json.loads(ln) for ln in pred.read_text().splitlines()]
+    gp = [r for r in rows if r["case_id"] == "GP-352" and r["arm"] == "membership+logs"]
+    assert gp, "expected a membership+logs row for GP-352"
+    assert gp[0]["owning_repo"] == "android-gpuimage-plus"
+    assert {"predicted", "ranked_top1", "oracle_rank", "ranked_names"} <= gp[0].keys()
+
 
 def test_eval_help_lists_semantic_flag():
     import subprocess

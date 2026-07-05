@@ -173,7 +173,7 @@ def _run_eval(args) -> int:
     from groundloop.eval.dataset import load_cases, load_eval_oracle
     from groundloop.eval.arms import build_arms
     from groundloop.eval.runner import EvalRunner
-    from groundloop.eval.scorecard import grade_all
+    from groundloop.eval.scorecard import grade_all, per_case_rows
     from groundloop.eval.report import render_markdown
 
     cases = load_cases(args.dataset)
@@ -201,6 +201,10 @@ def _run_eval(args) -> int:
     card = grade_all(records, oracle_by_case=oracle_by_case)
     Path(args.out).write_text(json.dumps(card, indent=2))
     Path(args.out).with_suffix(".md").write_text(render_markdown(card))
+    rows = per_case_rows(records, oracle_by_case=oracle_by_case)   # per-(case x arm) prediction dump
+    pred_path = Path(args.out).with_name(Path(args.out).stem + ".predictions.jsonl")
+    pred_path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    print(f"predictions: {len(rows)} rows -> {pred_path.name}")
     for arm, a in card["arms"].items():
         oof = a["selective"]["abstention_recall_oof"]["value"]
         oof_s = "n/a" if oof is None else f"{oof:.2f}"

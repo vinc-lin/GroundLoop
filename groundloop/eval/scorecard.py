@@ -26,6 +26,33 @@ def score_match(rec: MatchRecord, oracle) -> dict:
     }
 
 
+def per_case_rows(records, *, oracle_by_case) -> list[dict]:
+    """One row per (case x arm): the runner's prediction joined with the offline grade, so
+    'which repo did we predict for ticket X' becomes a saved fact (written to predictions.jsonl).
+    OFFLINE — reads the oracle (owning_repo) exactly like score_match; never fed to the loop."""
+    rows: list[dict] = []
+    for rec in records:
+        oracle = oracle_by_case[rec.case_id]
+        g = score_match(rec, oracle)
+        rows.append({
+            "case_id": rec.case_id,
+            "arm": rec.arm,
+            "owning_repo": oracle.owning_repo,
+            "predicted": rec.predicted,                             # None = abstained
+            "ranked_top1": rec.ranked_names[0] if rec.ranked_names else None,
+            "oracle_rank": g["repo_rank"],                          # 1-based; 0 = not in ranking
+            "recall@1": g["recall@1"],                              # forced view (abstain-agnostic)
+            "correct": g["correct"],                                # selective view (answered & right)
+            "answered": g["answered"],
+            "answerable": g["answerable"],
+            "margin": rec.margin,
+            "top1_score": rec.top1_score,
+            "ranked_names": rec.ranked_names,
+            "scores": rec.scores,
+        })
+    return rows
+
+
 def _wrap(k: int, n: int) -> dict:
     return {"value": (k / n if n else 0.0), "wilson95": list(wilson(k, n))}
 
