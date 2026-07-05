@@ -157,7 +157,8 @@ def _run_mine(args) -> int:
         print("gloop mine: WARNING — no --index-db; the closed-loop leak reject is OFF "
               "(deterministic scrub only — un-enumerated owner tokens may reach the matcher).")
     report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
-                  limit=args.limit, max_files=args.max_files, leak_index=leak_index)
+                  limit=args.limit, max_files=args.max_files, holdout_frac=args.holdout_frac,
+                  leak_index=leak_index)
     print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
     return 0
 
@@ -290,6 +291,8 @@ def main(argv: list[str] | None = None) -> int:
     mn.add_argument("--max-files", type=int, default=5)
     mn.add_argument("--index-db", default="",
                     help="atlas.db for the closed-loop leak reject (recommended for real mining)")
+    mn.add_argument("--holdout-frac", type=float, default=0.0,
+                    help="fraction of admitted positives to convert to out_of_fleet hold-out negatives")
 
     ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
     ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")

@@ -102,3 +102,23 @@ def test_prose_only_tagged_insufficient_signal(tmp_path):
     assert o["is_answerable"] is True and o["negative_class"] == "insufficient_signal"
     assert json.loads((d / "_oracle" / "provenance.json").read_text())["source_method"] == "prose_only"
     assert report["insufficient_signal"] == 1
+
+
+def test_holdout_frac_emits_out_of_fleet(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    gh = _fake([_node(101, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]}),
+                _node(102, body="java.lang.NullPointerException at app.B.g(B.java:9)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]})])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe",
+                  fleet_names=["newpipe", "osmand", "media3"], limit=10, holdout_frac=0.5)
+    import json
+    from pathlib import Path
+    oof = [d for d in Path(out).iterdir() if d.is_dir()
+           and json.loads((d / "_oracle" / "oracle.json").read_text())["negative_class"] == "out_of_fleet"]
+    assert oof and report["oof"] >= 1
+    o = json.loads((oof[0] / "_oracle" / "oracle.json").read_text())
+    assert o["is_answerable"] is False and o["held_out_repo"] == "newpipe"
+    names = [r["name"] for r in json.loads((oof[0] / "catalog.json").read_text())]
+    assert "newpipe" not in names and set(names) <= {"osmand", "media3"}
