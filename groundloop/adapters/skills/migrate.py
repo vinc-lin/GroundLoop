@@ -33,7 +33,9 @@ def _parse_front_matter(md: str) -> tuple[dict, str]:
     lines = md.splitlines()
     if not lines or lines[0].strip() != "---":
         raise ValueError("markdown skill needs a --- front-matter block")
-    end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    if end is None:
+        raise ValueError("markdown skill front-matter block is not terminated with ---")
     meta: dict = {}
     for ln in lines[1:end]:
         if ":" in ln:
@@ -45,11 +47,16 @@ def _parse_front_matter(md: str) -> tuple[dict, str]:
 
 def migrate_markdown_skills(dir_path: str) -> list[Skill]:
     out: list[Skill] = []
+    seen: set[str] = set()
     for p in sorted(Path(dir_path).glob("*.md")):
         meta, body = _parse_front_matter(p.read_text())
+        sid = meta["id"]
+        if sid in seen:                              # ids must be unique — fail loud, never silently dup
+            raise ValueError(f"duplicate skill id {sid!r} (from {p.name})")
+        seen.add(sid)
         triggers = [t for t in meta.get("triggers", "").split(",") if t.strip()]
         out.append(Skill(
-            id=meta["id"],
+            id=sid,
             applies_to=compile_predicate(triggers_to_spec(triggers)),
             guidance=body,
             signals=tuple(t.strip() for t in triggers),

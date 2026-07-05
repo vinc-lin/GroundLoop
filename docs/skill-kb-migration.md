@@ -89,8 +89,10 @@ is needed; the markdown path is the shipped one.)
 - **No code in data.** Predicates are declarative specs compiled to closures — never serialized lambdas,
   never `eval`/`exec`. This is what lets a real Skill set swap in by replacing the *data*, and what makes
   the data reviewable for secret/leak hygiene.
-- **id-collision & provenance policy:** ids must be unique; on a collision, fail rather than silently
-  overwrite. Always carry `provenance` so every injected playbook is traceable to its source.
+- **id-collision & provenance policy:** ids must be unique. `migrate_markdown_skills` **raises** on a
+  duplicate id (fail loud, never silently duplicate); the seed loader `load_skills` does not enforce
+  uniqueness, so keep seed ids unique. Always carry `provenance` so every injected playbook is traceable
+  to its source.
 
 ## 6. Composition-root swap
 

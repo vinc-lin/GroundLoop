@@ -22,3 +22,18 @@ def test_migrate_markdown_produces_skills():
     assert "aaos-native-lib-load-failure" in skills and "jni-native-handle-lifecycle" in skills
     n = skills["aaos-native-lib-load-failure"]
     assert n.provenance == "md-fixture:native" and callable(n.applies_to) and n.guidance
+
+
+def test_unterminated_front_matter_raises_clean_valueerror():
+    import pytest
+    from groundloop.adapters.skills.migrate import _parse_front_matter
+    with pytest.raises(ValueError):                     # opening --- but no closing --- (no bare StopIteration)
+        _parse_front_matter("---\nid: x\ntriggers: jni-handle\nno closing fence\nbody")
+
+
+def test_duplicate_skill_id_raises(tmp_path):
+    import pytest
+    for name in ("a.md", "b.md"):
+        (tmp_path / name).write_text("---\nid: dup\ntriggers: jni-handle\n---\nbody\n")
+    with pytest.raises(ValueError):                     # two files, same id -> fail loud, never silent dup
+        migrate_markdown_skills(str(tmp_path))
