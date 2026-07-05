@@ -156,6 +156,62 @@ env-configurable timeout instead of 30 s.
   doesn't accidentally match the operator's own shell. Combined with Finding 3 (patience, no hard
   timeout) and Finding 4 (reap orphans, gracefully), a single clean sequential index builds the fleet.
 
+## Finding 8 — `/home/vinc/code` is a symlink to `/mnt/x/code` (v9fs); "native ext4" was illusory
+- **Discovery:** an eval worker's open fd resolved `/home/vinc/code/corpora-local/atlas.db` to
+  **`/mnt/x/code/corpora-local/...`** — `ls -ld /home/vinc/code` → `-> /mnt/x/code`. So the entire
+  `corpora-local` tree (repos, atlas.db, dataset) built under `/home/vinc/code/...` has been on the
+  **9p/v9fs Windows-drive mount all along**, never real ext4. Real native ext4 is `/home/vinc`
+  **directly** (`/dev/sdd`), or `/var/tmp`, or `/dev/shm` (tmpfs).
+- **Correction to the CONFIRMED-ROOT-CAUSE section:** the CBM speedup earlier was **not** native-vs-v9fs;
+  it was the **1800s timeout fix + killing orphan contention**. v9fs is NOT the CBM bottleneck for
+  normal repos (small repos index fine on it). It IS a bottleneck for two things: (a) **`sqlite` random
+  reads over the large atlas during `gloop eval`** — `wchan=p9_client_rpc`, state D; the 187-case eval
+  went from >14 min (v9fs, unfinished) to **70 s** after copying atlas+dataset to real ext4; and (b)
+  large repos where per-file 9p round-trips add up.
+- **Fix (portable):** for `gloop eval`, always stage `atlas.db` + the dataset onto **real ext4**
+  (`/home/vinc/gl-eval`, `/var/tmp`), never a `/mnt/x` path (even a symlinked one). Verify with
+  `df -T <path>` (want `ext4`, not `9p`) and `realpath`.
+
+## Finding 9 — CBM CPU-churns (restart-loops) on huge single source files; exclude tests + `3party`
+- **Symptom:** repo 8 (`media3`) never produced a CBM cache after 30 min; the log showed **9 `mem.init`**
+  (CBM restarts) and CBM at **100% CPU** (`futex_wait_queue`, not I/O-wait). `organicmaps` (repo 9) is
+  the same shape. This is content-specific, **not** the mount.
+- **Cause:** pathologically large source files blow up CBM's parser/AST. `media3`:
+  `ExoPlayerTest.java` **651 KB**, `SimpleBasePlayerTest.java` 361 KB, several 200–300 KB test classes —
+  all under `src/test/` / `src/androidTest/`. `organicmaps`: `3party/GL/glext.h` 760 KB,
+  `geometry_tests/large_polygon.hpp` 420 KB, `3party/stb_image/stb_image.h` 272 KB.
+- **Fix (also more correct for Stage-1 matching):** exclude **test dirs** (`test`, `tests`,
+  `androidTest`, `testing`, `*_tests`) and **vendored `3party`** before indexing — a defect is owned by
+  the repo's **own** `src/main`/`libs` code, not its tests or third-party libs, so this *improves*
+  ownership signal while removing the churn. `rsync -a --exclude=test --exclude=androidTest
+  --exclude='*_tests' --exclude=3party …` to real ext4, then `gloop index` those repos into the atlas.
+  (Trade-off noted: the other 7 repos were indexed *with* tests — mixed handling, negligible for
+  matching. A future `index_repository` exclude-glob would make this uniform.)
+
+## First real eval — matcher & dataset findings (Type-2, 2026-07-05)
+Ran `gloop eval` on the mined GitHub-issue dataset over the real atlas (6-repo preview, 187 cases;
+9-repo run pending the two excluded repos). The benchmark did its job — it exposed real weaknesses:
+- **Dataset is signal-sparse.** Only **14% (27/187)** of mined GitHub issues contain any code signal
+  (stack trace / FQ class / `.so`). 86% are user prose. The `AndroidSignalExtractor` is built for AAOS
+  **logcat/stack** tickets and finds nothing in prose. → the mine should **filter for stack/log-bearing
+  issues**, or the loop needs a prose-aware query.
+- **Forced recall@1 = 0.03 is a tie-break artifact.** Empty signals → `rank_repos` ties → the tie-break
+  deterministically picks the **alphabetically-first** repo (gpuimage) for all 160 tied cases → below
+  random. The **selective/Φ_c** view (abstains on no-signal cases) is the honest lens; the loop should
+  **abstain**, not force-pick, on empty signals.
+- **On the 27 signal-bearing cases: recall@1 = 0.22, recall@3 = 0.81.** The matcher *does* retrieve the
+  owning repo (top-3 81%), but a **size/density bias** in FTS costs rank@1 for small repos (antennapod
+  6/8 correct; newpipe 0/12, cameraview 0/5, oboe 0/2 — top-3 but not #1). → membership scoring needs
+  **per-repo-size normalization / IDF**.
+- **All four arms key off the same sparse tokens.** `TextOnlyExtractor` = `AndroidSignalExtractor` on the
+  description; `SemanticAtlasIndex._query` = `" ".join(signals.tokens())`. So the **semantic arm embeds
+  tokens, not raw prose** — it does NOT rescue the signal-sparse cases. Prose-aware matching needs a new
+  extractor that feeds raw text to the embedder (a change, not "as-is").
+- **Perf note:** `Store.vector_search` is a **brute-force** full scan (reads every unit's 1024-float
+  JSON vector, cosines in Python) — fine at small scale, slow over a 200k+-unit atlas. Only signal-
+  bearing cases trigger it (empty-signal cases skip via `if q.strip()`). A vector index (sqlite-vss /
+  faiss) is the eventual fix.
+
 ## Recommended path to a runnable full atlas
 1. Fix Finding 2 (make index wiki-tolerant) — the true unblock.
 2. Resolve Finding 3 (confirm CBM completes per repo; add per-repo timeout/progress if slow).
