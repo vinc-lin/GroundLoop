@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-_FENCE = re.compile(r"```(?:diff|patch)?\s*\n(.*?)\n```", re.S)
+_FENCE = re.compile(r"```[^\n]*\n(.*?)\n```", re.S)   # any info string (```cpp / ```diff / ```) — pair fences cleanly
 _DIFF_START = re.compile(r"(?m)^(diff --git |--- )")
 
 
