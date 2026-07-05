@@ -53,23 +53,32 @@
 - **Interim manual unblock** (what was used to test): write `{}` → `module_tree.json` and
   `{"files_generated": []}` → `metadata.json` into each repo's `_wiki/<name>/` before `gloop index`.
 
-## Finding 3 — CBM (`codebase-memory-mcp`) indexing is very slow in this environment
-- **Symptom:** `gloop index` on a single small repo (`dlt-daemon`, C, 8 MB) with a stub wiki logs CBM
-  startup (`level=info msg=mem.init budget_mb=24086 total_ram_mb=48172`) then **sits at that init for
-  >2 min with no symbol-enumeration progress and a schema-only (0-unit) atlas.db** — CBM index/enumerate
-  latency, not a config error (launch spec resolves: `command=['codebase-memory-mcp']`, `KLOOP_CBM_READY=1`).
-- **Implication:** even symbol-only indexing of the fleet is slow; the **giants** (osmand 3,975 /
-  organicmaps 2,381 / media3 2,595 files) will be far worse. This is the SAME class of blocker as
-  produce (Finding 1) — the substrate build is infra-latency-bound in this environment.
-- **Fixes / mitigations (portable):**
-  1. Add a **per-repo timeout + progress logging** to the index path so a slow/hung CBM on one repo
-     doesn't stall the whole build silently, and the operator sees which repo is churning.
-  2. **Index a confusable subset first** (the 6 non-giant repos) for a runnable atlas quickly; add the
-     giants when the environment/CBM is faster.
-  3. **Bypass CBM for a test atlas:** a lightweight source-scan symbol extractor (walk source for
-     `package`/`class` decls + `.so`/native symbols → symbol units → bge-m3 embed → `Store.reindex_repo`)
-     produces a real, matchable atlas deterministically in minutes without CBM or produce. Legitimate as
-     a TEST substrate (the eval doesn't care how units were produced, only that they exist + match).
+## Finding 3 — CBM is SLOW, not hung; premature timeouts/kills faked the "hangs" (ROOT CAUSE)
+- **Initial misread:** `gloop index` logs CBM startup (`level=info msg=mem.init budget_mb=24086
+  total_ram_mb=48172`) then appears to "sit" there for minutes with a 0-unit atlas.db, so it looked hung.
+- **Actual root cause (proven on disk):** `mem.init` is only an EARLY log line; CBM then works **silently**
+  for minutes, building a **per-project cache db** at `~/.cache/codebase-memory-mcp/<path-slug>.db`. Those
+  dbs are large and real — `mnt-x-code-corpora-android-gpuimage-plus.db` grew to **54 MB**, `antennapod`
+  46 MB, `newpipe` 39 MB, `oboe` 32 MB — i.e. **CBM WAS indexing the whole time**. `gloop index` only
+  prints `indexed <repo>: <n>` AFTER `enumerate_all_nodes` finishes, so the atlas shows 0 units until a
+  repo fully completes. dlt-daemon (8 MB db) completes in ~2.5 min; a 54 MB gpuimage db needs ~15-20 min.
+- **What actually broke it:** applying **240s/420s per-repo timeouts and `kill -9`** cut CBM off
+  mid-build. Not memory (33 GB free, no leaked `/dev/shm` / SysV segments) — just impatience. And the
+  hard kills left partial/locked project dbs behind, compounding the confusion.
+- **The real fix (portable, and the one to carry to other environments):**
+  1. **Be patient — no aggressive per-repo timeout.** Budget minutes-to-tens-of-minutes per repo (scales
+     with the db size / file count; giants take longest). Watch the project db **growing** in
+     `~/.cache/codebase-memory-mcp/` as the true progress signal, not the atlas unit count.
+  2. **Never `kill -9` CBM.** `index_repo` already `aclose()`s the client gracefully in a `finally`; let
+     it. A hard kill mid-index leaves a partial/locked project db.
+  3. **Clean project dbs for a fresh build** (`rm ~/.cache/codebase-memory-mcp/<slug>.db`) if a prior run
+     was hard-killed, so CBM rebuilds from a clean state.
+  4. Optional ergonomics: add per-repo progress logging to the index path (log the db size / a heartbeat)
+     so an operator sees CBM working rather than guessing it's hung. A **generous** watchdog (e.g. no
+     growth for N minutes → warn) is fine; a short hard timeout is not.
+  - NB: a lightweight source-scan indexer (`groundloop/build/lite_index.py`) exists as an emergency
+    fallback, but it is LOW-FIDELITY (regex package/class/.so only; dlt-daemon → 21 units vs CBM's 4,565)
+    and must NOT be used as the real substrate — CBM's symbol graph is the real thing.
 
 ## Finding 4 — orphaned CBM servers accumulate across sessions (cleanup needed)
 - **Symptom:** 5 `codebase-memory-mcp` server processes (+ their `uv tool uvx` launchers) were found
@@ -80,6 +89,21 @@
   tooling should offer a `--reap-cbm` / pre-run cleanup (`ps -C codebase-memory-mcp` → kill) since
   interrupted runs (Ctrl-C, tool timeouts) orphan the server. Portable cleanup:
   `kill -9 $(ps -C codebase-memory-mcp -o pid=)` before a fresh build.
+
+## Finding 5 — the ACTUAL cause of the "flaky CBM hangs": concurrent index jobs contend
+- **Symptom:** the *same* repo (dlt-daemon) that indexed cleanly in 2.5 min in isolation would "hang" in a
+  later run. Looked non-deterministic.
+- **Root cause:** during debugging, multiple `gloop index` jobs were left running at once (a full-fleet
+  index + a per-repo retry loop + "fresh" attempts) because prior background jobs weren't fully killed.
+  **Concurrent CBM indexes contend for the machine** (each spins up its own `codebase-memory-mcp` with a
+  24 GB budget + heavy I/O over the slow `/mnt/x` v9fs), so every one stalls — reading as a hang. The
+  ONE time CBM had the box to itself, it worked. This — not repo content, not memory, not cache
+  corruption — was the dominant "flakiness."
+- **Fix (the load-bearing operational rule):** run **exactly ONE `gloop index` at a time**. Before
+  starting, verify nothing is left: `ps -C python,timeout,codebase-memory-mcp` shows no `gloop index` /
+  `codebase-memory-mcp`. Kills must be comm-scoped (`ps -C python … | grep 'gloop index'`) so cleanup
+  doesn't accidentally match the operator's own shell. Combined with Finding 3 (patience, no hard
+  timeout) and Finding 4 (reap orphans, gracefully), a single clean sequential index builds the fleet.
 
 ## Recommended path to a runnable full atlas
 1. Fix Finding 2 (make index wiki-tolerant) — the true unblock.
