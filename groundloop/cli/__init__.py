@@ -153,6 +153,9 @@ def _run_mine(args) -> int:
     if getattr(args, "index_db", ""):
         from groundloop.adapters.index.atlas import AtlasIndex
         leak_index = AtlasIndex(args.index_db)
+    if leak_index is None:
+        print("gloop mine: WARNING — no --index-db; the closed-loop leak reject is OFF "
+              "(deterministic scrub only — un-enumerated owner tokens may reach the matcher).")
     report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
                   limit=args.limit, max_files=args.max_files, leak_index=leak_index)
     print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
