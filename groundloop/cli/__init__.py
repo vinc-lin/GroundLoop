@@ -26,6 +26,11 @@ def _run_index(args) -> int:
         return 2
 
     entries = load_registry(registry_path)
+    from groundloop.build.wiki_stub import ensure_indexable_wiki
+    for e in entries:
+        if ensure_indexable_wiki(e.wiki_dir):
+            print(f"index: stubbed missing wiki for {e.name} (symbol-only)")
+
     atlas_db = settings.atlas_db or "atlas.db"
     store = Store(atlas_db)
     embedder = GatewayEmbedder(settings.embed_base_url, settings.embed_api_key,
