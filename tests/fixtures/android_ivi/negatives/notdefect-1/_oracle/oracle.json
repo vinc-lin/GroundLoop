@@ -1,0 +1,7 @@
+{
+  "owning_repo": "__NOT_A_DEFECT__",
+  "expected_files": [],
+  "required_apis": [],
+  "is_answerable": false,
+  "negative_class": "not_a_defect"
+}
