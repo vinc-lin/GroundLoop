@@ -1,5 +1,5 @@
 from groundloop.core.types import Signals, Ticket, LogAttachment
-from groundloop.skills.ctx import SkillCtx, build_ctx
+from groundloop.skills.ctx import build_ctx
 
 
 def test_build_ctx_lowercases_and_concatenates_ticket_and_logs():
