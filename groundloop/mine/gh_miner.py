@@ -56,7 +56,7 @@ def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> d
 
 def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name: str,
          fleet_names: list[str], limit: int = 200, max_files: int = 5, holdout_frac: float = 0.0,
-         leak_index=None) -> dict:
+         coverage_cutoff: str = "", leak_index=None) -> dict:
     """Mine one repo slug (repo_name = its short catalog name) into `out/`. Returns a report dict."""
     from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows
     missing = missing_owner_rows([repo_name])
@@ -108,7 +108,12 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
                 source_method = "prose_only"
             else:
                 answerable_seq += 1
-                if _should_hold_out(answerable_seq, holdout_frac):
+                if coverage_cutoff and cand.merged_at and cand.merged_at > coverage_cutoff:
+                    neg_class = "coverage_gap"
+                    answerable = False
+                    source_method = "temporal_gap"
+                    report["coverage_gap"] += 1        # owning stays repo_name; NO per-case catalog
+                elif _should_hold_out(answerable_seq, holdout_frac):
                     neg_class = "out_of_fleet"
                     answerable = False
                     held_out = repo_name

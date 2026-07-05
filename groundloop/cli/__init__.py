@@ -158,7 +158,7 @@ def _run_mine(args) -> int:
               "(deterministic scrub only — un-enumerated owner tokens may reach the matcher).")
     report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
                   limit=args.limit, max_files=args.max_files, holdout_frac=args.holdout_frac,
-                  leak_index=leak_index)
+                  coverage_cutoff=args.coverage_cutoff, leak_index=leak_index)
     print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
     return 0
 
@@ -293,6 +293,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="atlas.db for the closed-loop leak reject (recommended for real mining)")
     mn.add_argument("--holdout-frac", type=float, default=0.0,
                     help="fraction of admitted positives to convert to out_of_fleet hold-out negatives")
+    mn.add_argument("--coverage-cutoff", default="",
+                    help="ISO date; admitted cases merged AFTER this become coverage_gap negatives "
+                         "(temporal proxy for un-indexed fix)")
 
     ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
     ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")

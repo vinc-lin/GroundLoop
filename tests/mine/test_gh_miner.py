@@ -122,3 +122,34 @@ def test_holdout_frac_emits_out_of_fleet(tmp_path):
     assert o["is_answerable"] is False and o["held_out_repo"] == "newpipe"
     names = [r["name"] for r in json.loads((oof[0] / "catalog.json").read_text())]
     assert "newpipe" not in names and set(names) <= {"osmand", "media3"}
+
+
+def test_coverage_cutoff_emits_coverage_gap(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    gh = _fake([_node(103, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE],
+                              "mergedAt": "2026-06-01T00:00:00Z"})])
+    out = str(tmp_path / "ds")
+    mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe", fleet_names=["newpipe", "osmand"],
+         limit=5, coverage_cutoff="2026-03-01T00:00:00Z")
+    import json
+    from pathlib import Path
+    d = next(p for p in Path(out).iterdir() if p.is_dir())
+    o = json.loads((d / "_oracle" / "oracle.json").read_text())
+    assert o["negative_class"] == "coverage_gap" and o["is_answerable"] is False and o["owning_repo"] == "newpipe"
+    assert not (d / "catalog.json").is_file()          # owner stays in the GLOBAL catalog
+
+
+def test_pre_cutoff_case_stays_positive(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    gh = _fake([_node(104, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE],
+                              "mergedAt": "2026-01-15T00:00:00Z"})])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe", fleet_names=["newpipe", "osmand"],
+                  limit=5, coverage_cutoff="2026-03-01T00:00:00Z")
+    import json
+    from pathlib import Path
+    d = next(p for p in Path(out).iterdir() if p.is_dir())
+    o = json.loads((d / "_oracle" / "oracle.json").read_text())
+    assert o["negative_class"] is None and o["is_answerable"] is True and report["admitted"] == 1
