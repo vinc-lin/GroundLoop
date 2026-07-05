@@ -1,6 +1,7 @@
 """Miner orchestrator: harvest -> filter -> signal split -> scrub -> admit -> emit. `gloop mine`."""
 from __future__ import annotations
 
+import hashlib
 from typing import Callable, Optional
 
 from groundloop.domains.android_ivi.owner_tokens import owner_tokens_for
@@ -9,6 +10,11 @@ from groundloop.mine.filters import is_minable, production_files
 from groundloop.mine.signal import split_issue_body
 from groundloop.mine.scrub import build_owner_tokens, scrub, leakage_flags, admit
 from groundloop.mine.emit import MinedCase, emit_case, emit_catalog
+
+
+def _opaque_id(slug: str, num: int) -> str:
+    """Owner-free stable case id (spec §1.3 item-6 BLOCKER: {repo}-{n} leaks the owner in the dir name)."""
+    return "gl-" + hashlib.sha1(f"{slug}#{num}".encode()).hexdigest()[:12]
 
 
 def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> dict:
@@ -50,7 +56,7 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
                 report["bucketed"] += 1
                 s_logs = []  # nothing matchable survived; keep prose-only
             case = MinedCase(
-                case_id=f"{repo_name}-{cand.issue_number}", summary=s_summary, description=s_desc,
+                case_id=_opaque_id(slug, cand.issue_number), summary=s_summary, description=s_desc,
                 logs=[{"kind": lg["kind"], "text": t} for lg, t in zip(logs, s_logs)],
                 owning_repo=repo_name, expected_files=prod, required_apis=[],
                 owning_repo_sha=cand.merge_commit_sha, is_answerable=True,
