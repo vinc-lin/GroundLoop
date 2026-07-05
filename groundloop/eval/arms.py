@@ -16,8 +16,14 @@ class Arm:
     extractor: Any    # .extract(logs, ticket) -> Signals
 
 
-def build_arms(*, membership_index) -> list[Arm]:
-    return [
+def build_arms(*, membership_index, semantic_index=None) -> list[Arm]:
+    arms = [
         Arm("membership+text", membership_index, TextOnlyExtractor()),
         Arm("membership+logs", membership_index, AndroidSignalExtractor()),
     ]
+    if semantic_index is not None:
+        arms += [
+            Arm("semantic+text", semantic_index, TextOnlyExtractor()),
+            Arm("semantic+logs", semantic_index, AndroidSignalExtractor()),
+        ]
+    return arms

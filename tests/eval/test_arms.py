@@ -22,3 +22,16 @@ def test_text_arm_drops_logs_logs_arm_keeps():
     logs = arms["membership+logs"].extractor.extract((log,), ticket)
     assert "UnsatisfiedLinkError" not in txt.tokens()
     assert "UnsatisfiedLinkError" in logs.tokens()
+
+
+def test_build_arms_adds_semantic_when_index_given():
+    from groundloop.eval.arms import build_arms
+    arms = build_arms(membership_index=_FakeIndex(), semantic_index=_FakeIndex())
+    names = {a.name for a in arms}
+    assert names == {"membership+text", "membership+logs", "semantic+text", "semantic+logs"}
+
+
+def test_semantic_arms_omitted_by_default():
+    from groundloop.eval.arms import build_arms
+    arms = build_arms(membership_index=_FakeIndex())
+    assert all(not a.name.startswith("semantic") for a in arms)
