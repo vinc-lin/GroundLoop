@@ -24,7 +24,7 @@ def test_cli_index_dispatches_and_prints_counts(tmp_path, monkeypatch, capsys):
         f'[[repo]]\nname = "repoA"\nrepo_path = "{tmp_path}"\nwiki_dir = "{tmp_path}"\n'
     )
 
-    async def _stub_index_all(entries, store, embedder):
+    async def _stub_index_all(entries, store, embedder, *, call_timeout=1800.0):
         return {"repoA": 3}
 
     monkeypatch.setattr("groundloop.engines.atlas.index.index_all", _stub_index_all)

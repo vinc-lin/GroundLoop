@@ -17,6 +17,7 @@ class Settings:
     produce_base_url: str = ""
     produce_api_key: str = ""
     produce_main_model: str = "deepseek-chat"
+    cbm_index_timeout: float = 1800.0   # per-CBM-call ceiling; must cover a cold graph build
 
     @classmethod
     def load(cls, env: dict | None = None) -> "Settings":
@@ -33,4 +34,16 @@ class Settings:
             produce_base_url=e.get("KLOOP_PRODUCE_BASE_URL", ""),
             produce_api_key=e.get("KLOOP_PRODUCE_API_KEY", e.get("OPENAI_API_KEY", "")),
             produce_main_model=e.get("KLOOP_PRODUCE_MAIN_MODEL", "deepseek-chat"),
+            cbm_index_timeout=_pos_float(e.get("KLOOP_CBM_INDEX_TIMEOUT"), 1800.0),
         )
+
+
+def _pos_float(raw: str | None, default: float) -> float:
+    """Parse a positive float from env; fall back to `default` on missing/invalid/non-positive."""
+    if raw is None:
+        return default
+    try:
+        v = float(raw)
+    except (ValueError, TypeError):
+        return default
+    return v if v > 0 else default

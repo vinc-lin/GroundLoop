@@ -9,6 +9,57 @@
 - Substrate = `atlas.db` built by `gloop build-atlas` = `produce` (CodeWiki via DeepSeek) → `index`
   (CBM symbols + bge-m3 embed) → `doctor`.
 
+## ✅ CONFIRMED ROOT CAUSE & FIX (2026-07-05, supersedes the theories in Findings 3 & 5)
+
+The "CBM hang" is a **30-second timeout tripping a minutes-long call**. Proven with a direct probe
+(`enumerate` returns 31,745 real nodes for gpuimage in **13 s** on native ext4; the same op hangs on
+the `/mnt/x` mount / under contention). Mechanism:
+
+1. `index_repo` builds the whole symbol graph via `forward.index_repository` →
+   `CBMClient.call_tool_with_restart` → `call_tool(read_timeout_seconds=call_timeout)`.
+2. `CBMClient`'s default `call_timeout` is **30 s** and `index_repo` never overrode it. A **cold**
+   `index_repository` graph build takes seconds on fast disk but **minutes** on the `/mnt/x` v9fs mount
+   (or under contention from a second index).
+3. At 30 s the call raises → `call_tool_with_restart` runs `_restart` = `aclose()` + `start()` **on a
+   still-indexing subprocess**. The mcp stdio client is then left blocked in `poll()` **forever**
+   (`wchan: do_sys_poll`, state S) — no error, no progress. CBM keeps building its cache in the
+   background (hence the orphaned 54–58 MB `~/.cache/codebase-memory-mcp/*.db` files), but the client
+   is dead-hung and stores **0 units**.
+
+**Two independent amplifiers, one trigger:**
+- **Slow FS:** the `/mnt/x` v9fs Windows-drive mount makes cold CBM builds minutes-long (they are ~5 s
+  on native ext4). **Fix: build the atlas from a native-ext4 copy of the repos**, not `/mnt/x`.
+- **Contention:** concurrent `gloop index` jobs slow each other past 30 s. This kept recurring because
+  **process-liveness checks were wrong** (see Finding 6) so "reaped" orphans were still alive.
+
+**THE CODE FIX (landed, portable — carry this to every environment):** give the index call a generous,
+env-configurable timeout instead of 30 s.
+- `Settings.cbm_index_timeout` (env `KLOOP_CBM_INDEX_TIMEOUT`, default **1800 s**; invalid/≤0 → default).
+- `index_all`/`index_repo` take `call_timeout=`; `cli/_run_index` passes `settings.cbm_index_timeout`;
+  `index_repo` constructs `CBMClient(..., call_timeout=call_timeout)`. Query calls return in ms so the
+  high ceiling never bites them. (`groundloop/engines/atlas/index.py`, `config/settings.py`,
+  `cli/__init__.py`; tests in `tests/test_settings.py`.)
+
+## Finding 6 — process-liveness checks must not use `ps -C` (the load-bearing ops gotcha)
+- The `gloop` entry-point process has `comm=gloop` (**not** `python`), and `codebase-memory-mcp` is
+  truncated to `comm=codebase-memory` (Linux 15-char `comm` limit). So `ps -C python | grep 'gloop
+  index'` and `ps -C codebase-memory-mcp` **never match** — every "nothing running" check read clean
+  while a 38-minute orphan was still indexing, and every comm-scoped "reap" killed nothing. This is why
+  the contention in Finding 5 kept coming back.
+- **Fix:** check/kill with full-arg matching: `pgrep -fa 'gloop index'`, `pgrep -fa 'codebase-memory'`
+  (guard against matching your own shell). Confirm zero before starting a build; kill by PID.
+
+## Finding 7 — embedding is the real time cost, not CBM (once the hang is fixed)
+- With CBM fixed, `index_repo`'s long pole is `GatewayEmbedder.embed`: it POSTs the bge-m3 gateway in
+  batches of 64, and each symbol unit's text is source-enriched (large). gpuimage alone = **31,745
+  units ≈ ~500 gateway round-trips**; the giants (organicmaps 600 MB, media3 518 MB source) will be
+  much larger. A full-fleet index is **tens of minutes to a few hours**, dominated by embedding.
+- **Consequence / ops:** run the full index **detached** (never under a short foreground tool timeout —
+  a SIGTERM mid-embed orphans CBM again) and let it fill the atlas repo-by-repo (`reindex_repo` is
+  per-repo, so partial progress is durable). Small repos first → a usable multi-repo atlas early.
+- **Later (optional):** filter trivial symbol kinds (Fields) or drop source-enrichment to cut embed
+  volume; both are quality trade-offs, not needed for Stage-1 matching. YAGNI for now.
+
 ## Finding 1 — `produce` is impractically slow and crashes on large repos
 - **Symptom:** `gloop build-atlas --jobs 3 --concurrency 4` ran ~2h and completed **zero** wikis. The
   non-giant repos accreted docs at **~0.5 docs/min/repo**; CPU time was ~25s over ~45min elapsed → the
@@ -53,7 +104,7 @@
 - **Interim manual unblock** (what was used to test): write `{}` → `module_tree.json` and
   `{"files_generated": []}` → `metadata.json` into each repo's `_wiki/<name>/` before `gloop index`.
 
-## Finding 3 — CBM is SLOW, not hung; premature timeouts/kills faked the "hangs" (ROOT CAUSE)
+## Finding 3 — CBM is SLOW, not hung; premature timeouts/kills faked the "hangs" (PARTIAL — see CONFIRMED ROOT CAUSE above)
 - **Initial misread:** `gloop index` logs CBM startup (`level=info msg=mem.init budget_mb=24086
   total_ram_mb=48172`) then appears to "sit" there for minutes with a 0-unit atlas.db, so it looked hung.
 - **Actual root cause (proven on disk):** `mem.init` is only an EARLY log line; CBM then works **silently**
@@ -90,7 +141,7 @@
   interrupted runs (Ctrl-C, tool timeouts) orphan the server. Portable cleanup:
   `kill -9 $(ps -C codebase-memory-mcp -o pid=)` before a fresh build.
 
-## Finding 5 — the ACTUAL cause of the "flaky CBM hangs": concurrent index jobs contend
+## Finding 5 — concurrent index jobs contend (an AMPLIFIER, not the root — see CONFIRMED ROOT CAUSE above)
 - **Symptom:** the *same* repo (dlt-daemon) that indexed cleanly in 2.5 min in isolation would "hang" in a
   later run. Looked non-deterministic.
 - **Root cause:** during debugging, multiple `gloop index` jobs were left running at once (a full-fleet

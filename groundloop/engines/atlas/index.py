@@ -8,6 +8,13 @@ from groundloop.engines.atlas.store import Store, Unit
 from groundloop.engines.atlas.registry import RepoEntry
 from groundloop.engines.atlas.symbol_source import extract_symbol_source
 
+# CBM's `index_repository` builds the whole symbol graph — seconds on a fast FS, but MINUTES on a
+# slow one (e.g. the /mnt/x v9fs mount) or under contention. The CBMClient default (30s) trips
+# mid-build, fires call_tool_with_restart's aclose+start on a still-indexing subprocess, and leaves
+# the MCP stdio client blocked in poll() forever (0 units, no error). A generous ceiling avoids that;
+# query calls return in ms so they never approach it. See docs/type2-atlas-build-findings.md.
+DEFAULT_CBM_INDEX_TIMEOUT = 1800.0
+
 
 def _symbol_unit(row: dict, *, repo: str, repo_head: Optional[str], source_reader=None) -> Unit:
     name = row.get("name", "")
@@ -53,9 +60,12 @@ def _make_source_reader(repo_path: str):
     return read
 
 
-async def index_repo(entry: RepoEntry, store: Store, embedder) -> int:
+async def index_repo(entry: RepoEntry, store: Store, embedder,
+                     *, call_timeout: float = DEFAULT_CBM_INDEX_TIMEOUT) -> int:
     """Index one repo end-to-end (IO: wiki load + CBM enumerate + embed + store).
 
+    `call_timeout` is the per-CBM-call ceiling; it must be generous enough to cover a cold
+    `index_repository` graph build (see DEFAULT_CBM_INDEX_TIMEOUT).
     Exercised by the gated integration test, not unit tests."""
     from groundloop.engines.lore.wiki.loader import load_wiki
     from groundloop.engines.lore.repo_head import _resolve_repo_head
@@ -68,7 +78,7 @@ async def index_repo(entry: RepoEntry, store: Store, embedder) -> int:
     wiki = load_wiki(entry.wiki_dir)
 
     spec = resolve_launch_spec(environ=os.environ)
-    client = CBMClient(spec.command, env=spec.env, cwd=spec.cwd)
+    client = CBMClient(spec.command, env=spec.env, cwd=spec.cwd, call_timeout=call_timeout)
     symbol_rows: list[dict] = []
     try:
         await client.start()
@@ -88,5 +98,7 @@ async def index_repo(entry: RepoEntry, store: Store, embedder) -> int:
     return len(units)
 
 
-async def index_all(entries: list[RepoEntry], store: Store, embedder) -> dict:
-    return {e.name: await index_repo(e, store, embedder) for e in entries}
+async def index_all(entries: list[RepoEntry], store: Store, embedder,
+                    *, call_timeout: float = DEFAULT_CBM_INDEX_TIMEOUT) -> dict:
+    return {e.name: await index_repo(e, store, embedder, call_timeout=call_timeout)
+            for e in entries}
