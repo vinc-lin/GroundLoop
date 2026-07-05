@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from groundloop.eval.dataset import CaseRef, load_eval_oracle
+from groundloop.eval.dataset import case_catalog
 
 
 def _write_case(root: Path, cid: str, oracle: dict) -> CaseRef:
@@ -27,3 +28,19 @@ def test_load_eval_oracle_defaults_positive(tmp_path):
     ev = load_eval_oracle(case)
     assert ev.is_answerable is True and ev.negative_class is None
     assert ev.expected_files == ("a.kt",)
+
+
+def test_case_catalog_reads_per_case_override(tmp_path):
+    d = tmp_path / "oof-1"
+    d.mkdir()
+    (d / "ticket.json").write_text(json.dumps({"id": "oof-1", "logs": []}))
+    (d / "catalog.json").write_text(json.dumps([{"name": "organicmaps"}, {"name": "cameraview"}]))
+    cat = case_catalog(CaseRef(case_id="oof-1", case_dir=str(d)))
+    assert [r.name for r in cat] == ["organicmaps", "cameraview"]
+
+
+def test_case_catalog_absent_returns_none(tmp_path):
+    d = tmp_path / "pos-1"
+    d.mkdir()
+    (d / "ticket.json").write_text(json.dumps({"id": "pos-1", "logs": []}))
+    assert case_catalog(CaseRef(case_id="pos-1", case_dir=str(d))) is None

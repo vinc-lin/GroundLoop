@@ -55,3 +55,15 @@ def load_eval_oracle(case: CaseRef) -> EvalOracle:
         negative_class=raw.get("negative_class"),
         expected_files=tuple(raw.get("expected_files", [])),
     )
+
+
+def case_catalog(case: CaseRef):
+    """Loop-visible per-case candidate catalog (a catalog.json in the case dir), or None to fall back
+    to the estate's global catalog. Used for OOF hold-out — the owner is removed from THIS ticket's
+    candidate list. Reads only the loop-visible catalog.json, never _oracle/."""
+    import json
+    from groundloop.core.types import RepoRef
+    p = Path(case.case_dir) / "catalog.json"
+    if not p.is_file():
+        return None
+    return [RepoRef(r["name"]) for r in json.loads(p.read_text())]
