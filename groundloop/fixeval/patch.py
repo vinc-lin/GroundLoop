@@ -12,14 +12,16 @@ _DIFF_START = re.compile(r"(?m)^(diff --git |--- )")
 
 
 def extract_unified_diff(text: str) -> str:
-    """Pull a unified diff from model output: a ```diff fence if present, else from the first
-    `diff --git`/`--- ` header to end. Returns "" when no diff is found."""
+    """Pull a unified diff from model output: the FIRST fenced block whose body is diff-shaped
+    (an LLM may show 'before' code in an earlier fence, then the real fix in a later ```diff);
+    else, if no fence is diff-shaped, from the first bare `diff --git`/`--- ` header to end.
+    Returns "" when no diff is found."""
     if not text:
         return ""
-    m = _FENCE.search(text)
-    if m and _DIFF_START.search(m.group(1)):
-        return m.group(1).strip("\n")
-    m2 = _DIFF_START.search(text)
+    for m in _FENCE.finditer(text):                     # first diff-shaped fence (not just the first fence)
+        if _DIFF_START.search(m.group(1)):
+            return m.group(1).strip("\n")
+    m2 = _DIFF_START.search(text)                        # unfenced diff → to end of text
     return text[m2.start():].strip("\n") if m2 else ""
 
 
@@ -46,11 +48,13 @@ def references_api(diff: str, api: str) -> bool:
 
 
 def norm_path(p: str) -> str:
-    """Normalize a diff/oracle path to a bare repo-relative form: strip a/ b/ ./ and collapse //."""
+    """Normalize a diff/oracle path to a bare repo-relative form: strip ONE leading a/ or b/,
+    then a leading ./, and collapse //. (Single-strip so a real path like 'a/b/foo' keeps 'b/foo'.)"""
     p = p.strip()
-    for pre in ("a/", "b/", "./"):
-        if p.startswith(pre):
-            p = p[len(pre):]
+    if p.startswith(("a/", "b/")):
+        p = p[2:]
+    if p.startswith("./"):
+        p = p[2:]
     return re.sub(r"/+", "/", p)
 
 
