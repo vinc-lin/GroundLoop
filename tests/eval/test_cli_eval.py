@@ -28,3 +28,11 @@ def test_gloop_eval_writes_scorecard(tmp_path):
     card = json.loads(out.read_text())
     assert "arms" in card and "membership+logs" in card["arms"]
     assert (tmp_path / "card.md").is_file()   # markdown twin next to --out
+
+
+def test_eval_help_lists_semantic_flag():
+    import subprocess
+    import sys
+    out = subprocess.run([sys.executable, "-m", "groundloop.cli", "eval", "--help"],
+                         capture_output=True, text=True)
+    assert "--semantic" in out.stdout

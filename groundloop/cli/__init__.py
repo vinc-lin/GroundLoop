@@ -164,7 +164,16 @@ def _run_eval(args) -> int:
     runner = EvalRunner(issues=MockJira(args.dataset),
                         estate=MockEstate(args.catalog, args.dataset + "/_work"),
                         tau_margin=args.tau_margin, tau_score=args.tau_score)
-    records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)))
+    semantic_index = None
+    if args.semantic:
+        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        from groundloop.config.settings import Settings
+        st = Settings.load()
+        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+        semantic_index = SemanticAtlasIndex(args.index_db, emb)
+    records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db),
+                                           semantic_index=semantic_index))
     oracle_by_case = {c.case_id: load_oracle(c) for c in cases}     # OFFLINE grade — oracle read here only
     card = grade_all(records, oracle_by_case=oracle_by_case)
     Path(args.out).write_text(json.dumps(card, indent=2))
@@ -263,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--out", required=True, help="scorecard.json output path (a .md twin is written too)")
     ev.add_argument("--tau-margin", type=float, default=1.0)
     ev.add_argument("--tau-score", type=float, default=1.0)
+    ev.add_argument("--semantic", action="store_true",
+                    help="add the bge-m3 semantic arms (needs KLOOP_EMBED_* live gateway)")
 
     args = ap.parse_args(argv)
     if args.cmd == "run":
