@@ -240,9 +240,20 @@ def _run_fixeval(args) -> int:
         print("gloop fixeval: no KLOOP_PRODUCE_API_KEY — hermetic canned model (all cases abstain at fix).")
         model = CannedModel({"default": ""})
     cases = load_cases(args.dataset)
+    skills = None
+    if args.skills == "mock":
+        from groundloop.adapters.skills.mock import MockSkillRegistry
+        embedder = None
+        if os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
+            from groundloop.engines.atlas.embed import GatewayEmbedder
+            from groundloop.config.settings import Settings
+            st = Settings.load()
+            embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+        skills = MockSkillRegistry.load(embedder=embedder)
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
-                           catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score)
+                           catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
+                           skills=skills)
     records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
                          fixer=ModelPatchEngine(model))
     oracle_by_case = {c.case_id: load_eval_oracle(c) for c in cases}   # OFFLINE grade — oracle read here only
@@ -261,16 +272,24 @@ def _run_fixeval(args) -> int:
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
-    from groundloop.fixeval.compare import compare
+    from groundloop.fixeval.compare import compare, compare_metrics, accept
 
-    def _resolved(path):
-        arms = json.loads(Path(path).read_text()).get("arms", {})
-        arm = args.arm if args.arm else (next(iter(arms)) if arms else None)
-        return arms.get(arm, {}).get("resolved_by_case", {})
+    def _arms(path):
+        return json.loads(Path(path).read_text()).get("arms", {})
 
-    d = compare(_resolved(args.base), _resolved(args.head))
-    print(f"newly_solved ({len(d['newly_solved'])}): {d['newly_solved']}")
-    print(f"newly_broken ({len(d['newly_broken'])}): {d['newly_broken']}")
+    base_arms, head_arms = _arms(args.base), _arms(args.head)
+    arm = args.arm if args.arm else (next(iter(base_arms)) if base_arms else None)
+    base_arm, head_arm = base_arms.get(arm, {}), head_arms.get(arm, {})
+    resolved = compare(base_arm.get("resolved_by_case", {}), head_arm.get("resolved_by_case", {}))
+    metrics = compare_metrics(base_arm, head_arm)
+    verdict = accept(metrics, resolved, cost_budget=args.cost_budget)
+    result = {"arm": arm, "resolved": resolved, "metrics": metrics, "verdict": verdict}
+    if args.out:
+        Path(args.out).write_text(json.dumps(result, indent=2))
+    print(f"compare[{arm}]: Δfile_recall@1={metrics['file_recall@1']['delta']} "
+          f"Δfabrication={metrics['fabrication_rate']['delta']} "
+          f"newly_solved={verdict['newly_solved']} newly_broken={verdict['newly_broken']} "
+          f"-> {'ACCEPT' if verdict['accepted'] else 'REJECT'} {verdict['reasons']}")
     return 0
 
 
@@ -384,11 +403,16 @@ def main(argv: list[str] | None = None) -> int:
     fx.add_argument("--out", required=True, help="fix-scorecard.json output path (a .md twin is written too)")
     fx.add_argument("--tau-margin", type=float, default=1.0)
     fx.add_argument("--tau-score", type=float, default=1.0)
+    fx.add_argument("--skills", choices=["none", "mock"], default="none",
+                    help="dev-experience KB arm: none (baseline) | mock (real-data seed)")
 
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
     cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
     cmp.add_argument("--arm", default="", help="arm to compare (default: the first arm)")
+    cmp.add_argument("--out", default="", help="write the full compare (metrics+verdict) JSON here")
+    cmp.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
+                     help="reject if Δcost_per_solved exceeds this (default: advisory only)")
 
     args = ap.parse_args(argv)
     if args.cmd == "run":
