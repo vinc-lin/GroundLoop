@@ -31,3 +31,27 @@ def load_oracle(case: CaseRef) -> Oracle:
     raw = json.loads((Path(case.case_dir) / "_oracle" / "oracle.json").read_text())
     return Oracle(**{k: (tuple(v) if isinstance(v, list) else v)
                      for k, v in raw.items() if k in _ORACLE_KEYS})
+
+
+@dataclass(frozen=True)
+class EvalOracle:
+    """The eval layer's view of the hidden oracle: the frozen-core owner + the negative-case fields
+    (is_answerable / negative_class) that ride as EXTRA keys in oracle.json and are never read by the
+    frozen core.types.Oracle. OFFLINE-GRADE ONLY."""
+    owning_repo: str
+    is_answerable: bool = True
+    negative_class: str | None = None
+    expected_files: tuple[str, ...] = ()
+
+
+def load_eval_oracle(case: CaseRef) -> EvalOracle:
+    """Read the hidden oracle including the negative-case fields. OFFLINE-GRADE ONLY — never call
+    from the runner/arm path (it reads _oracle/)."""
+    import json
+    raw = json.loads((Path(case.case_dir) / "_oracle" / "oracle.json").read_text())
+    return EvalOracle(
+        owning_repo=raw["owning_repo"],
+        is_answerable=bool(raw.get("is_answerable", True)),
+        negative_class=raw.get("negative_class"),
+        expected_files=tuple(raw.get("expected_files", [])),
+    )
