@@ -38,6 +38,11 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
         grd = [(r, o) for r, o in pairs if o.expected_files and o.required_apis]
         solved = [r for r, o in grd if r.patch_applies and _file_recall(r, o, 1) > 0
                   and all(references_api(r.patch_diff, a) for a in o.required_apis)]
+        gradeable_ids = {r.case_id for r, _ in grd}
+        solved_ids = {r.case_id for r in solved}
+        # per-case resolved bit for `gloop compare` (None = not grounded-gradeable, never counts)
+        resolved_by_case = {r.case_id: (r.case_id in solved_ids if r.case_id in gradeable_ids else None)
+                            for r in recs}
         # whole-loop phi_c: answered:=patch_emitted, answerable:=is_answerable, correct:=applies & recall
         phi_recs = [{"answered": r.patch_emitted, "answerable": o.is_answerable,
                      "correct": bool(r.patch_applies and o.expected_files and _file_recall(r, o, 1) > 0)}
@@ -63,5 +68,6 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
             "phi_c": {str(c): phi_c(phi_recs, c=c) for c in c_values},
             "cost_total": cost_total,
             "cost_per_solved": (cost_total / len(solved)) if solved else None,
+            "resolved_by_case": resolved_by_case,
         }
     return {"arms": arms, "n_cases": len({r.case_id for recs in by_arm.values() for r in recs})}
