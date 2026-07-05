@@ -63,9 +63,10 @@ def build_owner_tokens(oracle: dict) -> dict:
     repo = set(oracle.get("owner_slugs", []))
     gh_slug = oracle.get("owner_github_slug", "")
     if gh_slug and "/" in gh_slug:
-        for part in gh_slug.split("/", 1):
-            if part and part.lower() not in _GENERIC_ORG:
-                repo.add(part)
+        org = gh_slug.split("/", 1)[0]
+        if org and org.lower() not in _GENERIC_ORG:
+            repo.add(org)   # discriminative org (e.g. TeamNewPipe); the name-part is either already
+                            # in owner_slugs or a generic word (e.g. 'media') — never redact it
     return {
         "REPO": repo,
         "PKG": set(oracle.get("owner_namespaces", [])),

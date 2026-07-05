@@ -103,3 +103,14 @@ def test_scrub_redacts_github_org_and_keeps_generic_org():
                                "owner_github_slug": "androidx/media", "owner_namespaces": [],
                                "owner_sonames": [], "expected_files": [], "fix_patch": ""})
     assert "androidx.core.app.NotificationCompat" in scrub("uses androidx.core.app.NotificationCompat", tok2)
+
+
+def test_scrub_does_not_over_redact_generic_slug_name():
+    tok = build_owner_tokens({"owning_repo": "media3", "owner_slugs": ["media3"],
+                              "owner_github_slug": "androidx/media", "owner_namespaces": [],
+                              "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    assert "media" in scrub("the media playback stutters opening a media file", tok)   # generic word kept
+    tok2 = build_owner_tokens({"owning_repo": "newpipe", "owner_slugs": ["newpipe"],
+                               "owner_github_slug": "TeamNewPipe/NewPipe", "owner_namespaces": [],
+                               "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    assert "TeamNewPipe" not in scrub("dup of TeamNewPipe/NewPipe#900", tok2)           # org still redacted

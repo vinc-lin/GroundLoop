@@ -27,3 +27,8 @@ def test_unknown_repo_raises():
     import pytest
     with pytest.raises(KeyError):
         owner_tokens_for("not-a-repo")
+
+
+def test_cameraview_row_has_bare_slug():
+    from groundloop.domains.android_ivi.owner_tokens import owner_tokens_for
+    assert "cameraview" in owner_tokens_for("cameraview")["slugs"]
