@@ -20,6 +20,14 @@ set -a; . ./.env; set +a
 Key vars: `KLOOP_EMBED_{BASE_URL,API_KEY,MODEL=bge-m3}`, `KLOOP_ATLAS_DB`, `KLOOP_REGISTRY`,
 `KLOOP_PRODUCE_{BASE_URL,API_KEY,MAIN_MODEL,...,READY=1}`, `KLOOP_CBM_READY=1`.
 
+> **Known-benign warning.** `gloop produce` prints `python-dotenv could not parse statement starting at
+> line 6`. It is **harmless** and does not affect the run (produce exits 0). Cause: this `.env` is
+> intentionally a *shell script* — it `source`s `loop-agent/.env` and maps `BFL_LLM_*` → `KLOOP_*` to
+> avoid duplicating the secret — so it contains shell statements (`set -a; . …; set +a`) that are not
+> `KEY=VALUE`. The shell sourcing (`set -a; . ./.env; set +a`) works fine; only python-dotenv — which the
+> produce stack auto-loads from the cwd — trips on the `source` line, warns, and continues. To silence it,
+> run `gloop` from a directory without a shell-style `.env`, or keep `.env` a flat `KEY=VALUE` file.
+
 ## Embedding-host gate
 The build's embed step needs the bge-m3 backend. Check it is healthy (prints `200` when up, `000`
 while the GPU/Ollama host is down):

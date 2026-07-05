@@ -75,6 +75,14 @@ wiki stays `stale-wiki` after a refresh — that requires a produce `--update` r
 (the canonical live tree) + `first_module_tree.json` (cached clustering), and `metadata.json`.
 `metadata.generation_info.commit_id` is the **freshness anchor** the bridge/atlas layers read.
 
+> **Artifact reliability (verified 2026-07-05).** The **reliable** evidence that produce succeeded is the
+> per-module `<Module>.md` docs plus `metadata.json` — assert on those. On a small single-module repo,
+> produce can succeed (exit 0, a real per-module doc written) while `overview.md` is **listed in
+> `metadata.files_generated` but not written to disk** and `module_tree.json` is **`{}`** (empty). So do
+> **not** treat `overview.md`'s existence or a non-empty `module_tree.json` as a produce-success check —
+> the Type-2 `tests/e2e/test_produce_live.py` originally did and failed on a trivial repo; it now asserts
+> on `metadata.json` + a per-module `*.md`.
+
 ### Model config surface (env-driven; **deepseek-chat** is the working default)
 
 GroundLoop's gateway serves **deepseek-chat / deepseek-reasoner + bge-m3 / mxbai / qwen3** — there is
