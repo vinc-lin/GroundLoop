@@ -148,6 +148,33 @@ def _run_mine(args) -> int:
     return 0
 
 
+def _run_eval(args) -> int:
+    import json
+    from pathlib import Path
+    from groundloop.adapters.index.atlas import AtlasIndex
+    from groundloop.adapters.mock.jira import MockJira
+    from groundloop.adapters.estate import MockEstate
+    from groundloop.eval.dataset import load_cases, load_oracle
+    from groundloop.eval.arms import build_arms
+    from groundloop.eval.runner import EvalRunner
+    from groundloop.eval.scorecard import grade_all
+    from groundloop.eval.report import render_markdown
+
+    cases = load_cases(args.dataset)
+    runner = EvalRunner(issues=MockJira(args.dataset),
+                        estate=MockEstate(args.catalog, args.dataset + "/_work"),
+                        tau_margin=args.tau_margin, tau_score=args.tau_score)
+    records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)))
+    oracle_by_case = {c.case_id: load_oracle(c) for c in cases}     # OFFLINE grade — oracle read here only
+    card = grade_all(records, oracle_by_case=oracle_by_case)
+    Path(args.out).write_text(json.dumps(card, indent=2))
+    Path(args.out).with_suffix(".md").write_text(render_markdown(card))
+    for arm, a in card["arms"].items():
+        print(f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} "
+              f"coverage={a['selective']['coverage']:.2f} phi_1={a['selective']['phi_c']['1.0']:.2f}")
+    return 0
+
+
 def _run_build_atlas(args) -> int:
     import os
     import tomllib
@@ -229,6 +256,14 @@ def main(argv: list[str] | None = None) -> int:
     mn.add_argument("--limit", type=int, default=200)
     mn.add_argument("--max-files", type=int, default=5)
 
+    ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
+    ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
+    ev.add_argument("--catalog", required=True, help="path to catalog.json")
+    ev.add_argument("--index-db", required=True, help="path to atlas.db (membership AtlasIndex)")
+    ev.add_argument("--out", required=True, help="scorecard.json output path (a .md twin is written too)")
+    ev.add_argument("--tau-margin", type=float, default=1.0)
+    ev.add_argument("--tau-score", type=float, default=1.0)
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
@@ -252,4 +287,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_build_atlas(args)
     if args.cmd == "mine":
         return _run_mine(args)
+    if args.cmd == "eval":
+        return _run_eval(args)
     return 1
