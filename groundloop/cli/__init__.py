@@ -214,6 +214,30 @@ def _run_eval(args) -> int:
     return 0
 
 
+def _load_skills(kind: str, seed: str | None, embedder):
+    """Compose the fixeval KB arm. kind: none|mock|kb|placebo.
+    none -> None (baseline, no KB injected). mock -> the SP3 4-playbook seed.
+    kb -> OUR 11-skill corpus (groundloop/kb/data/aaos_kb_seed.toml) or the --skills-seed override.
+    placebo -> the length-matched irrelevant control (groundloop/kb/data/placebo.toml) or the override.
+    All three real arms share the MockSkillRegistry wiring (predicate select + gated bge-m3 rerank)."""
+    if kind == "none":
+        return None
+    from pathlib import Path
+
+    from groundloop.adapters.skills.mock import SEED_PATH, MockSkillRegistry
+    from groundloop.kb.validate import SEED_PATH as KB_SEED
+
+    if kind == "mock":
+        path = seed or SEED_PATH
+    elif kind == "kb":
+        path = seed or KB_SEED
+    elif kind == "placebo":
+        path = seed or str(Path(KB_SEED).parent / "placebo.toml")
+    else:
+        raise ValueError(f"unknown --skills kind: {kind!r}")
+    return MockSkillRegistry.load(path, embedder=embedder)
+
+
 def _run_fixeval(args) -> int:
     import json
     import os
@@ -240,16 +264,13 @@ def _run_fixeval(args) -> int:
         print("gloop fixeval: no KLOOP_PRODUCE_API_KEY — hermetic canned model (all cases abstain at fix).")
         model = CannedModel({"default": ""})
     cases = load_cases(args.dataset)
-    skills = None
-    if args.skills == "mock":
-        from groundloop.adapters.skills.mock import MockSkillRegistry
-        embedder = None
-        if os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
-            from groundloop.engines.atlas.embed import GatewayEmbedder
-            from groundloop.config.settings import Settings
-            st = Settings.load()
-            embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
-        skills = MockSkillRegistry.load(embedder=embedder)
+    embedder = None
+    if args.skills != "none" and os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+    skills = _load_skills(args.skills, args.skills_seed, embedder)
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
@@ -403,8 +424,11 @@ def main(argv: list[str] | None = None) -> int:
     fx.add_argument("--out", required=True, help="fix-scorecard.json output path (a .md twin is written too)")
     fx.add_argument("--tau-margin", type=float, default=1.0)
     fx.add_argument("--tau-score", type=float, default=1.0)
-    fx.add_argument("--skills", choices=["none", "mock"], default="none",
-                    help="dev-experience KB arm: none (baseline) | mock (real-data seed)")
+    fx.add_argument("--skills", choices=["none", "mock", "kb", "placebo"], default="none",
+                    help="dev-experience KB arm: none (baseline) | mock (SP3 seed) | "
+                         "kb (our corpus) | placebo (length-matched irrelevant control)")
+    fx.add_argument("--skills-seed", dest="skills_seed", default=None,
+                    help="override the KB/placebo corpus TOML path (default: the packaged seed)")
 
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")

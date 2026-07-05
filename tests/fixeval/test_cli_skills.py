@@ -43,3 +43,40 @@ def test_compare_emits_accept_verdict(tmp_path):
     assert rc == 0
     v = json.loads(out.read_text())
     assert v["verdict"]["accepted"] and v["metrics"]["file_recall@1"]["delta"] == 1.0
+
+
+def test_load_skills_selects_seed_corpus(tmp_path):
+    # --skills-seed override: kb/placebo arms load OUR tiny fixture corpus (N skills of that file)
+    from groundloop.cli import _load_skills
+    corpus = tmp_path / "tiny.toml"
+    corpus.write_text(
+        '[[skill]]\n'
+        'id = "s1"\n'
+        'guidance = "Signature: NPE. Localize: FooActivity. Fix: null-guard."\n'
+        'signals = ["npe"]\n'
+        '[skill.match]\n'
+        'any_errors = ["nullpointerexception"]\n\n'
+        '[[skill]]\n'
+        'id = "s2"\n'
+        'guidance = "Signature: SIGSEGV. Localize: native peer. Fix: weak_ptr lock."\n'
+        'signals = ["sigsegv"]\n'
+        '[skill.match]\n'
+        'any_errors = ["sigsegv"]\n'
+    )
+    reg = _load_skills("kb", str(corpus), None)
+    assert reg is not None and {s.id for s in reg.skills} == {"s1", "s2"}
+    # placebo arm honors the SAME --skills-seed override
+    assert {s.id for s in _load_skills("placebo", str(corpus), None).skills} == {"s1", "s2"}
+    # none -> baseline: no KB injected
+    assert _load_skills("none", None, None) is None
+
+
+def test_load_skills_kb_default_is_our_corpus():
+    # kind=kb with no seed -> OUR 11-skill corpus (groundloop/kb/data/aaos_kb_seed.toml)
+    from groundloop.cli import _load_skills
+    from groundloop.kb.validate import SEED_PATH as KB_SEED
+    reg = _load_skills("kb", None, None)
+    assert reg is not None and len(reg.skills) == 11
+    # mock with no seed -> the SP3 4-playbook default seed
+    assert len(_load_skills("mock", None, None).skills) == 4
+    assert KB_SEED.endswith("aaos_kb_seed.toml")
