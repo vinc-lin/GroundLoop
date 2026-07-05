@@ -34,6 +34,7 @@ query($owner:String!, $name:String!, $cursor:String) {
 """
 
 _STATUS = {"ADDED": "added", "MODIFIED": "modified", "REMOVED": "removed",
+           "DELETED": "removed",  # GitHub GraphQL PatchStatus uses DELETED (not REMOVED)
            "RENAMED": "renamed", "COPIED": "copied", "CHANGED": "changed"}
 
 
