@@ -3,6 +3,9 @@ knowledgeLoop eval extract.py (docs/downstream-fix-loop.md §1)."""
 from __future__ import annotations
 
 import re
+import subprocess
+import tempfile
+from pathlib import Path
 
 _FENCE = re.compile(r"```(?:diff|patch)?\s*\n(.*?)\n```", re.S)
 _DIFF_START = re.compile(r"(?m)^(diff --git |--- )")
@@ -49,3 +52,20 @@ def norm_path(p: str) -> str:
         if p.startswith(pre):
             p = p[len(pre):]
     return re.sub(r"/+", "/", p)
+
+
+def patch_applies(diff: str, worktree_path: str) -> bool:
+    """True iff `diff` applies cleanly against the tree at worktree_path (git apply --check).
+    Empty diff => False. LF + --whitespace=nowarn (WSL-safe). git-only, oracle-free."""
+    if not diff.strip():
+        return False
+    with tempfile.NamedTemporaryFile("w", suffix=".diff", delete=False, newline="\n") as fh:
+        fh.write(diff if diff.endswith("\n") else diff + "\n")
+        patch_file = fh.name
+    try:
+        cp = subprocess.run(["git", "-C", worktree_path, "apply", "--check",
+                             "--whitespace=nowarn", patch_file],
+                            capture_output=True, text=True)
+        return cp.returncode == 0
+    finally:
+        Path(patch_file).unlink(missing_ok=True)
