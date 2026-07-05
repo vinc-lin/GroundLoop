@@ -136,6 +136,18 @@ def _run_produce(args) -> int:
     return 0
 
 
+def _run_mine(args) -> int:
+    from groundloop.mine.gh_miner import mine
+    from groundloop.engines.atlas.registry import load_registry
+    from groundloop.config.settings import Settings
+    reg = Settings.load().registry
+    fleet = [e.name for e in load_registry(reg)] if reg else [args.repo_name]
+    report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
+                  limit=args.limit, max_files=args.max_files)
+    print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
+    return 0
+
+
 def _run_build_atlas(args) -> int:
     import os
     import tomllib
@@ -210,6 +222,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="path to corpus.toml (repo url+sha for cloning); "
                          "defaults to a corpus.toml sibling of the registry")
 
+    mn = sub.add_parser("mine", help="harvest issue->fix cases for a fleet repo (online, gh)")
+    mn.add_argument("--slug", required=True, help="owner/name GitHub slug, e.g. TeamNewPipe/NewPipe")
+    mn.add_argument("--repo-name", required=True, help="short fleet/catalog name, e.g. newpipe")
+    mn.add_argument("--out", required=True, help="dataset output dir")
+    mn.add_argument("--limit", type=int, default=200)
+    mn.add_argument("--max-files", type=int, default=5)
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
@@ -231,4 +250,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_produce(args)
     if args.cmd == "build-atlas":
         return _run_build_atlas(args)
+    if args.cmd == "mine":
+        return _run_mine(args)
     return 1
