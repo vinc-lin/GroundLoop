@@ -16,7 +16,8 @@ def _ds(tmp_path):
 
 
 def test_fixeval_skills_flag_runs_both_arms(tmp_path, monkeypatch):
-    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)   # hermetic canned path
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)   # hermetic canned model (no live fix)
+    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)    # force predicate-only mock arm (no live bge-m3)
     ds, db = _ds(tmp_path), build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
     common = ["--dataset", str(ds), "--catalog", str(FIX / "android_ivi" / "catalog.json"),
               "--index-db", db, "--repos", str(FIX / "repos")]
