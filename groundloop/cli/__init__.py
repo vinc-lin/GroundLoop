@@ -172,8 +172,15 @@ def _run_eval(args) -> int:
         st = Settings.load()
         emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
         semantic_index = SemanticAtlasIndex(args.index_db, emb)
+    judge_index = None
+    if args.judge:
+        from groundloop.adapters.index.atlas_judge import LLMJudgeIndex, GatewayJudge
+        from groundloop.config.settings import Settings as _S
+        s = _S.load()
+        gj = GatewayJudge(s.produce_base_url, s.produce_api_key, s.produce_main_model)
+        judge_index = LLMJudgeIndex(AtlasIndex(args.index_db), gj)
     records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db),
-                                           semantic_index=semantic_index))
+                                           semantic_index=semantic_index, judge_index=judge_index))
     oracle_by_case = {c.case_id: load_oracle(c) for c in cases}     # OFFLINE grade — oracle read here only
     card = grade_all(records, oracle_by_case=oracle_by_case)
     Path(args.out).write_text(json.dumps(card, indent=2))
@@ -274,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--tau-score", type=float, default=1.0)
     ev.add_argument("--semantic", action="store_true",
                     help="add the bge-m3 semantic arms (needs KLOOP_EMBED_* live gateway)")
+    ev.add_argument("--judge", action="store_true",
+                    help="add the LLM-judge arms (reranks membership top-k via KLOOP_PRODUCE_* model)")
 
     args = ap.parse_args(argv)
     if args.cmd == "run":

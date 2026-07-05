@@ -36,3 +36,11 @@ def test_eval_help_lists_semantic_flag():
     out = subprocess.run([sys.executable, "-m", "groundloop.cli", "eval", "--help"],
                          capture_output=True, text=True)
     assert "--semantic" in out.stdout
+
+
+def test_eval_help_lists_judge_flag():
+    import subprocess
+    import sys
+    out = subprocess.run([sys.executable, "-m", "groundloop.cli", "eval", "--help"],
+                         capture_output=True, text=True)
+    assert "--judge" in out.stdout

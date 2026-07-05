@@ -35,3 +35,10 @@ def test_semantic_arms_omitted_by_default():
     from groundloop.eval.arms import build_arms
     arms = build_arms(membership_index=_FakeIndex())
     assert all(not a.name.startswith("semantic") for a in arms)
+
+
+def test_build_arms_adds_judge_when_index_given():
+    from groundloop.eval.arms import build_arms
+    arms = build_arms(membership_index=_FakeIndex(), judge_index=_FakeIndex())
+    names = {a.name for a in arms}
+    assert {"judge+text", "judge+logs"} <= names

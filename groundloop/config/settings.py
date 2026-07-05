@@ -14,6 +14,9 @@ class Settings:
     embed_base_url: str = ""
     embed_api_key: str = ""
     symbol_ratio: float = 0.5
+    produce_base_url: str = ""
+    produce_api_key: str = ""
+    produce_main_model: str = "deepseek-chat"
 
     @classmethod
     def load(cls, env: dict | None = None) -> "Settings":
@@ -27,4 +30,7 @@ class Settings:
             embed_model=e.get("KLOOP_EMBED_MODEL", "bge-m3"),
             embed_base_url=e.get("KLOOP_EMBED_BASE_URL", ""),
             embed_api_key=e.get("KLOOP_EMBED_API_KEY", ""),
+            produce_base_url=e.get("KLOOP_PRODUCE_BASE_URL", ""),
+            produce_api_key=e.get("KLOOP_PRODUCE_API_KEY", e.get("OPENAI_API_KEY", "")),
+            produce_main_model=e.get("KLOOP_PRODUCE_MAIN_MODEL", "deepseek-chat"),
         )
