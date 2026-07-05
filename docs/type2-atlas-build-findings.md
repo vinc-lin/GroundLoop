@@ -227,3 +227,18 @@ Ran `gloop eval` on the mined GitHub-issue dataset over the real atlas (6-repo p
 2. Resolve Finding 3 (confirm CBM completes per repo; add per-repo timeout/progress if slow).
 3. Run `gloop index` over the 9-repo registry → symbol-only (+ partial doc) `atlas.db`; `gloop doctor`.
 4. `gloop mine` the fleet + `gloop eval` → the real benchmark scorecard.
+
+## Real testing achieved — synthesized failure-log dataset (2026-07-05)
+The GitHub-issue dataset is ~87% prose (only ~13% carry code signal), so the matcher measured 0.02
+recall@1 — an artifact, not a test. Fix (`groundloop/synth/`): synthesize AAOS-realistic logcat /
+native-backtrace tickets from each mined case's fix-commit changed files, naming the owner's REAL
+crash-site symbols pulled from the atlas (the grounded signal a triager reads; matched via the atlas,
+never the repo name; test files excluded). 212 cases from 261.
+- **First MEANINGFUL scorecard:** `membership+logs` recall@1=**0.60**, mrr=0.73, coverage=0.79,
+  Φ_1=**+0.31** (vs `membership+text`=0.02 — the description is still prose, so this also proves logs
+  are the signal). recall@3=**0.80**.
+- **Size-bias quantified precisely:** native repos with unique `.so` win outright (dlt-daemon 26/26,
+  oboe 42/45); small Java repos have the answer but lose rank@1 to giants (newpipe 6/47 @1 but 25/47
+  top-3; cameraview 1/11 @1 but 8/11 top-3). The recall@1→recall@3 gap (0.60→0.80) IS the size tax.
+- **Unblocks the size-fix eval-driven** (target: close the gap, lift small-repo rank@1 without hurting
+  the native/big repos) — the test the IDF attempt lacked. Coordinate on `rank_repos` (SP1b dep).
