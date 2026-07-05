@@ -1,0 +1,192 @@
+# GroundLoop dev-experience KB feedstock — crash-RCA playbook corpus (authored, leak-safe, grounded).
+# Conforms to the SP3 Skill TOML contract (groundloop/skills/base.Skill + skills/predicate.compile_predicate).
+# Validated by groundloop/kb/validate.py: closed-vocab predicate + leak red-test over FLEET_OWNER_TOKENS.
+# COMPOSES WITH (does not replace) the SP3 seed adapters/skills/data/aaos_playbooks.toml — disjoint
+#   signatures; the merged registry loads both. See ./README.md for the split-firewall + provenance schema.
+# Each [skill.match] is DECLARATIVE (no code in data); guidance is localization-first
+#   (Signature:/Localize:/Fix:) and names NO fleet repo/token.
+
+[[skill]]
+id = "native-null-deref-segv"
+provenance = "Android debuggerd native tombstone (SIGSEGV/SEGV_MAPERR) RCA; JNI native-peer handle lifecycle (jlong nativePtr) across a callback thread"
+signals = ["sigsegv", "segv", "native", "backtrace", "tombstone", "nullptr", "use-after-free", "jni", "callback"]
+hint_apis = ["GetLongField", "RegisterNatives", "reinterpret_cast", "std::weak_ptr::lock", "std::shared_ptr", "nullptr"]
+guidance = '''
+Signature: A native tombstone with "signal 11 (SIGSEGV), code 1 (SEGV_MAPERR)" (or SEGV_ACCERR) and a "backtrace:" block whose top app frame is "#00 pc <offset> lib*.so (Class::method+off)"; a tiny/near-zero fault addr (0x0/0x8/0x10) points at a null-pointer dereference, a large wild addr at a freed/dangling pointer, and the crash typically fires on a non-JVM native callback thread.
+Localize: The owning code is the C/C++ translation unit (.cpp/.cc/.cxx) implementing the first NON-libc frame's demangled Class::method (skip libc.so/libc++.so/libart.so frames); rank candidate native sources by that enclosing class, which maps to a native peer object reached from a Java long/jlong nativePtr handle, plus the JNI glue (Java_* entry or a RegisterNatives table) and the callback/entry method named in the frame.
+Fix: Root cause is dereferencing a null or already-released native object at the JNI/callback boundary — the Java peer was released (or never initialized) while a native callback thread still held a raw pointer, or a getter returned null and the callee assumed non-null; correct with a null/lifetime guard at the native boundary — reject a 0 handle at method entry, promote a weak_ptr via .lock() (or hold a shared_ptr) for the callback's duration, and serialize release against in-flight callbacks; a correct patch references the nativePtr handle field, GetLongField, std::weak_ptr::lock/std::shared_ptr, or an explicit if (ptr == nullptr) return guard.
+'''
+
+[skill.match]
+any_text = ["sigsegv", "segv_maperr", "segv_accerr", "null pointer dereference", "signal 11"]
+any_text_regex = ['signal\s*11\b', "segv_(maperr|accerr)"]
+
+[[skill]]
+id = "native-heap-corruption-abort"
+provenance = "Android debuggerd SIGABRT tombstone / libc (Scudo/jemalloc) heap-corruption abort_message RCA; C++ RAII ownership and rule-of-five"
+signals = ["sigabrt", "abort", "double-free", "use-after-free", "heap", "native", "scudo", "ownership"]
+hint_apis = ["std::unique_ptr", "std::shared_ptr", "std::move", "delete[]", "operator delete", "= delete"]
+guidance = '''
+Signature: A native abort tombstone — "signal 6 (SIGABRT)" with a libc allocator message such as "free(): invalid pointer", "free(): double free detected", "malloc(): corrupted top size", a Scudo/jemalloc chunk error ("invalid chunk", "heap-buffer-overflow"), or an "Abort message:"/abort_message line; the crashing frames pass through abort/__libc_message/scudo:: before the app's own lib*.so frame.
+Localize: The owning code is the native allocation/ownership site (.cpp/.cc), NOT the frame where abort fired — rank candidates by the first app lib*.so frame beneath the libc/allocator frames (its demangled Class::method owns the buffer) and by the translation unit that allocates and frees the offending type (new[]/delete, malloc/free, std::vector/std::unique_ptr), including any custom copy/move ctor or destructor; a double-free usually lives in a class missing rule-of-three/five.
+Fix: Root cause is heap corruption — a double-free, use-after-free, mismatched new/delete vs new[]/delete[], a pointer freed on both sides of the JNI boundary, or a write past an allocation; correct by fixing ownership — give the buffer a single owner via RAII (std::unique_ptr/std::shared_ptr), null the pointer after free and guard re-entry, add the missing copy/move ctor+assignment (rule of five) or =delete them, and transfer ownership across JNI exactly once (never free a buffer the JVM peer still owns); a correct patch references std::unique_ptr/std::move, matched new[]/delete[], a deleted copy-constructor, or a nulled-after-free handle field.
+'''
+
+[skill.match]
+any_text = ["sigabrt", "free(): invalid", "free(): double free", "double free", "abort message", "abort_message", "heap corruption", "malloc(): corrupted", "use after free", "heap-buffer-overflow", "scudo", "signal 6"]
+any_text_regex = ['signal\s*6\b', 'free\(\):\s*(invalid|double)', "abort[_ ]message", "corrupted (top size|chunk)"]
+
+[[skill]]
+id = "foreground-service-not-started"
+provenance = "Android foreground-service lifecycle contract (Context.startForegroundService -> Service.startForeground within ~5s); RemoteServiceException / ForegroundServiceDidNotStartInTimeException RCA across the Android 8-12+ FGS behavior changes."
+signals = ["foreground-service", "fgs", "service-lifecycle", "remoteserviceexception", "startforeground", "notification-channel", "android12", "anr"]
+hint_apis = ["startForeground", "startForegroundService", "onStartCommand", "NotificationChannel"]
+guidance = '''
+Signature: A hard crash (android.app.RemoteServiceException, or on Android 12+ ForegroundServiceDidNotStartInTimeException) with the message "Context.startForegroundService() did not then call Service.startForeground()". It fires ~5 seconds after the service was started, frequently from a BroadcastReceiver, JobScheduler, boot-completed, or push-message path.
+Localize: Look at the Service subclass named in the stack and its onCreate()/onStartCommand(), plus every call site that invokes startForegroundService(...); also the manifest <service> entry (foregroundServiceType) and the notification/channel-building helper. The owning code is a long-running background component (playback, location/tracking, sync, upload), not a UI class.
+Fix: The service MUST call startForeground(id, notification) within the ~5s window on EVERY path, including early returns and exceptions. Common root causes: the NotificationChannel was never created so the notification is silently dropped, startForeground() was deferred into a coroutine/Handler/async init that loses the race, or a branch/early-return skips it. Corrective change: create the NotificationChannel up front and call startForeground() synchronously at the top of onStartCommand()/onCreate() before any awaitable work; on Android 12+ also catch ForegroundServiceStartNotAllowedException when starting from background. A correct patch references startForeground(int, Notification), NotificationChannel, and startForegroundService().
+'''
+
+[skill.match]
+any_text = ["did not then call service.startforeground()", "context.startforegroundservice()"]
+any_text_regex = ['did not then call\s+\S*startforeground']
+any_methods = ["startforegroundservice", "startforeground"]
+any_errors = ["remoteserviceexception", "android.app.remoteserviceexception", "foregroundservicedidnotstartintimeexception", "foregroundservicestartnotallowedexception"]
+
+[[skill]]
+id = "fragment-view-after-destroy-npe"
+provenance = "Android Fragment view-lifecycle vs fragment-lifecycle guidance (viewLifecycleOwner); AndroidX view-binding + LiveData observer leak RCA for NullPointerExceptions raised after onDestroyView."
+signals = ["fragment", "view-lifecycle", "nullpointerexception", "view-binding", "ondestroyview", "viewlifecycleowner", "livedata-observer", "async-callback"]
+hint_apis = ["getViewLifecycleOwner", "onDestroyView", "viewLifecycleOwner", "getView"]
+guidance = '''
+Signature: A java.lang.NullPointerException ("Attempt to invoke ... on a null object reference") whose crashing frame is a Fragment method — the fragment dereferences its view or its view-binding field from an async callback (a LiveData/Flow observer, RxJava subscriber, coroutine, network callback, or animation) that fires after the view was torn down.
+Localize: Look at Fragment subclasses that cache a view-binding backing field and register observers/listeners in onCreateView()/onViewCreated(); the crash is inside one of those callbacks touching the now-null binding or getView(). The owning code is a UI Fragment with lifecycle-scoped observers, not the Activity.
+Fix: A Fragment's VIEW lifecycle ends at onDestroyView(), but the Fragment instance (for example while on the back stack) and observers scoped to `this` outlive it, so a late callback touches a destroyed view. Corrective change: register lifecycle-aware observers with getViewLifecycleOwner() instead of the fragment (`this`), null out the binding backing field in onDestroyView(), and run async work on viewLifecycleOwner.lifecycleScope so it is cancelled with the view; guard any remaining callback with a view/binding null-check. A correct patch references getViewLifecycleOwner(), onDestroyView(), and LiveData.observe(LifecycleOwner, Observer).
+'''
+
+[skill.match]
+any_text = ["on a null object reference"]
+any_text_regex = ['fragment\w*\.on\w+\(', "attempt to (invoke|read)"]
+any_methods = ["ondestroyview", "getviewlifecycleowner", "onviewcreated"]
+any_errors = ["nullpointerexception", "java.lang.nullpointerexception"]
+
+[[skill]]
+id = "illegalstate-after-savedinstancestate"
+provenance = "AndroidX FragmentManager state-loss contract; IllegalStateException 'Can not perform this action after onSaveInstanceState' RCA (commit vs commitAllowingStateLoss and lifecycle STARTED gating)."
+signals = ["fragment-transaction", "illegalstateexception", "onsaveinstancestate", "state-loss", "commit", "lifecycle-state", "async-callback"]
+hint_apis = ["commitAllowingStateLoss", "onSaveInstanceState", "commit", "isStateSaved"]
+guidance = '''
+Signature: A java.lang.IllegalStateException with "Can not perform this action after onSaveInstanceState" (or "commit already called" / "FragmentManager is already executing transactions"). It is thrown when a FragmentTransaction .commit() (or DialogFragment.show / a navigation call) runs after the host's state was saved — typically from an async callback that returns once the app is already backgrounded.
+Localize: Look at the Activity/Fragment method that performs the FragmentManager transaction (commit/replace/add/show/hide, DialogFragment.show, navigate) and the async boundary that triggers it (network/LiveData/coroutine completion, onActivityResult, push or notification handler). The owning code is the transaction call site reachable from a background-completing callback.
+Fix: Root cause: committing a fragment transaction after onSaveInstanceState() risks losing that saved state, so the framework throws. Corrective change: only run the transaction while the lifecycle is at least STARTED — gate on isStateSaved()/current lifecycle state, or defer via lifecycleScope.launchWhenStarted / onResumeFragments() so it re-runs safely; use commitAllowingStateLoss() ONLY when losing that UI state is genuinely acceptable. A correct patch references commit(), commitAllowingStateLoss(), onSaveInstanceState(), and FragmentManager.isStateSaved().
+'''
+
+[skill.match]
+any_text = ["can not perform this action after onsaveinstancestate", "commit already called", "fragmentmanager is already executing transactions"]
+any_text_regex = ['can not perform this action after\s+onsaveinstancestate']
+any_methods = ["commitallowingstateloss", "onsaveinstancestate"]
+
+[[skill]]
+id = "binder-transaction-too-large"
+provenance = "Android Binder IPC ~1MB per-process transaction buffer limit; TransactionTooLargeException / FAILED BINDER TRANSACTION RCA (oversized saved-state Bundle or large Parcelable across Binder)."
+signals = ["binder", "ipc", "transactiontoolargeexception", "parcel", "onsaveinstancestate", "bundle-size", "aidl", "saved-state"]
+hint_apis = ["onSaveInstanceState", "Parcel", "Bundle", "ParcelFileDescriptor"]
+guidance = '''
+Signature: android.os.TransactionTooLargeException, usually alongside a logcat "!!! FAILED BINDER TRANSACTION !!!" (JavaBinder) and a "data parcel size N bytes" note. It surfaces either on backgrounding (an oversized saved-state Bundle written in onSaveInstanceState) or when passing large data across a Binder/AIDL/Intent/Messenger boundary.
+Localize: Look at onSaveInstanceState(Bundle) overrides that stuff large objects (Bitmap, big lists, byte[]) into the state Bundle, and at IPC/Intent call sites that pass large Parcelables/extras across a process boundary (bound services, AIDL, Messenger, content-provider call). The owning code is wherever a large payload is marshalled into a single parcel.
+Fix: Root cause: the total parcel for one Binder transaction exceeds the ~1MB per-process Binder buffer, which is shared across all in-flight transactions. Corrective change: stop putting heavy payloads in the parcel — persist Bitmaps/large data to disk/cache or a repository and pass only a handle, URI, or id; keep saved instance state to lightweight identifiers and reload heavy data in onCreate()/onRestoreInstanceState(); page or stream large lists; for IPC move bulk bytes via ParcelFileDescriptor/ashmem or a shared cache. A correct patch references onSaveInstanceState(Bundle), Bundle, Parcel, and ParcelFileDescriptor.
+'''
+
+[skill.match]
+any_text = ["failed binder transaction", "data parcel size"]
+any_text_regex = ['!!!\s*failed binder transaction', "transactiontoolarge", 'data parcel size\s+\d+']
+any_errors = ["transactiontoolargeexception", "android.os.transactiontoolargeexception"]
+
+[[skill]]
+id = "realtime-audio-callback-underrun"
+provenance = "Android NDK AAudio low-latency audio: the real-time audio data-callback contract (no heap allocation, locking, blocking IO, or JNI on the callback thread) and xrun/underrun diagnostics; AAudioStreamCallback + performance-mode-low-latency guidance."
+signals = ["audio", "realtime", "callback", "underrun", "xrun", "glitch", "low-latency", "aaudio", "audio-thread", "buffer"]
+hint_apis = ["onAudioReady", "AAudioStream", "AAudioStreamCallback", "AAudioStreamBuilder_setPerformanceMode", "AAudioStream_getXRunCount", "AAUDIO_CALLBACK_RESULT_CONTINUE"]
+guidance = '''
+Signature: Periodic audio artifacts (clicks/pops/stutter/dropouts), rising xrun/underrun counters, or "callback took too long / missed its deadline" warnings on a low-latency output stream; the audio HAL logs underruns while a high-priority audio callback thread stalls.
+Localize: The real-time audio data-callback implementation — the class/method overriding the per-buffer render/mix callback (an onAudioReady/AudioStreamCallback-style override) in the native audio engine or its JNI bridge; the code that fills each output buffer every device period, plus the cross-thread queue it reads.
+Fix: Root cause is non-wait-free work on the audio callback thread — heap alloc (new/malloc), mutex/lock contention with the control thread, file/network/binder IO, blocking JNI/JVM up-calls, or logging inside the callback, so it overruns the buffer deadline and the stream underruns. Make the callback wait-free: preallocate all buffers up front, move data across threads via a lock-free SPSC ring buffer, strip locks/syscalls/allocations from the hot path, and return AAUDIO_CALLBACK_RESULT_CONTINUE within the period. A correct patch touches the onAudioReady/AAudioStream data-callback body and its buffer/ring, not the UI or setup code.
+'''
+
+[skill.match]
+any_text = ["underrun", "xrun", "buffer underrun", "audio underrun", "audio glitch", "callback took too long"]
+any_text_regex = ["under-?run", '\bx-?run\b', 'callback[\s\S]{0,40}(took too long|overran|missed|exceeded)[\s\S]{0,20}(deadline|budget|period)', 'audio[\s\S]{0,20}(glitch|underrun|dropout|stutter)', "onaudioready", "aaudiostream_(write|requeststart|error|getxruncount)"]
+any_methods = ["onaudioready", "getxruncount"]
+any_symbols = ["onaudioready", "aaudiostream", "aaudiostreamcallback"]
+any_libraries_regex = ['libaaudio\.so']
+
+[[skill]]
+id = "media-player-illegal-state"
+provenance = "Android MediaCodec / MediaPlayer state-machine RCA (configure -> start -> queueInput/dequeueOutput -> flush -> stop -> release); IllegalStateException and MediaCodec.CodecException (isRecoverable/isTransient) thrown from out-of-state or post-release codec/player calls."
+signals = ["media", "codec", "mediacodec", "mediaplayer", "illegalstate", "lifecycle", "decoder", "playback", "state-machine"]
+hint_apis = ["MediaCodec", "dequeueOutputBuffer", "queueInputBuffer", "MediaCodec.configure", "MediaCodec.start", "MediaCodec.stop", "MediaCodec.release", "MediaCodec.CodecException", "MediaPlayer"]
+guidance = '''
+Signature: java.lang.IllegalStateException (or MediaCodec.CodecException) thrown from a media decode/playback API — e.g. at MediaCodec.dequeueOutputBuffer / queueInputBuffer / native_dequeueOutputBuffer, or MediaPlayer.start/prepare — with messages like "in wrong state", "called in state N", or a dequeue/queue after release()/flush().
+Localize: The media playback/decoding component that drives the codec/player state machine (configure -> start -> queueInputBuffer/dequeueOutputBuffer -> flush -> stop -> release) — typically a decoder/player wrapper class or a rendering-pipeline callback; look where lifecycle transitions and release() run relative to the render/UI thread.
+Fix: Root cause is invoking a codec/player method from a state it forbids — dequeue/queue after release() or flush(), configure() after start(), reuse of a released instance, or unsynchronized calls from two threads racing the lifecycle. Track the instance state explicitly and gate every call on it; flush()/stop() before reconfigure; call release() exactly once and null the reference; serialize all codec calls onto one thread or synchronize them; handle INFO_OUTPUT_FORMAT_CHANGED and catch MediaCodec.CodecException, retrying only when isRecoverable()/isTransient(). A correct patch references MediaCodec.dequeueOutputBuffer/configure/start/stop/release (or the MediaPlayer state guards).
+'''
+
+[skill.match]
+any_text = ["codecexception", "codec in wrong state", "in wrong state"]
+all_text = ["illegalstateexception", "mediacodec"]
+any_text_regex = ['mediaplayer[\s\S]{0,80}illegalstate', 'illegalstate[\s\S]{0,80}mediaplayer', 'media(codec|player)[\s\S]{0,120}(wrong state|codecexception)', "(dequeue|queue)(output|input)buffer", 'called in state \d']
+any_classes = ["android.media.mediacodec", "android.media.mediaplayer"]
+any_methods = ["dequeueoutputbuffer", "queueinputbuffer", "dequeueinputbuffer", "native_dequeueoutputbuffer", "releaseoutputbuffer"]
+any_errors = ["codecexception"]
+
+[[skill]]
+id = "camera-gl-surface-lifecycle"
+provenance = "Android graphics BufferQueue producer-consumer lifecycle RCA: Surface/SurfaceTexture/EGLSurface teardown races in a camera capture or GL preview (updateTexImage on an abandoned BufferQueue, 'Surface has already been released', EGL_BAD_SURFACE from eglSwapBuffers/eglMakeCurrent) across onPause/rotation."
+signals = ["camera", "gl", "egl", "opengl", "surface", "surfacetexture", "eglsurface", "preview", "lifecycle", "bufferqueue"]
+hint_apis = ["SurfaceTexture", "onSurfaceTextureDestroyed", "SurfaceTexture.updateTexImage", "eglMakeCurrent", "eglDestroySurface", "Surface.isValid", "SurfaceHolder.Callback"]
+guidance = '''
+Signature: A crash or fatal log tied to a torn-down drawing target — "IllegalStateException: Surface has already been released", "BufferQueue has been abandoned", "SurfaceTexture: cannot proceed ... abandoned", "eglSwapBuffers/eglMakeCurrent: EGL_BAD_SURFACE (0x300d)" / EGL_BAD_DISPLAY, or lockCanvas on a released Surface — usually during camera preview start/stop, screen rotation, or onPause.
+Localize: The preview/render lifecycle code that owns the drawing target — a SurfaceTexture/SurfaceHolder listener (onSurfaceTextureDestroyed/surfaceDestroyed) or a GL renderer's frame / surface-changed callback that holds the EGLSurface and drives the render thread, plus the capture-session start/stop that targets that Surface.
+Fix: Root cause is producer-consumer lifetime skew — the view/Activity destroyed the Surface/SurfaceTexture (onSurfaceTextureDestroyed, onPause) while the render thread kept drawing or the capture session kept it as a target, so a consumer touches an abandoned BufferQueue / released EGLSurface. Bind the target's lifetime to its consumer: stop the capture session and quiesce the render loop BEFORE releasing, only return true from onSurfaceTextureDestroyed once the producer has stopped, re-validate/recreate the EGLSurface on surface-changed and null-check before eglMakeCurrent/updateTexImage, and guard against double eglDestroySurface/release. A correct patch references SurfaceTexture.updateTexImage / onSurfaceTextureDestroyed / eglMakeCurrent / eglDestroySurface (and Surface.isValid).
+'''
+
+[skill.match]
+any_text = ["surface has already been released", "surface has been released", "bufferqueue has been abandoned", "egl_bad_surface", "egl_bad_display"]
+any_text_regex = ['surface[\s\S]{0,40}(already been released|has been released|been abandoned)', 'bufferqueue[\s\S]{0,30}abandoned', "egl_bad_(surface|display|current_surface)", 'egl(swapbuffers|makecurrent)[\s\S]{0,40}egl_bad', 'surfacetexture[\s\S]{0,60}(abandoned|released|cannot proceed)', 'updateteximage[\s\S]{0,40}(abandoned|released)', 'lockcanvas[\s\S]{0,40}(released|abandoned)']
+any_methods = ["updateteximage", "onsurfacetexturedestroyed", "eglswapbuffers", "eglmakecurrent", "egldestroysurface", "lockcanvas"]
+any_symbols = ["surfacetexture", "eglsurface"]
+any_libraries_regex = ['libegl\.so', 'libglesv\d?\.so']
+
+[[skill]]
+id = "main-thread-blocking-anr"
+provenance = "Android ANR triage (ActivityManager 'ANR in' / 'Input dispatching timed out' + Choreographer 'Skipped frames') and StrictMode main-thread ThreadPolicy RCA; DropBox anr traces show the main-thread stack blocked in synchronous I/O or a lock."
+signals = ["anr", "main-thread", "ui-thread", "jank", "skipped-frames", "input-dispatching", "blocking-io", "binder-block", "performance", "strictmode", "handler", "looper"]
+hint_apis = ["Handler", "Looper", "StrictMode", "Executor", "HandlerThread", "runOnUiThread", "postDelayed"]
+guidance = '''
+Signature: logcat/DropBox shows 'ANR in <process>' with 'Reason: Input dispatching timed out' or 'Application Not Responding', and/or Choreographer 'Skipped N frames! The application may be doing too much work on its main thread'; the 'main' thread in the anr trace is parked in a synchronous call — disk/DB/network I/O, a binder transaction, bitmap decode, JSON parse, or waiting on a monitor lock (often 'held by tid=…').
+Localize: the owning code sits at a UI-thread entry point — Activity/Fragment lifecycle callbacks (onCreate/onResume), click/menu/event handlers, custom View onMeasure/onLayout/onDraw, a BroadcastReceiver.onReceive, a Service.onStartCommand, or any block posted to the main Looper/Handler. Rank files that perform synchronous I/O, large loops, or lock acquisition reachable from one of those callbacks; the topmost app frame on the 'main' thread in the anr stack names the offending method.
+Fix: root cause is long-running work on the main/UI thread. Move the heavy work to a background Executor/HandlerThread/coroutine and post the result back to the UI via a main-thread Handler or runOnUiThread; make DB/network calls asynchronous and never hold a contended lock on the main thread. Enforce it with StrictMode.ThreadPolicy (detectDiskReads/detectDiskWrites/detectNetworkOnMainThread → penaltyLog) during development. A correct patch references Handler/Looper, an Executor or HandlerThread, and StrictMode.
+'''
+
+[skill.match]
+any_text = ["application not responding", "input dispatching timed out", "reason: input dispatching timed out", "not responding", "anr in", "doing too much work on its main thread"]
+any_text_regex = ['skipped\s+\d+\s+frames', '\banr\b', 'anr in \S+', "executing service .*anr", "broadcast of intent .*anr", 'waited\s+\d+\s*ms', 'main"\s+prio=\d+ tid=\d+ (?:native|monitor|blocked|waiting)']
+any_methods = ["dispatchinputevent", "obtainview"]
+
+[[skill]]
+id = "shared-state-race-cme"
+provenance = "Java fail-fast iterator RCA (java.util.ConcurrentModificationException from modCount mismatch in ArrayList$Itr.checkForComodification) and Java Memory Model visibility RCA (missing happens-before via volatile/synchronized); java.util.concurrent thread-safe-collection guidance."
+signals = ["concurrency", "race-condition", "concurrentmodificationexception", "cme", "data-race", "visibility", "shared-state", "thread-safety", "synchronization", "stale-read", "intermittent-crash"]
+hint_apis = ["synchronized", "CopyOnWriteArrayList", "ConcurrentHashMap", "volatile", "AtomicReference", "Collections.synchronizedList"]
+guidance = '''
+Signature: java.util.ConcurrentModificationException thrown from an iterator frame (ArrayList$Itr.checkForComodification / ArrayList$Itr.next, or a for-each desugared to the same), OR intermittent, load-only, non-deterministic failures — corrupted collection state, surprise NullPointerException/IndexOutOfBounds, HashMap spinning, or a shared flag/field read stale — that vanish under a debugger and correlate with multi-thread activity.
+Localize: the owning code holds a mutable collection or field (ArrayList/HashMap/LinkedList, a listener/observer list, a cache, an event queue, a status flag) as an instance/static member touched from more than one thread — e.g. a background/callback thread mutating while the UI thread iterates, or vice versa. Rank files where such a field is iterated with a for-each while another method does add/remove/put/clear, or where a field is written without volatile/synchronized; the iterator/accessor frame in the stack names the collection's owner class and method.
+Fix: root cause is unsynchronized concurrent access — one thread structurally modifies a collection while another iterates it (modCount check fails), or a field is published without a happens-before edge so readers see a stale value. Serialize all access under one lock (synchronized), or swap in a thread-safe collection — CopyOnWriteArrayList for listener/observer lists, ConcurrentHashMap for maps; make cross-thread flags volatile; snapshot the collection before iterating; use AtomicReference/atomic for check-then-act. A correct patch references synchronized/volatile, CopyOnWriteArrayList, or ConcurrentHashMap.
+'''
+
+[skill.match]
+any_text_regex = ['arraylist\$itr', '\bdata race\b', '\brace condition\b', "hashmap.*(corrupt|infinite loop)", '\bstale read\b']
+any_methods = ["checkforcomodification"]
+any_errors = ["java.util.concurrentmodificationexception", "concurrentmodificationexception"]
+any_errors_regex = ["concurrentmodification(exception)?"]
+
