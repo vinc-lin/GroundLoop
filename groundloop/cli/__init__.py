@@ -161,7 +161,7 @@ def _run_eval(args) -> int:
     from groundloop.adapters.index.atlas import AtlasIndex
     from groundloop.adapters.mock.jira import MockJira
     from groundloop.adapters.estate import MockEstate
-    from groundloop.eval.dataset import load_cases, load_oracle
+    from groundloop.eval.dataset import load_cases, load_eval_oracle
     from groundloop.eval.arms import build_arms
     from groundloop.eval.runner import EvalRunner
     from groundloop.eval.scorecard import grade_all
@@ -188,13 +188,16 @@ def _run_eval(args) -> int:
         judge_index = LLMJudgeIndex(AtlasIndex(args.index_db), gj)
     records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db),
                                            semantic_index=semantic_index, judge_index=judge_index))
-    oracle_by_case = {c.case_id: load_oracle(c) for c in cases}     # OFFLINE grade — oracle read here only
+    oracle_by_case = {c.case_id: load_eval_oracle(c) for c in cases}  # OFFLINE grade — oracle read here only
     card = grade_all(records, oracle_by_case=oracle_by_case)
     Path(args.out).write_text(json.dumps(card, indent=2))
     Path(args.out).with_suffix(".md").write_text(render_markdown(card))
     for arm, a in card["arms"].items():
+        oof = a["selective"]["abstention_recall_oof"]["value"]
+        oof_s = "n/a" if oof is None else f"{oof:.2f}"
         print(f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} "
-              f"coverage={a['selective']['coverage']:.2f} phi_1={a['selective']['phi_c']['1.0']:.2f}")
+              f"coverage={a['selective']['coverage']:.2f} phi_1={a['selective']['phi_c']['1.0']:.2f} "
+              f"oof_recall={oof_s}")
     return 0
 
 
