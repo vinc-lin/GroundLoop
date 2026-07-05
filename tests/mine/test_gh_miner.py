@@ -3,6 +3,8 @@ from pathlib import Path  # noqa: F401 (kept for parity with the plan's literal 
 
 from groundloop.mine.gh_miner import mine
 from groundloop.adapters.mock.jira import MockJira
+from groundloop.core.types import RepoRef, RepoScore
+from tests.mine.conftest import _node, _fake, _PRODFILE
 
 
 def _page(slug, number, body, path):
@@ -55,3 +57,31 @@ def test_mine_rejects_when_no_production_files(tmp_path):
                   fleet_names=["newpipe"], limit=10)
     assert report["admitted"] == 0
     assert report["dropped_filters"] >= 1
+
+
+class _OwnerWinsIndex:
+    """A leak_index that always ranks `owner` top-1 (score>0) — simulates 'the owner is still identifiable'."""
+    def __init__(self, owner):
+        self.owner = owner
+
+    def rank_repos(self, signals, catalog):
+        return ([RepoScore(RepoRef(self.owner), 9.0)]
+                + [RepoScore(r, 0.0) for r in catalog if r.name != self.owner])
+
+
+def _leak_gh():
+    return _fake([_node(100, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                        closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]})])
+
+
+def test_closed_loop_reject_drops_when_owner_still_wins(tmp_path):
+    fleet = ["newpipe", "osmand", "media3"]
+    # (a) no leak_index -> admitted as before (back-compat)
+    r1 = mine(["TeamNewPipe/NewPipe"], str(tmp_path / "a"), gh=_leak_gh(), repo_name="newpipe",
+              fleet_names=fleet, limit=5)
+    assert r1["admitted"] == 1
+    # (b) leak_index says the owner still wins on the sanitized text -> rejected, nothing emitted
+    r2 = mine(["TeamNewPipe/NewPipe"], str(tmp_path / "b"), gh=_leak_gh(), repo_name="newpipe",
+              fleet_names=fleet, limit=5, leak_index=_OwnerWinsIndex("newpipe"))
+    assert r2["rejected_leak"] >= 1 and r2["admitted"] == 0
+    assert not any(p.is_dir() for p in Path(str(tmp_path / "b")).iterdir())

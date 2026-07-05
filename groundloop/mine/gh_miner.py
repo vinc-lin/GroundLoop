@@ -17,6 +17,21 @@ def _opaque_id(slug: str, num: int) -> str:
     return "gl-" + hashlib.sha1(f"{slug}#{num}".encode()).hexdigest()[:12]
 
 
+def _owner_still_wins(leak_index, sanitized_desc, sanitized_logs, owning_repo, fleet_names) -> bool:
+    """Closed-loop leak gate: run the real matcher over the SANITIZED text; if the true owner still
+    ranks top-1, the scrub failed to hide the answer (grounding-over-narrative: trust the real index,
+    not the scrub rules, to decide whether the owner is still identifiable).
+    """
+    from groundloop.core.types import LogAttachment, Ticket, RepoRef
+    from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
+    tk = Ticket(id="x", summary="", description=sanitized_desc)
+    atts = tuple(LogAttachment(path=f"logs/{i}.txt", kind="other", content=b)
+                 for i, b in enumerate(sanitized_logs))
+    sig = AndroidSignalExtractor().extract(atts, tk)
+    ranked = leak_index.rank_repos(sig, [RepoRef(n) for n in fleet_names])
+    return bool(ranked) and ranked[0].repo.name == owning_repo and ranked[0].score > 0
+
+
 def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> dict:
     row = owner_tokens_for(repo_name)
     return {
@@ -29,7 +44,7 @@ def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> d
 
 
 def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name: str,
-         fleet_names: list[str], limit: int = 200, max_files: int = 5) -> dict:
+         fleet_names: list[str], limit: int = 200, max_files: int = 5, leak_index=None) -> dict:
     """Mine one repo slug (repo_name = its short catalog name) into `out/`. Returns a report dict."""
     from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows
     missing = missing_owner_rows([repo_name])
@@ -60,6 +75,9 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
             if verdict == "BUCKET_PROSE_ONLY":
                 report["bucketed"] += 1
                 s_logs = []  # nothing matchable survived; keep prose-only
+            if leak_index is not None and _owner_still_wins(leak_index, s_desc, s_logs, repo_name, fleet_names):
+                report["rejected_leak"] += 1     # grounding-over-narrative: the matcher can still ID the owner
+                continue
             case = MinedCase(
                 case_id=_opaque_id(slug, cand.issue_number), summary=s_summary, description=s_desc,
                 logs=[{"kind": lg["kind"], "text": t} for lg, t in zip(logs, s_logs)],

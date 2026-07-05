@@ -149,8 +149,12 @@ def _run_mine(args) -> int:
     from groundloop.config.settings import Settings
     reg = Settings.load().registry
     fleet = [e.name for e in load_registry(reg)] if reg else [args.repo_name]
+    leak_index = None
+    if getattr(args, "index_db", ""):
+        from groundloop.adapters.index.atlas import AtlasIndex
+        leak_index = AtlasIndex(args.index_db)
     report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
-                  limit=args.limit, max_files=args.max_files)
+                  limit=args.limit, max_files=args.max_files, leak_index=leak_index)
     print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
     return 0
 
@@ -281,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
     mn.add_argument("--out", required=True, help="dataset output dir")
     mn.add_argument("--limit", type=int, default=200)
     mn.add_argument("--max-files", type=int, default=5)
+    mn.add_argument("--index-db", default="",
+                    help="atlas.db for the closed-loop leak reject (recommended for real mining)")
 
     ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
     ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
