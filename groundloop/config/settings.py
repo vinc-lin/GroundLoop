@@ -18,6 +18,8 @@ class Settings:
     produce_api_key: str = ""
     produce_main_model: str = "deepseek-chat"
     cbm_index_timeout: float = 1800.0   # per-CBM-call ceiling; must cover a cold graph build
+    embed_batch: int = 128              # inputs per embed request (server BGE_MAX_BATCH=256)
+    embed_max_chars: int = 2000         # truncate each input (server BGE_MAX_CHARS=100000 → 413)
 
     @classmethod
     def load(cls, env: dict | None = None) -> "Settings":
@@ -35,6 +37,8 @@ class Settings:
             produce_api_key=e.get("KLOOP_PRODUCE_API_KEY", e.get("OPENAI_API_KEY", "")),
             produce_main_model=e.get("KLOOP_PRODUCE_MAIN_MODEL", "deepseek-chat"),
             cbm_index_timeout=_pos_float(e.get("KLOOP_CBM_INDEX_TIMEOUT"), 1800.0),
+            embed_batch=int(_pos_float(e.get("KLOOP_EMBED_BATCH"), 128.0)),
+            embed_max_chars=int(_pos_float(e.get("KLOOP_EMBED_MAX_CHARS"), 2000.0)),
         )
 
 

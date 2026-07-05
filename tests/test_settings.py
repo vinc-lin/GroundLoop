@@ -25,3 +25,12 @@ def test_cbm_index_timeout_default_and_override():
     assert Settings.load(env={"KLOOP_CBM_INDEX_TIMEOUT": "nope"}).cbm_index_timeout == 1800.0
     assert Settings.load(env={"KLOOP_CBM_INDEX_TIMEOUT": "0"}).cbm_index_timeout == 1800.0
     assert Settings.load(env={"KLOOP_CBM_INDEX_TIMEOUT": "-5"}).cbm_index_timeout == 1800.0
+
+
+def test_embed_batch_and_max_chars_configurable():
+    d = Settings.load(env={})
+    assert d.embed_batch == 128 and d.embed_max_chars == 2000     # defaults
+    o = Settings.load(env={"KLOOP_EMBED_BATCH": "256", "KLOOP_EMBED_MAX_CHARS": "512"})
+    assert o.embed_batch == 256 and o.embed_max_chars == 512      # env override (ints)
+    bad = Settings.load(env={"KLOOP_EMBED_BATCH": "junk"})
+    assert bad.embed_batch == 128                                 # invalid → default

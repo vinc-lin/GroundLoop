@@ -34,7 +34,8 @@ def _run_index(args) -> int:
     atlas_db = settings.atlas_db or "atlas.db"
     store = Store(atlas_db)
     embedder = GatewayEmbedder(settings.embed_base_url, settings.embed_api_key,
-                               settings.embed_model)
+                               settings.embed_model, batch=settings.embed_batch,
+                               max_chars=settings.embed_max_chars)
     counts = asyncio.run(_index_mod.index_all(entries, store, embedder,
                                               call_timeout=settings.cbm_index_timeout))
     for name, n in counts.items():
