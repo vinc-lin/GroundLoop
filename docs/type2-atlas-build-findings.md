@@ -201,8 +201,18 @@ Ran `gloop eval` on the mined GitHub-issue dataset over the real atlas (6-repo p
   **abstain**, not force-pick, on empty signals.
 - **On the 27 signal-bearing cases: recall@1 = 0.22, recall@3 = 0.81.** The matcher *does* retrieve the
   owning repo (top-3 81%), but a **size/density bias** in FTS costs rank@1 for small repos (antennapod
-  6/8 correct; newpipe 0/12, cameraview 0/5, oboe 0/2 — top-3 but not #1). → membership scoring needs
-  **per-repo-size normalization / IDF**.
+  6/8 correct; newpipe 0/12, cameraview 0/5, oboe 0/2 — top-3 but not #1). The bias **worsens as the
+  fleet grows**: at 8 repos (osmand 147k + media3 71k units added) signal-bearing recall@1 fell to 0.17
+  and recall@3 to 0.47 — the two biggest repos win their cases, the small repos get 0.
+- **A naive IDF "size-normalization" fix was tried and REFUTED by the eval — reverted (grounding over
+  narrative).** Scoring each matched token by `log(N/df)` (df = #repos with the token, via a no-top-k
+  `token_repo_hits`) drove signal-bearing recall@1 **0.17 → 0.00** (recall@3 ~flat 0.47 → 0.50). Cause:
+  `store._fts_query` OR-expands camelCase into generic sub-words (`PlayerService` → `Player`, `Service`),
+  so nearly every signal token matches many repos → high df → idf ≈ 0 → all repos tie → the alphabetical
+  tie-break is wrong. **Lesson:** the size-fix must account for the sub-word expansion — candidates to try
+  *eval-driven* next: bm25-rank aggregation (already sub-word IDF at the unit level), exact-name/qualified-
+  name df (no OR-expansion), or a mild `count / log(repo_units)` penalty. NB: `rank_repos` is the SP1b
+  closed-loop-reject dependency — **coordinate before changing its behavior.**
 - **All four arms key off the same sparse tokens.** `TextOnlyExtractor` = `AndroidSignalExtractor` on the
   description; `SemanticAtlasIndex._query` = `" ".join(signals.tokens())`. So the **semantic arm embeds
   tokens, not raw prose** — it does NOT rescue the signal-sparse cases. Prose-aware matching needs a new
