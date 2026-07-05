@@ -32,3 +32,9 @@ def test_unknown_repo_raises():
 def test_cameraview_row_has_bare_slug():
     from groundloop.domains.android_ivi.owner_tokens import owner_tokens_for
     assert "cameraview" in owner_tokens_for("cameraview")["slugs"]
+
+
+def test_missing_owner_rows_flags_uncovered_fleet_repo():
+    from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows, FLEET_OWNER_TOKENS
+    assert missing_owner_rows(["newpipe", "car-samples"]) == ["car-samples"]
+    assert missing_owner_rows(list(FLEET_OWNER_TOKENS)) == []

@@ -31,6 +31,10 @@ def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> d
 def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name: str,
          fleet_names: list[str], limit: int = 200, max_files: int = 5) -> dict:
     """Mine one repo slug (repo_name = its short catalog name) into `out/`. Returns a report dict."""
+    from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows
+    missing = missing_owner_rows([repo_name])
+    if missing:
+        raise ValueError(f"no FLEET_OWNER_TOKENS row for {missing}; cannot scrub its owner tells")
     report = {"harvested": 0, "dropped_filters": 0, "rejected_leak": 0, "bucketed": 0, "admitted": 0}
     emit_catalog(out, fleet_names)
     kwargs = {"limit": limit} if gh is None else {"gh": gh, "limit": limit}

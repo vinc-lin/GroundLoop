@@ -114,3 +114,13 @@ def test_scrub_does_not_over_redact_generic_slug_name():
                                "owner_github_slug": "TeamNewPipe/NewPipe", "owner_namespaces": [],
                                "owner_sonames": [], "expected_files": [], "fix_patch": ""})
     assert "TeamNewPipe" not in scrub("dup of TeamNewPipe/NewPipe#900", tok2)           # org still redacted
+
+
+def test_unknown_owner_so_is_flagged_and_rejected():
+    tok = build_owner_tokens({"owning_repo": "dlt-daemon", "owner_slugs": ["dlt"],
+                              "owner_namespaces": [], "owner_sonames": ["libdlt.so"],
+                              "expected_files": [], "fix_patch": ""})
+    flags, _ = leakage_flags("native crash in libgadgetproto.so during startup", [], tok, "dlt-daemon")
+    assert flags.get("unknown_so_in_text") is True
+    flags2, _ = leakage_flags("libc.so and libGLESv2.so loaded", [], tok, "dlt-daemon")
+    assert flags2.get("unknown_so_in_text") is False    # generic .so not flagged

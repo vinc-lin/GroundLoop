@@ -115,6 +115,9 @@ def leakage_flags(sanitized_desc: str, sanitized_logs: list[str], tok: dict, own
                           for s in tok["SO"]),
         "patch_in_text": any(sh in text for sh in tok["PATCH"]),
     }
+    _ALL_SO = re.findall(r"\blib\w+\.so\b", text)
+    known = {s.lower() for s in tok["SO"]} | {s.lower() for s in GENERIC_SO_KEEP}
+    flags["unknown_so_in_text"] = any(s.lower() not in known for s in _ALL_SO)
     tk = Ticket(id="x", summary="", description=sanitized_desc)
     atts = tuple(LogAttachment(path=f"logs/{i}.txt", kind="other", content=b)
                  for i, b in enumerate(sanitized_logs))
