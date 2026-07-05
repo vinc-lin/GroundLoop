@@ -1,0 +1,8 @@
+{
+  "owning_repo": "cameraview",
+  "expected_files": [],
+  "required_apis": [],
+  "is_answerable": false,
+  "negative_class": "out_of_fleet",
+  "held_out_repo": "cameraview"
+}

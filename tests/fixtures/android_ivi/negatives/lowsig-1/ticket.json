@@ -1,0 +1,9 @@
+{
+  "id": "NEG-LOWSIG-1",
+  "summary": "Navigation sometimes reroutes for no reason",
+  "description": "While driving, the route occasionally recalculates even when I stay on the road. Happens randomly, I do not have logs.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": []
+}

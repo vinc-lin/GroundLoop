@@ -1,0 +1,9 @@
+{
+  "id": "NEG-OOF-1",
+  "summary": "Live preview freezes intermittently on some devices",
+  "description": "After the app runs for a while the on-screen live preview stops updating until restart. No crash is shown; the UI just stops refreshing.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [{"path": "logs/000.txt", "kind": "logcat"}]
+}

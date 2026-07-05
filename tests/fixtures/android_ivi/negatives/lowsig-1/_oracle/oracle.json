@@ -1,0 +1,7 @@
+{
+  "owning_repo": "organicmaps",
+  "expected_files": ["src/main/java/app/route/RoutePlanner.java"],
+  "required_apis": [],
+  "is_answerable": true,
+  "negative_class": "insufficient_signal"
+}
