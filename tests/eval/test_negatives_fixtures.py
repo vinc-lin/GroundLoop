@@ -27,14 +27,20 @@ def test_lowsig_fixture_is_answerable_with_global_catalog():
     assert case_catalog(case) is None                        # falls back to the global catalog
 
 
+def _norm(s: str) -> str:
+    """Lowercase + strip separators so 'Camera View'/'CameraView'/'camera-view' all match 'cameraview'."""
+    return s.lower().replace(" ", "").replace("-", "").replace("_", "")
+
+
 def test_negative_fixtures_are_oracle_blind():
+    needles = {_norm(c) for c in CATALOG_NAMES}
     for name in ("oof-hold-1", "lowsig-1"):
         d = NEG / name
-        assert not any(c in name for c in CATALOG_NAMES), f"case dir {name} embeds an owner name"
+        assert not any(n in _norm(name) for n in needles), f"case dir {name} embeds an owner name"
         tj = (d / "ticket.json").read_text()
         raw = json.loads(tj)
         for field in ("id", "summary", "description", "component"):
-            assert not any(c in str(raw.get(field, "")) for c in CATALOG_NAMES), \
-                f"owner leaked into loop-visible ticket.{field}"
+            hay = _norm(str(raw.get(field, "")))
+            assert not any(n in hay for n in needles), f"owner leaked into loop-visible ticket.{field}"
         for hidden in ("is_answerable", "negative_class", "held_out_repo", "owning_repo"):
             assert hidden not in tj, f"{hidden} leaked into loop-visible ticket.json"
