@@ -52,6 +52,8 @@ tracks (never write a bare "M1"; see `docs/roadmap.md`).
 - `docs/type2-evaluation.md` — **canonical for the Type-2 (Test 2) evaluation**: fleet, dataset, arms,
   metrics/scorecard, and the eval harness (supersedes the detail in `groundloop-testing-strategy.md` §3).
 - `docs/m1-index-build.md` · `docs/type2-eval-setup.md` · `docs/groundloop-testing-strategy.md`.
+- `docs/type2-atlas-build-findings.md` — portable atlas-build gotchas (CBM timeout, one-index-at-a-time,
+  `pgrep -fa` not `ps -C`, exclude test/3party, run eval off ext4) + the first real-testing results.
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
@@ -84,5 +86,8 @@ GL-M1 plan (for provenance):
 - Plans / substantial features: subagent-driven (superpowers skills), two-stage review per task.
 - Deep project history predating this repo lives in the loop-agent memory at
   `/home/vinc/.claude/projects/-mnt-x-code-loop-agent/memory/`. This repo is reachable as both
-  `/mnt/x/code/GroundLoop` and `/home/vinc/code/GroundLoop` (same directory). The migration SOURCE
-  engine stays at `/mnt/x/code/knowledgeLoop` (do not rename — held open by live processes).
+  `/mnt/x/code/GroundLoop` and `/home/vinc/code/GroundLoop` — but `/home/vinc/code` is a **symlink to
+  `/mnt/x/code`** (a **v9fs Windows-drive mount**), so BOTH paths are slow for random I/O. Run atlas
+  builds and `gloop eval` (sqlite over the multi-GB atlas) off **real ext4** — `/home/vinc` *directly*
+  (not `/home/vinc/code`), `/var/tmp`, or `/dev/shm`. The migration SOURCE engine stays at
+  `/mnt/x/code/knowledgeLoop` (do not rename — held open by live processes).
