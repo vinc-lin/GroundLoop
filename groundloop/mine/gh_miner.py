@@ -50,7 +50,8 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
     missing = missing_owner_rows([repo_name])
     if missing:
         raise ValueError(f"no FLEET_OWNER_TOKENS row for {missing}; cannot scrub its owner tells")
-    report = {"harvested": 0, "dropped_filters": 0, "rejected_leak": 0, "bucketed": 0, "admitted": 0}
+    report = {"harvested": 0, "dropped_filters": 0, "rejected_leak": 0, "bucketed": 0, "admitted": 0,
+              "insufficient_signal": 0, "oof": 0, "coverage_gap": 0, "not_a_defect": 0}
     emit_catalog(out, fleet_names)
     kwargs = {"limit": limit} if gh is None else {"gh": gh, "limit": limit}
     for slug in slugs:
@@ -69,12 +70,17 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
             s_logs = [scrub(lg["text"], tok) for lg in logs]
             flags, sig = leakage_flags(s_desc + "\n" + s_summary, s_logs, tok, repo_name)
             verdict = admit(flags, sig)
+            neg_class = None
+            source_method = "github_linked_pr"
             if verdict == "REJECT":
                 report["rejected_leak"] += 1
                 continue
             if verdict == "BUCKET_PROSE_ONLY":
                 report["bucketed"] += 1
                 s_logs = []  # nothing matchable survived; keep prose-only
+                neg_class = "insufficient_signal"
+                source_method = "prose_only"
+                report["insufficient_signal"] += 1
             if leak_index is not None and _owner_still_wins(leak_index, s_desc, s_logs, repo_name, fleet_names):
                 report["rejected_leak"] += 1     # grounding-over-narrative: the matcher can still ID the owner
                 continue
@@ -82,10 +88,11 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
                 case_id=_opaque_id(slug, cand.issue_number), summary=s_summary, description=s_desc,
                 logs=[{"kind": lg["kind"], "text": t} for lg, t in zip(logs, s_logs)],
                 owning_repo=repo_name, expected_files=prod, required_apis=[],
-                owning_repo_sha=cand.merge_commit_sha, is_answerable=True,
+                owning_repo_sha=cand.merge_commit_sha, is_answerable=True, negative_class=neg_class,
                 provenance={"issue": {"number": cand.issue_number, "url": cand.issue_url, "repo": slug},
                             "pr": {"number": cand.pr_number, "merge_commit_sha": cand.merge_commit_sha},
-                            "link_method": "github_linked_pr", "created_at": cand.created_at},
+                            "link_method": "github_linked_pr", "created_at": cand.created_at,
+                            "source_method": source_method},
                 leakage={"leakage_flags": {k: v for k, v in flags.items() if k != "extractor_leak"},
                          "scrubber_version": "1.0.0"},
                 raw={"issue": {"number": cand.issue_number, "title": cand.issue_title,

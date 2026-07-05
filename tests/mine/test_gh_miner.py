@@ -85,3 +85,20 @@ def test_closed_loop_reject_drops_when_owner_still_wins(tmp_path):
               fleet_names=fleet, limit=5, leak_index=_OwnerWinsIndex("newpipe"))
     assert r2["rejected_leak"] >= 1 and r2["admitted"] == 0
     assert not any(p.is_dir() for p in Path(str(tmp_path / "b")).iterdir())
+
+
+def test_prose_only_tagged_insufficient_signal(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    # PR touches a real prod .java (is_minable OK) but the issue body is pure prose (no stack/log)
+    gh = _fake([_node(300, title="empty list", body="The list is occasionally empty after refresh.",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]})])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe",
+                  fleet_names=["newpipe", "osmand"], limit=5)
+    import json
+    from pathlib import Path
+    d = next(p for p in Path(out).iterdir() if p.is_dir())
+    o = json.loads((d / "_oracle" / "oracle.json").read_text())
+    assert o["is_answerable"] is True and o["negative_class"] == "insufficient_signal"
+    assert json.loads((d / "_oracle" / "provenance.json").read_text())["source_method"] == "prose_only"
+    assert report["insufficient_signal"] == 1
