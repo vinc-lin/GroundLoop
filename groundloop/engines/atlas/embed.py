@@ -30,15 +30,24 @@ class GatewayEmbedder:
     """Calls an OpenAI-compatible /v1/embeddings endpoint (GPU-served gateway).
 
     Retries each batch on transient failures (5xx / transport errors) with backoff,
-    so a single gateway hiccup mid-index doesn't abort the whole run."""
-    def __init__(self, base_url: str, api_key: str, model: str, batch: int = 64,
-                 timeout: float = 60.0, retries: int = 4):
+    so a single gateway hiccup mid-index doesn't abort the whole run.
+
+    The gateway (bge-m3 on a shared GPU behind a single serialization lock) enforces
+    input caps: a batch over its BGE_MAX_BATCH or any input over BGE_MAX_CHARS returns
+    HTTP 413 — a 4xx that is NOT retried, so ONE oversized unit would abort the whole
+    index. `batch` stays under the server max and `max_chars` truncates each input.
+    Truncation is free-of-quality: bge-m3's window is 8192 tokens (~24-32k chars), so
+    a longer input is truncated by the model regardless; the cap just avoids the 413 and
+    cuts transport/GPU time. See ~/bge-m3/README.md (the 2026-07-05 incident)."""
+    def __init__(self, base_url: str, api_key: str, model: str, batch: int = 128,
+                 timeout: float = 60.0, retries: int = 4, max_chars: int = 8000):
         self.url = base_url.rstrip("/") + "/embeddings"
         self.api_key = api_key
         self.model = model
         self.batch = batch
         self.timeout = timeout
         self.retries = retries
+        self.max_chars = max_chars
 
     def _post_batch(self, chunk: list[str]) -> list[list[float]]:
         import time
@@ -63,5 +72,6 @@ class GatewayEmbedder:
     def embed(self, texts: list[str]) -> list[list[float]]:
         out: list[list[float]] = []
         for i in range(0, len(texts), self.batch):
-            out.extend(self._post_batch(texts[i:i + self.batch]))
+            chunk = [t[:self.max_chars] for t in texts[i:i + self.batch]]
+            out.extend(self._post_batch(chunk))
         return out
