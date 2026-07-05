@@ -82,3 +82,45 @@ def test_leakage_flags_reject_when_owner_token_survives_then_admit_when_clean():
     flags2, sig2 = leakage_flags(clean_desc, [clean_log], tok, "android-gpuimage-plus")
     assert not any(flags2.values())
     assert admit(flags2, sig2) == "ADMIT"
+
+
+def test_scrub_redacts_cameraview_token_but_not_generic_camera():
+    tok = build_owner_tokens({"owning_repo": "cameraview", "owner_slugs": ["cameraview"],
+                              "owner_namespaces": ["com.otaliastudios.cameraview"], "owner_sonames": [],
+                              "expected_files": [], "fix_patch": ""})
+    out = scrub("The CameraView preview is black; cameraview crashed", tok)
+    assert "CameraView" not in out and "cameraview" not in out
+    assert "camera" in scrub("the camera failed to open", tok)   # generic word NOT over-redacted
+
+
+def test_scrub_redacts_github_org_and_keeps_generic_org():
+    tok = build_owner_tokens({"owning_repo": "newpipe", "owner_slugs": ["newpipe"],
+                              "owner_github_slug": "TeamNewPipe/NewPipe", "owner_namespaces": [],
+                              "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    out = scrub("dup of https://github.com/TeamNewPipe/NewPipe/issues/900, filed by TeamNewPipe", tok)
+    assert "TeamNewPipe" not in out
+    tok2 = build_owner_tokens({"owning_repo": "media3", "owner_slugs": ["media3"],
+                               "owner_github_slug": "androidx/media", "owner_namespaces": [],
+                               "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    assert "androidx.core.app.NotificationCompat" in scrub("uses androidx.core.app.NotificationCompat", tok2)
+
+
+def test_scrub_does_not_over_redact_generic_slug_name():
+    tok = build_owner_tokens({"owning_repo": "media3", "owner_slugs": ["media3"],
+                              "owner_github_slug": "androidx/media", "owner_namespaces": [],
+                              "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    assert "media" in scrub("the media playback stutters opening a media file", tok)   # generic word kept
+    tok2 = build_owner_tokens({"owning_repo": "newpipe", "owner_slugs": ["newpipe"],
+                               "owner_github_slug": "TeamNewPipe/NewPipe", "owner_namespaces": [],
+                               "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    assert "TeamNewPipe" not in scrub("dup of TeamNewPipe/NewPipe#900", tok2)           # org still redacted
+
+
+def test_unknown_owner_so_is_flagged_and_rejected():
+    tok = build_owner_tokens({"owning_repo": "dlt-daemon", "owner_slugs": ["dlt"],
+                              "owner_namespaces": [], "owner_sonames": ["libdlt.so"],
+                              "expected_files": [], "fix_patch": ""})
+    flags, _ = leakage_flags("native crash in libgadgetproto.so during startup", [], tok, "dlt-daemon")
+    assert flags.get("unknown_so_in_text") is True
+    flags2, _ = leakage_flags("libc.so and libGLESv2.so loaded", [], tok, "dlt-daemon")
+    assert flags2.get("unknown_so_in_text") is False    # generic .so not flagged

@@ -8,6 +8,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+_NEGATIVE_CLASSES = {None, "out_of_fleet", "coverage_gap", "insufficient_signal", "not_a_defect"}
+
 
 @dataclass
 class MinedCase:
@@ -20,6 +22,9 @@ class MinedCase:
     required_apis: list[str]
     owning_repo_sha: str = ""
     is_answerable: bool = True
+    negative_class: str | None = None
+    held_out_repo: str | None = None
+    case_catalog: list[str] | None = None
     provenance: dict = field(default_factory=dict)
     leakage: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
@@ -31,6 +36,10 @@ def _write_json(path: Path, obj) -> None:
 
 
 def emit_case(root: str, case: MinedCase) -> str:
+    if case.negative_class not in _NEGATIVE_CLASSES:
+        raise ValueError(f"unknown negative_class: {case.negative_class!r}")
+    if case.case_catalog is not None and case.held_out_repo in case.case_catalog:
+        raise ValueError("held_out_repo must be EXCLUDED from the per-case catalog")
     d = Path(root) / case.case_id
     log_entries = []
     for i, lg in enumerate(case.logs):
@@ -49,11 +58,15 @@ def emit_case(root: str, case: MinedCase) -> str:
         "required_apis": list(case.required_apis),
         "owning_repo_sha": case.owning_repo_sha,
         "is_answerable": case.is_answerable,
+        "negative_class": case.negative_class,
+        "held_out_repo": case.held_out_repo,
     })
     _write_json(d / "_oracle" / "provenance.json", case.provenance)
     _write_json(d / "_oracle" / "leakage.json", case.leakage)
     _write_json(d / "_oracle" / "raw" / "issue.json", case.raw.get("issue", {}))
     _write_json(d / "_oracle" / "raw" / "pr_files.json", case.raw.get("pr_files", []))
+    if case.case_catalog is not None:
+        _write_json(d / "catalog.json", [{"name": n} for n in case.case_catalog])
     return str(d)
 
 

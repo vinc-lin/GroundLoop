@@ -149,8 +149,17 @@ def _run_mine(args) -> int:
     from groundloop.config.settings import Settings
     reg = Settings.load().registry
     fleet = [e.name for e in load_registry(reg)] if reg else [args.repo_name]
+    leak_index = None
+    if getattr(args, "index_db", ""):
+        from groundloop.adapters.index.atlas import AtlasIndex
+        leak_index = AtlasIndex(args.index_db)
+    if leak_index is None:
+        print("gloop mine: WARNING — no --index-db; the closed-loop leak reject is OFF "
+              "(deterministic scrub only — un-enumerated owner tokens may reach the matcher).")
     report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
-                  limit=args.limit, max_files=args.max_files)
+                  limit=args.limit, max_files=args.max_files, holdout_frac=args.holdout_frac,
+                  coverage_cutoff=args.coverage_cutoff, leak_index=leak_index,
+                  not_a_defect_limit=args.not_a_defect_limit)
     print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
     return 0
 
@@ -281,6 +290,15 @@ def main(argv: list[str] | None = None) -> int:
     mn.add_argument("--out", required=True, help="dataset output dir")
     mn.add_argument("--limit", type=int, default=200)
     mn.add_argument("--max-files", type=int, default=5)
+    mn.add_argument("--index-db", default="",
+                    help="atlas.db for the closed-loop leak reject (recommended for real mining)")
+    mn.add_argument("--holdout-frac", type=float, default=0.0,
+                    help="fraction of admitted positives to convert to out_of_fleet hold-out negatives")
+    mn.add_argument("--coverage-cutoff", default="",
+                    help="ISO date; admitted cases merged AFTER this become coverage_gap negatives "
+                         "(temporal proxy for un-indexed fix)")
+    mn.add_argument("--not-a-defect-limit", type=int, default=0,
+                    help="cap on label-harvested not_a_defect negatives per repo (0=off)")
 
     ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
     ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")

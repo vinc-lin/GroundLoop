@@ -3,6 +3,7 @@ from pathlib import Path  # noqa: F401 (kept for parity with the Case oracle-loa
 
 from groundloop.mine.emit import emit_case, emit_catalog, MinedCase
 from groundloop.adapters.mock.jira import MockJira
+from groundloop.eval.dataset import CaseRef, load_eval_oracle, case_catalog
 import tests.conftest as conftest  # noqa: F401 (for the Case oracle-loading contract)
 
 
@@ -59,3 +60,48 @@ def test_emit_catalog_writes_name_array(tmp_path):
     emit_catalog(str(tmp_path), ["newpipe", "osmand", "media3"])
     cat = json.loads((tmp_path / "catalog.json").read_text())
     assert cat == [{"name": "newpipe"}, {"name": "osmand"}, {"name": "media3"}]
+
+
+def _neg(**kw):
+    base = dict(case_id="gl-abc123def456", summary="s", description="d", logs=[],
+                owning_repo="cameraview", expected_files=[], required_apis=[])
+    base.update(kw)
+    return MinedCase(**base)
+
+
+def test_emit_oracle_carries_negative_fields(tmp_path):
+    d = emit_case(str(tmp_path), _neg(is_answerable=False, negative_class="out_of_fleet",
+                                      held_out_repo="cameraview", case_catalog=["organicmaps", "media3"]))
+    o = json.loads((Path(d) / "_oracle" / "oracle.json").read_text())
+    assert o["is_answerable"] is False and o["negative_class"] == "out_of_fleet" and o["held_out_repo"] == "cameraview"
+
+
+def test_emit_holdout_writes_percase_catalog_excluding_owner(tmp_path):
+    d = emit_case(str(tmp_path), _neg(is_answerable=False, negative_class="out_of_fleet",
+                                      held_out_repo="cameraview", case_catalog=["organicmaps", "media3"]))
+    ref = CaseRef(case_id=Path(d).name, case_dir=d)
+    ev = load_eval_oracle(ref)
+    assert ev.is_answerable is False and ev.negative_class == "out_of_fleet"
+    names = [r.name for r in case_catalog(ref)]
+    assert "cameraview" not in names and len(names) >= 2      # proves emit⇄SP1a-reader contract
+
+
+def test_positive_emits_unchanged(tmp_path):
+    d = emit_case(str(tmp_path), _neg())                       # defaults: positive
+    assert not (Path(d) / "catalog.json").is_file()
+    o = json.loads((Path(d) / "_oracle" / "oracle.json").read_text())
+    assert o["negative_class"] is None and o["is_answerable"] is True
+    assert case_catalog(CaseRef(case_id=Path(d).name, case_dir=d)) is None
+
+
+def test_emit_rejects_unknown_negative_class(tmp_path):
+    import pytest
+    with pytest.raises(ValueError):
+        emit_case(str(tmp_path), _neg(negative_class="typo"))
+
+
+def test_emit_rejects_owner_in_percase_catalog(tmp_path):
+    import pytest
+    with pytest.raises(ValueError):
+        emit_case(str(tmp_path), _neg(negative_class="out_of_fleet", held_out_repo="cameraview",
+                                      case_catalog=["cameraview", "media3"]))

@@ -18,6 +18,7 @@ GENERIC_IDENT_KEEP = {
     "Activity", "Fragment", "Service", "View", "Handler", "Runnable",
 }
 MIN_SHINGLE = 24
+_GENERIC_ORG = {"android", "androidx", "google", "com", "org", "io", "team", "app"}
 
 _ADDED = re.compile(r"(?m)^\+(?!\+\+).*")
 _IDENT = re.compile(r"[A-Za-z_$][\w$]*")
@@ -59,8 +60,15 @@ def build_owner_tokens(oracle: dict) -> dict:
     fix = parse_patch(oracle.get("fix_patch", ""))
     exp = list(oracle.get("expected_files", []))
     bases = {f.rsplit("/", 1)[-1].rsplit(".", 1)[0] for f in exp}
+    repo = set(oracle.get("owner_slugs", []))
+    gh_slug = oracle.get("owner_github_slug", "")
+    if gh_slug and "/" in gh_slug:
+        org = gh_slug.split("/", 1)[0]
+        if org and org.lower() not in _GENERIC_ORG:
+            repo.add(org)   # discriminative org (e.g. TeamNewPipe); the name-part is either already
+                            # in owner_slugs or a generic word (e.g. 'media') — never redact it
     return {
-        "REPO": set(oracle.get("owner_slugs", [])),
+        "REPO": repo,
         "PKG": set(oracle.get("owner_namespaces", [])),
         "PATH": set(exp) | bases,
         "CLASS": set(fix["classes"]),
@@ -107,6 +115,9 @@ def leakage_flags(sanitized_desc: str, sanitized_logs: list[str], tok: dict, own
                           for s in tok["SO"]),
         "patch_in_text": any(sh in text for sh in tok["PATCH"]),
     }
+    _ALL_SO = re.findall(r"\blib\w+\.so\b", text)
+    known = {s.lower() for s in tok["SO"]} | {s.lower() for s in GENERIC_SO_KEEP}
+    flags["unknown_so_in_text"] = any(s.lower() not in known for s in _ALL_SO)
     tk = Ticket(id="x", summary="", description=sanitized_desc)
     atts = tuple(LogAttachment(path=f"logs/{i}.txt", kind="other", content=b)
                  for i, b in enumerate(sanitized_logs))

@@ -33,7 +33,7 @@ FLEET_OWNER_TOKENS: dict[str, dict] = {
     },
     "cameraview": {
         "namespaces": ["com.otaliastudios.cameraview", "com.otaliastudios"],
-        "slugs": ["otaliastudios", "natario1"],  # bare 'cameraview' is a generic word — redact via namespace only
+        "slugs": ["otaliastudios", "natario1", "cameraview"],
         "sonames": [],
         "KEEP": ["androidx.camera.", "android.hardware.camera2.", "android.graphics.SurfaceTexture", "android."],
     },
@@ -58,3 +58,8 @@ FLEET_OWNER_TOKENS: dict[str, dict] = {
 def owner_tokens_for(repo: str) -> dict:
     """The owner-token row for a fleet repo. Raises KeyError for an unknown repo."""
     return FLEET_OWNER_TOKENS[repo]
+
+
+def missing_owner_rows(fleet_names: list[str]) -> list[str]:
+    """Fleet repos with no FLEET_OWNER_TOKENS row (their owner tells cannot be scrubbed)."""
+    return [n for n in fleet_names if n not in FLEET_OWNER_TOKENS]

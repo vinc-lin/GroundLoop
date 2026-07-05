@@ -3,6 +3,8 @@ from pathlib import Path  # noqa: F401 (kept for parity with the plan's literal 
 
 from groundloop.mine.gh_miner import mine
 from groundloop.adapters.mock.jira import MockJira
+from groundloop.core.types import RepoRef, RepoScore
+from tests.mine.conftest import _node, _fake, _PRODFILE
 
 
 def _page(slug, number, body, path):
@@ -55,3 +57,115 @@ def test_mine_rejects_when_no_production_files(tmp_path):
                   fleet_names=["newpipe"], limit=10)
     assert report["admitted"] == 0
     assert report["dropped_filters"] >= 1
+
+
+class _OwnerWinsIndex:
+    """A leak_index that always ranks `owner` top-1 (score>0) — simulates 'the owner is still identifiable'."""
+    def __init__(self, owner):
+        self.owner = owner
+
+    def rank_repos(self, signals, catalog):
+        return ([RepoScore(RepoRef(self.owner), 9.0)]
+                + [RepoScore(r, 0.0) for r in catalog if r.name != self.owner])
+
+
+def _leak_gh():
+    return _fake([_node(100, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                        closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]})])
+
+
+def test_closed_loop_reject_drops_when_owner_still_wins(tmp_path):
+    fleet = ["newpipe", "osmand", "media3"]
+    # (a) no leak_index -> admitted as before (back-compat)
+    r1 = mine(["TeamNewPipe/NewPipe"], str(tmp_path / "a"), gh=_leak_gh(), repo_name="newpipe",
+              fleet_names=fleet, limit=5)
+    assert r1["admitted"] == 1
+    # (b) leak_index says the owner still wins on the sanitized text -> rejected, nothing emitted
+    r2 = mine(["TeamNewPipe/NewPipe"], str(tmp_path / "b"), gh=_leak_gh(), repo_name="newpipe",
+              fleet_names=fleet, limit=5, leak_index=_OwnerWinsIndex("newpipe"))
+    assert r2["rejected_leak"] >= 1 and r2["admitted"] == 0
+    assert not any(p.is_dir() for p in Path(str(tmp_path / "b")).iterdir())
+
+
+def test_prose_only_tagged_insufficient_signal(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    # PR touches a real prod .java (is_minable OK) but the issue body is pure prose (no stack/log)
+    gh = _fake([_node(300, title="empty list", body="The list is occasionally empty after refresh.",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]})])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe",
+                  fleet_names=["newpipe", "osmand"], limit=5)
+    import json
+    from pathlib import Path
+    d = next(p for p in Path(out).iterdir() if p.is_dir())
+    o = json.loads((d / "_oracle" / "oracle.json").read_text())
+    assert o["is_answerable"] is True and o["negative_class"] == "insufficient_signal"
+    assert json.loads((d / "_oracle" / "provenance.json").read_text())["source_method"] == "prose_only"
+    assert report["insufficient_signal"] == 1
+
+
+def test_holdout_frac_emits_out_of_fleet(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    gh = _fake([_node(101, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]}),
+                _node(102, body="java.lang.NullPointerException at app.B.g(B.java:9)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]})])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe",
+                  fleet_names=["newpipe", "osmand", "media3"], limit=10, holdout_frac=0.5)
+    import json
+    from pathlib import Path
+    oof = [d for d in Path(out).iterdir() if d.is_dir()
+           and json.loads((d / "_oracle" / "oracle.json").read_text())["negative_class"] == "out_of_fleet"]
+    assert oof and report["oof"] >= 1
+    o = json.loads((oof[0] / "_oracle" / "oracle.json").read_text())
+    assert o["is_answerable"] is False and o["held_out_repo"] == "newpipe"
+    names = [r["name"] for r in json.loads((oof[0] / "catalog.json").read_text())]
+    assert "newpipe" not in names and set(names) <= {"osmand", "media3"}
+
+
+def test_coverage_cutoff_emits_coverage_gap(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    gh = _fake([_node(103, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE],
+                              "mergedAt": "2026-06-01T00:00:00Z"})])
+    out = str(tmp_path / "ds")
+    mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe", fleet_names=["newpipe", "osmand"],
+         limit=5, coverage_cutoff="2026-03-01T00:00:00Z")
+    import json
+    from pathlib import Path
+    d = next(p for p in Path(out).iterdir() if p.is_dir())
+    o = json.loads((d / "_oracle" / "oracle.json").read_text())
+    assert o["negative_class"] == "coverage_gap" and o["is_answerable"] is False and o["owning_repo"] == "newpipe"
+    assert not (d / "catalog.json").is_file()          # owner stays in the GLOBAL catalog
+
+
+def test_pre_cutoff_case_stays_positive(tmp_path):
+    from tests.mine.conftest import _node, _fake, _PRODFILE
+    gh = _fake([_node(104, body="java.lang.IllegalStateException at app.A.f(A.java:5)",
+                      closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE],
+                              "mergedAt": "2026-01-15T00:00:00Z"})])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe", fleet_names=["newpipe", "osmand"],
+                  limit=5, coverage_cutoff="2026-03-01T00:00:00Z")
+    import json
+    from pathlib import Path
+    d = next(p for p in Path(out).iterdir() if p.is_dir())
+    o = json.loads((d / "_oracle" / "oracle.json").read_text())
+    assert o["negative_class"] is None and o["is_answerable"] is True and report["admitted"] == 1
+
+
+def test_not_a_defect_harvest_emits_sentinel(tmp_path):
+    from tests.mine.conftest import _node, _fake
+    gh = _fake([_node(200, title="Add dark mode", labels=["enhancement"],
+                      body="Please add a dark theme.", closer=None)])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe",
+                  fleet_names=["newpipe", "osmand"], limit=5, not_a_defect_limit=5)
+    import json
+    from pathlib import Path
+    nd = [d for d in Path(out).iterdir() if d.is_dir()
+          and json.loads((d / "_oracle" / "oracle.json").read_text())["negative_class"] == "not_a_defect"]
+    assert nd and report["not_a_defect"] == 1
+    o = json.loads((nd[0] / "_oracle" / "oracle.json").read_text())
+    assert o["owning_repo"] == "__NOT_A_DEFECT__" and o["is_answerable"] is False and o["expected_files"] == []
