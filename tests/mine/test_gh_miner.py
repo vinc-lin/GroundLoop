@@ -153,3 +153,19 @@ def test_pre_cutoff_case_stays_positive(tmp_path):
     d = next(p for p in Path(out).iterdir() if p.is_dir())
     o = json.loads((d / "_oracle" / "oracle.json").read_text())
     assert o["negative_class"] is None and o["is_answerable"] is True and report["admitted"] == 1
+
+
+def test_not_a_defect_harvest_emits_sentinel(tmp_path):
+    from tests.mine.conftest import _node, _fake
+    gh = _fake([_node(200, title="Add dark mode", labels=["enhancement"],
+                      body="Please add a dark theme.", closer=None)])
+    out = str(tmp_path / "ds")
+    report = mine(["TeamNewPipe/NewPipe"], out, gh=gh, repo_name="newpipe",
+                  fleet_names=["newpipe", "osmand"], limit=5, not_a_defect_limit=5)
+    import json
+    from pathlib import Path
+    nd = [d for d in Path(out).iterdir() if d.is_dir()
+          and json.loads((d / "_oracle" / "oracle.json").read_text())["negative_class"] == "not_a_defect"]
+    assert nd and report["not_a_defect"] == 1
+    o = json.loads((nd[0] / "_oracle" / "oracle.json").read_text())
+    assert o["owning_repo"] == "__NOT_A_DEFECT__" and o["is_answerable"] is False and o["expected_files"] == []

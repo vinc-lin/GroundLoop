@@ -56,7 +56,7 @@ def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> d
 
 def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name: str,
          fleet_names: list[str], limit: int = 200, max_files: int = 5, holdout_frac: float = 0.0,
-         coverage_cutoff: str = "", leak_index=None) -> dict:
+         coverage_cutoff: str = "", leak_index=None, not_a_defect_limit: int = 0) -> dict:
     """Mine one repo slug (repo_name = its short catalog name) into `out/`. Returns a report dict."""
     from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows
     missing = missing_owner_rows([repo_name])
@@ -138,4 +138,21 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
                 raw={"issue": {"number": cand.issue_number, "title": cand.issue_title,
                                "body": cand.issue_body}, "pr_files": cand.files})
             emit_case(out, case)
+
+        if not_a_defect_limit > 0:
+            from groundloop.mine.harvest import harvest_nondefects
+            nd_kwargs = {"limit": not_a_defect_limit} if gh is None else {"gh": gh, "limit": not_a_defect_limit}
+            for cand in harvest_nondefects(slug, **nd_kwargs):
+                report["harvested"] += 1
+                prose, logs = split_issue_body(cand.issue_body)
+                tok = build_owner_tokens(_oracle_for(cand, repo_name, []))
+                s_desc, s_summary = scrub(prose, tok), scrub(cand.issue_title, tok)
+                s_logs = [scrub(lg["text"], tok) for lg in logs]
+                emit_case(out, MinedCase(
+                    case_id=_opaque_id(slug, cand.issue_number), summary=s_summary, description=s_desc,
+                    logs=[{"kind": lg["kind"], "text": t} for lg, t in zip(logs, s_logs)],
+                    owning_repo="__NOT_A_DEFECT__", expected_files=[], required_apis=[],
+                    is_answerable=False, negative_class="not_a_defect",
+                    provenance={"source_method": "label_harvest", "labels": list(cand.labels)}))
+                report["not_a_defect"] += 1
     return report

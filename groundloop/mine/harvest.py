@@ -113,3 +113,40 @@ def _to_candidate(slug: str, node: dict, pr: dict) -> Candidate:
         merge_commit_sha=(pr.get("mergeCommit") or {}).get("oid", ""),
         merged_at=pr.get("mergedAt", ""), files_total=pr.get("files", {}).get("totalCount", len(files)),
         files=files)
+
+
+NOT_A_DEFECT_LABELS = {"enhancement", "question", "duplicate", "wontfix", "invalid",
+                       "feature", "feature request", "documentation"}
+
+
+def harvest_nondefects(slug: str, *, gh: Callable[[list[str]], dict] = _default_gh,
+                       limit: int = 50) -> list[Candidate]:
+    """Issues with NO same-repo merged closer AND a not-a-defect label (reuses _QUERY unchanged)."""
+    owner, name = slug.split("/", 1)
+    out: list[Candidate] = []
+    seen: set[int] = set()
+    cursor: str | None = None
+    while len(out) < limit:
+        page = gh(_gql_args(owner, name, cursor))
+        conn = page["data"]["repository"]["issues"]
+        for node in conn["nodes"]:
+            if node["number"] in seen:
+                continue
+            labels = {x["name"].lower() for x in node.get("labels", {}).get("nodes", [])}
+            if _pick_closer(node, slug) is None and (labels & NOT_A_DEFECT_LABELS):
+                seen.add(node["number"])
+                out.append(_to_nondefect_candidate(slug, node))
+                if len(out) >= limit:
+                    break
+        if not conn["pageInfo"]["hasNextPage"]:
+            break
+        cursor = conn["pageInfo"]["endCursor"]
+    return out
+
+
+def _to_nondefect_candidate(slug: str, node: dict) -> Candidate:
+    return Candidate(owning_slug=slug, issue_number=node["number"], issue_title=node.get("title", ""),
+                     issue_body=node.get("body") or "", issue_url=node.get("url", ""),
+                     labels=tuple(x["name"] for x in node.get("labels", {}).get("nodes", [])),
+                     created_at=node.get("createdAt", ""), pr_number=0, merge_commit_sha="",
+                     merged_at="", files_total=0, files=[])

@@ -63,3 +63,19 @@ def test_dedup_same_issue_across_pages():
         "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": [node, node]}}}}
     cands = harvest_repo("acme/widget", gh=lambda a: page, limit=50)
     assert len(cands) == 1
+
+
+def test_harvest_nondefects_keeps_labeled_unlinked_drops_positives():
+    from groundloop.mine.harvest import harvest_nondefects
+    from tests.mine.conftest import _node, _gql_page, _PRODFILE
+    page = _gql_page([
+        _node(1, labels=["enhancement"], closer=None),                                  # KEEP (labeled, unlinked)
+        _node(2, labels=["bug"], closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE]}),  # DROP (positive: merged closer)
+        _node(3, labels=[], closer=None),                                               # DROP (no not-a-defect label)
+        _node(4, labels=["question"],
+              closer={"slug": "TeamNewPipe/NewPipe", "files": [_PRODFILE], "merged": False}),  # KEEP (closer not merged)
+    ])
+    got = harvest_nondefects("TeamNewPipe/NewPipe", gh=lambda _a: page, limit=10)
+    assert {c.issue_number for c in got} == {1, 4}
+    for c in got:
+        assert c.pr_number == 0 and c.files == [] and c.merge_commit_sha == ""
