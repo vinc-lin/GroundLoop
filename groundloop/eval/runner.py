@@ -7,7 +7,7 @@ from typing import Sequence
 
 from groundloop.eval.abstain import decide
 from groundloop.eval.arms import Arm
-from groundloop.eval.dataset import CaseRef
+from groundloop.eval.dataset import CaseRef, case_catalog
 
 
 @dataclass(frozen=True)
@@ -29,14 +29,17 @@ class EvalRunner:
         self.tau_score = tau_score
 
     def run(self, cases: Sequence[CaseRef], arms: Sequence[Arm]) -> list[MatchRecord]:
-        catalog = self.estate.catalog()
+        global_catalog = self.estate.catalog()
         records: list[MatchRecord] = []
         for case in cases:
-            ticket = self.issues.fetch(case.case_id)          # loop-visible only
+            catalog = case_catalog(case) or global_catalog        # per-case override (OOF hold-out)
+            ticket = self.issues.fetch(case.case_id)              # loop-visible only
             for arm in arms:
                 signals = arm.extractor.extract(ticket.logs, ticket)
                 ranked = arm.index.rank_repos(signals, catalog)
-                d = decide(ranked, tau_margin=self.tau_margin, tau_score=self.tau_score)
+                tm = arm.tau_margin if arm.tau_margin is not None else self.tau_margin
+                ts = arm.tau_score if arm.tau_score is not None else self.tau_score
+                d = decide(ranked, tau_margin=tm, tau_score=ts)
                 records.append(MatchRecord(
                     case_id=case.case_id, arm=arm.name,
                     ranked_names=[r.repo.name for r in ranked],
