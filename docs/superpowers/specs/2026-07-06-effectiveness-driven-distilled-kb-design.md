@@ -6,6 +6,8 @@
 > (SP3 "dev-experience KB as a measured arm") from an *atomic-Skills, one-shot arm* into an
 > **effectiveness-driven, distilled** KB that grows by retaining only knowledge reality verified. Extends
 > the SP3 plan [`2026-07-05-type2-sp3-kb-arm.md`](../plans/2026-07-05-type2-sp3-kb-arm.md).
+> **Reconciled against the SP3 merge (`71a67ed`, 2026-07-06):** SP3's KB arm shipped fix-stage; this spec's
+> localize-inject and the distill/lifecycle stages remain the net-new extensions. Details in §0/§3.
 
 **Goal:** a Knowledge Base of AAOS log-analysis + bug-fixing knowledge that is **distilled from Skills**
 (consolidation + effectiveness-based extraction) and is trustworthy because every entry earned its place
@@ -26,14 +28,21 @@ lift before it is canonical.
   `resolved_rate` (**proxy** = localization∧required-api∧applies; not test-pass), `fabrication_rate`
   (Bucket-1), `phi_c`, `cost_*`. `compare` names `newly_solved`/`newly_broken` (proxy `resolved`,
   positives only).
-- **SP3 primitives (worktree `worktree-sp3-kb-arm`, unmerged).** `groundloop/skills/{base,ctx,predicate}.py`
-  (`Skill`, `SkillRegistry`, `render_skills` → "# Applicable playbooks", `SkillCtx`/`build_ctx`,
+- **SP3 KB arm (shipped, master `71a67ed`).** `groundloop/skills/{base,ctx,predicate}.py` (`Skill`,
+  `SkillRegistry`, `render_skills` → "# Applicable playbooks", oracle-blind `SkillCtx`/`build_ctx`,
   closed-vocab `compile_predicate`) + `adapters/skills/mock.MockSkillRegistry` (predicate filter + gated
-  bge-m3 rerank, `top_k=3`) + a 4-playbook seed. **Not wired** into `model_patch`/`arms`/`runner` even in
-  the worktree.
-- **Feedstock corpus (shipped this track, master).** `groundloop/kb/` — 11 grounded, leak-safe,
+  bge-m3 rerank, `top_k=3`, 4-playbook seed) + migration guide (`docs/skill-kb-migration.md`) + a
+  non-vacuous parity self-test. **Wired FIX-STAGE only:** `gloop fixeval --skills {none,mock}`; the runner
+  injects `render_skills(registry.select(build_ctx(signals, ticket, predicted)))` into `ModelPatchEngine`
+  via `with_preamble` (`fixeval/runner.py:74-77`) — AFTER match, BEFORE `localize()` (`runner.py:80`), which
+  stays **skill-blind** → `file_recall@1` is skill-invariant (SP3 confirmed this and made its effect test
+  assert on `resolved_rate`). `core/` + SQLite schema untouched.
+- **Feedstock corpus (shipped this track, master `16904d4`).** `groundloop/kb/` — 11 grounded, leak-safe,
   localization-first crash-RCA Skills (`data/aaos_kb_seed.toml`) + `validate.py` (closed-vocab + leak
   red-test over `FLEET_OWNER_TOKENS`). Fires on **55% of the 212 synth cases**. Status = `candidate`.
+  **Contract-verified against merged SP3:** the corpus loads under the real `adapters/skills/mock.load_skills`
+  and all 11 predicates compile (the `tests/kb` drift-guard now RUNS, not skips). It is a SEPARATE file from
+  the 4-playbook SP3 seed and is **not yet loaded by `--skills mock`** (see §3 / §7 wire-in).
 
 ## 1. The loop, formalized
 The KB grows by a **retain loop** (lineage: CBR Retain phase · Voyager verified-skill library · STaR
@@ -53,7 +62,7 @@ guards ARE the design.
 |---|---|---|---|
 | Feedstock corpus + validator | `groundloop/kb/` (our lane) | **done** | authored/harvested Skills as data; leak+contract gate |
 | Harvester | `groundloop/kb/harvest/` (our lane) | deferred | build-time, split-firewalled GitHub issue↔PR → `candidate` Skills |
-| `SkillRegistry` arm | `groundloop/skills/` + `adapters/skills/` (SP3, worktree) | in-flight | `select(ctx)` + `render_skills`, injected at localize **and** fix |
+| `SkillRegistry` arm | `groundloop/skills/` + `adapters/skills/` (SP3) | **shipped `71a67ed`** (fix-stage) | `select(ctx)` + `render_skills`; injected at **fix** today — **localize** inject is the §3 extension |
 | Effectiveness measurement | `groundloop/fixeval/` (SP2, shipped) | done | the two-sided A/B that grades a Skill's lift |
 | Distiller | `groundloop/kb/distill/` (our lane) | deferred | oracle-blind, extraction-over-synthesis, leak-scrubbed |
 | Lifecycle/tier manager | `groundloop/kb/lifecycle.py` (our lane) | deferred | tiers + auto-demote (staleness→demotion) |
@@ -65,12 +74,17 @@ Skills inject at **both** the localize stage and the fix stage.
   *localization*. But under SP2 today, `file_recall` grades the **deterministic localize output computed
   before** `fixer.propose`, so a fix-only Skill is **`file_recall`-invariant** (a real code truth). To let
   a Skill earn `file_recall`, its `Localize:` half must feed the localizer.
-- **Wiring (concrete, from SP2/SP3 truth):** (a) `render_skills(registry.select(ctx))` into the localize
-  query builder AND into `ModelPatchEngine.propose`'s prompt; (b) a `skills ∈ {none, placebo, kb}` axis on
-  `Arm` (`eval/arms.py`) / the fix runner; (c) thread the registry through the runners.
-- **Coordination delta:** the SP3 plan injects at fix only (and its `accept()` keys on Δ`file_recall@1`,
-  which fix-only injection cannot move). This spec's localize-inject **closes that gap** and must be
-  reconciled with the SP3 session before wiring.
+- **Shipped today (fix-stage):** `runner.py:74-77` already injects the preamble into `ModelPatchEngine`
+  after match. What remains for localize-inject: feed `render_skills(registry.select(ctx))` into
+  `localize(arm.index, predicted, signals, ticket.summary)` (`runner.py:80`), which is currently skill-blind
+  — e.g. append the applicable Skills' `Localize:` cues / `signals` to the retrieve query so a playbook can
+  bias candidate-file ranking.
+- **Coordination delta (reframed against merged SP3):** shipped SP3 injects fix-only and already ABSORBS the
+  `file_recall`-invariance — its `accept()` (`fixeval/compare.accept`) uses `pos_ok = Δfile_recall@1>0 OR
+  newly_solved>newly_broken`, so the positive signal comes from `newly_solved` on the `resolved` proxy. Our
+  localize-inject is therefore a **net-new extension** (not a bug-fix): it makes `file_recall@1` a *live*
+  positive signal instead of a dead OR-branch. It edits SP3's `runner.py`/`localize.py` → reconcile with the
+  SP3 owner before wiring.
 
 ## 4. Effectiveness — honest measurement (the red-team core)
 1. **Metrics that can actually move.** With localize+fix injection the skill-sensitive set is
@@ -84,10 +98,13 @@ Skills inject at **both** the localize stage and the fix stage.
    on the **help/hurt sign-split**, not the mean. Multi-Skill bundles: **leave-one-out + leave-one-in**
    ablation on the *firing subset*; "useful parts" via **leave-one-fragment-out + non-inferiority**.
 3. **Two-sided `accept()` (the honesty gate is mandatory).** A Skill lowers the threshold to commit a fix
-   — the same lever turns a should-abstain negative into a confident fabrication. So accept **iff**:
-   Δ(lift metric) > 0 (CI lower bound) **AND** Δ`fabrication_rate` ≤ 0 **AND** ΔΦ_c ≥ 0 over c∈{0.5,1,2}.
-   (`abstention_recall_oof` is skill-invariant — post-match injection can't move the abstain decision — so
-   `fabrication_rate` on Bucket-1 is the honesty surface.)
+   — the same lever turns a should-abstain negative into a confident fabrication. **Shipped gate**
+   (`fixeval/compare.accept`): `pos_ok = Δfile_recall@1>0 OR newly_solved>newly_broken`; `honesty_ok =
+   Δfabrication_rate ≤ 0`; `cost_ok` advisory unless a budget is passed. (`abstention_recall_oof` is
+   skill-invariant — post-match injection can't move the abstain decision — so `fabrication_rate` on
+   Bucket-1 is the honesty surface.) **Proposed strengthening for the retain loop:** also require
+   **ΔΦ_c ≥ 0 across c∈{0.5,1,2}** (prices the honesty/lift trade at the deployment's cost-of-wrong) and a
+   **Wilson-95 CI lower bound** on the lift, so a lucky point estimate can't promote a Skill.
 4. **Splits so "validated" means unseen.** Distill/select on the **calib/train** split only; confirm lift
    on a **temporal** hold-out (`holdout-postcutoff`) + **leave-one-repo-out** (the 9→130 generalization
    canary); report TEST once, never gate on it. Apply BH-FDR multiplicity control across Skills tested.
@@ -124,9 +141,12 @@ the live prompt without human action:
 ## 7. Feasibility & phasing — build the measurement, defer the automation
 The bundle A/B is ~$2 and answers the real question; the full self-improving lifecycle is not justified
 until (a) the A/B shows a lift worth protecting and (b) enough cases fire per Skill to validate one.
-- **Phase A (now):** feedstock corpus (**done**) → wire the arm at localize+fix (SP3, coordinate) → run
-  the capped bundle A/B (`--skills none|placebo|kb` over the firing subset + Bucket-1 negatives) → **one
-  two-sided `accept()` verdict.** That verdict *is* the loop proven end-to-end.
+- **Phase A (now — mostly unblocked):** feedstock corpus (**done**) + SP3 fix-stage arm (**shipped**). The
+  remaining wire-in is small: (a) let `--skills` load OUR corpus — add `--skills-seed <path>` (the CLI
+  hardcodes `MockSkillRegistry.load()`'s default seed today) or repoint the default at `groundloop/kb/data/`;
+  (b) add a length/format-matched **`placebo`** seed for the control arm; (c) optionally the §3
+  localize-inject. Then run the capped bundle A/B (`--skills none|placebo|kb` over the firing subset +
+  Bucket-1 negatives) → **one two-sided `accept()` verdict.** That verdict *is* the loop proven end-to-end.
 - **Phase B (iff A is positive):** harvester (split-firewalled) + tier/lifecycle manager + provenance
   sidecar.
 - **Phase C (iff B yields a canonical-worthy entry):** the oracle-blind, split-firewalled distiller +
@@ -136,9 +156,11 @@ until (a) the A/B shows a lift worth protecting and (b) enough cases fire per Sk
 
 ## 8. Coordination & guardrails
 - **Lanes:** feedstock corpus / harvester / distiller / lifecycle = **our (dataset/eval) lane**; the
-  `SkillRegistry` arm + wiring = **SP3 session** (worktree); the fix-eval = **SP2 (shipped)**. The corpus
-  is the shared interface. Reconcile the **localize-inject delta** (§3) and the **corpus merge point**
-  (one file vs. two) with the SP3 session before wiring.
+  `SkillRegistry` arm = **SP3 (shipped `71a67ed`)**; the fix-eval = **SP2 (shipped)**. The corpus is the
+  shared interface. Two concrete wire-ins to reconcile with the SP3 owner: **(1) corpus load** — `--skills
+  mock` loads only the 4-playbook SP3 seed (`adapters/skills/data/aaos_playbooks.toml`); our 11 Skills
+  (`groundloop/kb/data/aaos_kb_seed.toml`) need a `--skills-seed` option or a merged/repointed default;
+  **(2) the localize-inject** (§3), which edits SP3's `runner.py`/`localize.py`.
 - **Untouched:** `rank_repos`, `groundloop/mine/`, `owner_tokens.py`, `cli/_run_mine` (other sessions).
 - **Invariants:** frozen `core/`; no SQLite schema change; embedders pinned `bge-m3` (query==index); the
   fix loop + registry **never read `_oracle/`**; grading is the sole offline oracle read; every
@@ -157,5 +179,5 @@ until (a) the A/B shows a lift worth protecting and (b) enough cases fire per Sk
 ## 10. Relationship to existing docs
 Extends [`type2-evaluation.md`](../../type2-evaluation.md) (Test-2 canonical) and
 [`downstream-fix-loop.md`](../../downstream-fix-loop.md) (measured-arm rule). Evolves §3 of the
-negatives-fixloop-kb spec and the SP3 plan. The feedstock corpus + validator are already on master
-(`groundloop/kb/`).
+negatives-fixloop-kb spec and the SP3 plan (now **shipped**, `71a67ed`). The feedstock corpus + validator
+are already on master (`groundloop/kb/`), contract-verified against the merged SP3 loader.
