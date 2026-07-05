@@ -44,3 +44,8 @@ def test_case_catalog_absent_returns_none(tmp_path):
     d.mkdir()
     (d / "ticket.json").write_text(json.dumps({"id": "pos-1", "logs": []}))
     assert case_catalog(CaseRef(case_id="pos-1", case_dir=str(d))) is None
+
+
+def test_load_eval_oracle_reads_required_apis(tmp_path):
+    case = _write_case(tmp_path, "reqapi", {"owning_repo": "x", "required_apis": ["nativeCreateHandler"]})
+    assert load_eval_oracle(case).required_apis == ("nativeCreateHandler",)
