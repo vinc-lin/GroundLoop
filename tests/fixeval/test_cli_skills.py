@@ -72,11 +72,11 @@ def test_load_skills_selects_seed_corpus(tmp_path):
 
 
 def test_load_skills_kb_default_is_our_corpus():
-    # kind=kb with no seed -> OUR 11-skill corpus (groundloop/kb/data/aaos_kb_seed.toml)
+    # kind=kb with no seed -> OUR 12-skill corpus (groundloop/kb/data/aaos_kb_seed.toml)
     from groundloop.cli import _load_skills
     from groundloop.kb.validate import SEED_PATH as KB_SEED
     reg = _load_skills("kb", None, None)
-    assert reg is not None and len(reg.skills) == 11
+    assert reg is not None and len(reg.skills) == 12
     # mock with no seed -> the SP3 4-playbook default seed
     assert len(_load_skills("mock", None, None).skills) == 4
     assert KB_SEED.endswith("aaos_kb_seed.toml")

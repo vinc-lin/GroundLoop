@@ -217,7 +217,7 @@ def _run_eval(args) -> int:
 def _load_skills(kind: str, seed: str | None, embedder):
     """Compose the fixeval KB arm. kind: none|mock|kb|placebo.
     none -> None (baseline, no KB injected). mock -> the SP3 4-playbook seed.
-    kb -> OUR 11-skill corpus (groundloop/kb/data/aaos_kb_seed.toml) or the --skills-seed override.
+    kb -> OUR 12-skill corpus (groundloop/kb/data/aaos_kb_seed.toml) or the --skills-seed override.
     placebo -> the length-matched irrelevant control (groundloop/kb/data/placebo.toml) or the override.
     All three real arms share the MockSkillRegistry wiring (predicate select + gated bge-m3 rerank)."""
     if kind == "none":

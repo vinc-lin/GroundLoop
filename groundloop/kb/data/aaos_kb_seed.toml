@@ -190,3 +190,20 @@ any_methods = ["checkforcomodification"]
 any_errors = ["java.util.concurrentmodificationexception", "concurrentmodificationexception"]
 any_errors_regex = ["concurrentmodification(exception)?"]
 
+[[skill]]
+id = "native-lib-load-failure"
+provenance = "Android JNI native-library load RCA: java.lang.UnsatisfiedLinkError from a missing or mis-ABI .so (System.loadLibrary) or an unregistered native symbol (No implementation found); NDK ABI packaging under jniLibs/<abi> plus the static-JNI / RegisterNatives symbol-binding contract."
+signals = ["unsatisfiedlinkerror", "jni", "native", "so", "loadlibrary", "registernatives", "abi", "nativecreate", "startup-crash"]
+hint_apis = ["System.loadLibrary", "RegisterNatives", "JNI_OnLoad", "GetLongField"]
+guidance = '''
+Signature: java.lang.UnsatisfiedLinkError at app start or first use of a native feature — either a "No implementation found for <ret> <pkg>.<Class>.<method>()" message (the Java `native` method has no bound JNI symbol) or a loader failure (couldn't find the lib*.so, or a "Load library for <name> failed" line) raised out of System.loadLibrary; the top app frame is a "(Native Method)" entry directly under the class declaring the native method, frequently on a GL/render/worker thread.
+Localize: two owning sites depending on the message. For a loader failure, the build/packaging config that ships the .so (jniLibs/<abi>/ or the CMake/ndk-build target) plus the loadLibrary call site. For "No implementation found", the C/C++ translation unit (.cpp/.cc/.cxx) implementing the missing method — matched by the demangled Class::method or the static-JNI entry name Java_<pkg>_<Class>_<method>, or the RegisterNatives table meant to bind it. Rank native sources by the native-peer class named in the "(Native Method)" frame, never the Java call site.
+Fix: root cause is a native symbol that was never registered or a .so that was never loaded for the device ABI. Correct at the JNI boundary: build and package the .so for every target ABI (arm64-v8a / armeabi-v7a) under jniLibs/<abi>/; ensure System.loadLibrary runs before the first native call; and bind the missing symbol — a static Java_<pkg>_<Class>_<method> whose name exactly matches the Java `native` declaration, or a RegisterNatives entry in JNI_OnLoad. A correct patch references the JNI interface that implements the native method (RegisterNatives / a Java_* entry / the loadLibrary call), not the Java call site.
+'''
+
+[skill.match]
+any_text = ["unsatisfiedlinkerror", "no implementation found", "couldn't find", "load library", "native method", "registernatives"]
+any_text_regex = ['lib\w+\.so', 'no implementation found for']
+any_errors = ["unsatisfiedlinkerror", "java.lang.unsatisfiedlinkerror"]
+any_methods = ["nativecreatehandler", "nativecreate", "registernatives"]
+

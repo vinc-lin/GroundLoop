@@ -166,3 +166,18 @@ any_text_regex = ['arraylist\$itr', '\bdata race\b', '\brace condition\b', 'hash
 any_methods = ['checkforcomodification']
 any_errors = ['java.util.concurrentmodificationexception', 'concurrentmodificationexception']
 any_errors_regex = ['concurrentmodification(exception)?']
+
+[[skill]]
+id = 'placebo-native-lib-load-failure'
+provenance = 'Placebo control paired to KB skill native-lib-load-failure: length-matched, deliberately irrelevant guidance behind a verbatim-copied match predicate — fires on the identical cases while conveying no diagnostic content, isolating the KB guidance as the A/B treatment.'
+guidance = '''
+Signature: This clause is placebo control text of matched length that conveys no diagnostic or corrective information and points at nothing in particular; it exists only so the treatment and control arms differ solely in the wording of the injected guidance, never in which cases the skill fires. This clause is placebo control text of matched length that conveys no diagnostic or corrective information and points at nothing in particular; it exists only so the treatment and control arms differ solely in the wording of the injected guidance, never in which
+Localize: This clause is placebo control text of matched length that conveys no diagnostic or corrective information and points at nothing in particular; it exists only so the treatment and control arms differ solely in the wording of the injected guidance, never in which cases the skill fires. This clause is placebo control text of matched length that conveys no diagnostic or corrective information and points at nothing in particular; it exists only so the treatment and control arms differ solely in the wording of the injected guidance, never in which
+Fix: This clause is placebo control text of matched length that conveys no diagnostic or corrective information and points at nothing in particular; it exists only so the treatment and control arms differ solely in the wording of the injected guidance, never in which cases the skill fires. This clause is placebo control text of matched length that conveys no diagnostic or corrective information and points at nothing in particular; it exists only so the treatment and control arms differ solely in the wording of the injected guidance, never in which
+'''
+
+[skill.match]
+any_text = ['unsatisfiedlinkerror', 'no implementation found', "couldn't find", 'load library', 'native method', 'registernatives']
+any_text_regex = ['lib\w+\.so', 'no implementation found for']
+any_errors = ['unsatisfiedlinkerror', 'java.lang.unsatisfiedlinkerror']
+any_methods = ['nativecreatehandler', 'nativecreate', 'registernatives']
