@@ -33,7 +33,7 @@ FLEET_OWNER_TOKENS: dict[str, dict] = {
     },
     "cameraview": {
         "namespaces": ["com.otaliastudios.cameraview", "com.otaliastudios"],
-        "slugs": ["otaliastudios", "natario1"],  # bare 'cameraview' is a generic word — redact via namespace only
+        "slugs": ["otaliastudios", "natario1", "cameraview"],
         "sonames": [],
         "KEEP": ["androidx.camera.", "android.hardware.camera2.", "android.graphics.SurfaceTexture", "android."],
     },

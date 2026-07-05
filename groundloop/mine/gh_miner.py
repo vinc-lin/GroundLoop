@@ -23,6 +23,7 @@ def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str]) -> d
         "owning_repo": repo_name,
         "owner_namespaces": list(row["namespaces"]), "owner_slugs": list(row["slugs"]),
         "owner_sonames": list(row["sonames"]), "expected_files": expected_files,
+        "owner_github_slug": cand.owning_slug,
         "fix_patch": "",  # E1-B v1 derives class/method from the issue text, not the diff body
     }
 

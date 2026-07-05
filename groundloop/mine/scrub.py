@@ -18,6 +18,7 @@ GENERIC_IDENT_KEEP = {
     "Activity", "Fragment", "Service", "View", "Handler", "Runnable",
 }
 MIN_SHINGLE = 24
+_GENERIC_ORG = {"android", "androidx", "google", "com", "org", "io", "team", "app"}
 
 _ADDED = re.compile(r"(?m)^\+(?!\+\+).*")
 _IDENT = re.compile(r"[A-Za-z_$][\w$]*")
@@ -59,8 +60,14 @@ def build_owner_tokens(oracle: dict) -> dict:
     fix = parse_patch(oracle.get("fix_patch", ""))
     exp = list(oracle.get("expected_files", []))
     bases = {f.rsplit("/", 1)[-1].rsplit(".", 1)[0] for f in exp}
+    repo = set(oracle.get("owner_slugs", []))
+    gh_slug = oracle.get("owner_github_slug", "")
+    if gh_slug and "/" in gh_slug:
+        for part in gh_slug.split("/", 1):
+            if part and part.lower() not in _GENERIC_ORG:
+                repo.add(part)
     return {
-        "REPO": set(oracle.get("owner_slugs", [])),
+        "REPO": repo,
         "PKG": set(oracle.get("owner_namespaces", [])),
         "PATH": set(exp) | bases,
         "CLASS": set(fix["classes"]),

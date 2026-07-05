@@ -82,3 +82,24 @@ def test_leakage_flags_reject_when_owner_token_survives_then_admit_when_clean():
     flags2, sig2 = leakage_flags(clean_desc, [clean_log], tok, "android-gpuimage-plus")
     assert not any(flags2.values())
     assert admit(flags2, sig2) == "ADMIT"
+
+
+def test_scrub_redacts_cameraview_token_but_not_generic_camera():
+    tok = build_owner_tokens({"owning_repo": "cameraview", "owner_slugs": ["cameraview"],
+                              "owner_namespaces": ["com.otaliastudios.cameraview"], "owner_sonames": [],
+                              "expected_files": [], "fix_patch": ""})
+    out = scrub("The CameraView preview is black; cameraview crashed", tok)
+    assert "CameraView" not in out and "cameraview" not in out
+    assert "camera" in scrub("the camera failed to open", tok)   # generic word NOT over-redacted
+
+
+def test_scrub_redacts_github_org_and_keeps_generic_org():
+    tok = build_owner_tokens({"owning_repo": "newpipe", "owner_slugs": ["newpipe"],
+                              "owner_github_slug": "TeamNewPipe/NewPipe", "owner_namespaces": [],
+                              "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    out = scrub("dup of https://github.com/TeamNewPipe/NewPipe/issues/900, filed by TeamNewPipe", tok)
+    assert "TeamNewPipe" not in out
+    tok2 = build_owner_tokens({"owning_repo": "media3", "owner_slugs": ["media3"],
+                               "owner_github_slug": "androidx/media", "owner_namespaces": [],
+                               "owner_sonames": [], "expected_files": [], "fix_patch": ""})
+    assert "androidx.core.app.NotificationCompat" in scrub("uses androidx.core.app.NotificationCompat", tok2)
