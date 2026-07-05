@@ -33,6 +33,21 @@ Migrated the full index engine from knowledgeLoop behind the ports:
   base `[project.dependencies]`; launched as the installed binary, not `uvx`).
 - Detail: `docs/m1-index-build.md`.
 
+### Type-2 track — SP1 → SP3 (honest-refusal negatives + fix-loop eval + dev-experience KB)  ·  COMPLETE
+The four-sub-project Type-2 extension (design: `docs/superpowers/specs/2026-07-05-type2-negatives-fixloop-kb-design.md`),
+all shipped to master, `core/` untouched, hermetic + gated surfaces:
+- **SP1a/SP1b** — honest-refusal **negatives** (four classes; Φ_c + `abstention_recall_oof`; per-arm τ;
+  leak-tight opaque `case_id`; closed-loop reject). Grounded refusal is now a real Stage-1 number.
+- **SP2** — the downstream **fix/RCA loop + eval** (`groundloop/fixeval/`): `FixEvalRunner` drives
+  localize→propose-patch directly (never the frozen `run_ticket`); `grade_fix_all` = `file_recall@k` +
+  `patch_applies` + `required_api_pass_rate` + advisory `resolved_rate` + whole-loop **`fabrication_rate`**;
+  `gloop fixeval` / `compare`.
+- **SP3** — the dev-experience **KB as a measured arm** (`groundloop/skills/` + `MockSkillRegistry`,
+  real-data seed): `gloop fixeval --skills {none,mock}` injects `render_skills()` playbooks post-match on
+  `ModelPatchEngine`; graded by the two-sided `accept` gate (Δfile_recall POS + Δfabrication_rate honesty);
+  declarative-compiled predicates; migration guide + non-vacuous parity self-test (`docs/skill-kb-migration.md`).
+- Detail: `docs/type2-evaluation.md` (§6.4 fix-stage arm), `docs/downstream-fix-loop.md`.
+
 ### Testing environment
 - **Type-1 (hermetic)** — `tests/conftest.py` (shared fixtures: `case`, `harness`, `atlas_harness`,
   prebuilt atlas.db, canned model) + `tests/test_invariants.py` (the anti-leak §2.3 red-tests — the

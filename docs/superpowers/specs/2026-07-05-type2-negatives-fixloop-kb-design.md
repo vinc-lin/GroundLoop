@@ -173,6 +173,14 @@ patch). Adapts `bfl`'s pipeline per the migrate-as-is convention; no `core/` edi
 
 ## 3. Phase SP3 — dev-experience KB (Skills) as a measured arm
 
+> **LANDED 2026-07-06** (plan `docs/superpowers/plans/2026-07-05-type2-sp3-kb-arm.md`): `groundloop/skills/`
+> (primitive + oracle-blind `SkillCtx` + declarative→compiled predicate) + `MockSkillRegistry` (real-data
+> seed) + `gloop fixeval --skills {none,mock}` post-match injection + the two-sided `accept` gate
+> (`compare_metrics`) + the migration guide & parity self-test (`docs/skill-kb-migration.md`). `core/`
+> untouched. Two design fixes surfaced during TDD: the direction-of-effect test asserts on `resolved_rate`
+> (not the localization-invariant `file_recall@1`), and the parity fixtures were aligned so the two Skill
+> encodings represent the same predicate. Real Skills swap in via the migration guide.
+
 **Goal:** a retrievable **development-experience KB** that aids RCA + fixing, wired as a **measured arm**
 on SP2. The real Skills live in **another environment and arrive post-migration**; for now we stand up a
 **mock registry seeded with *real* dev-experience data** to validate the arm, plus a **migration guide**.
