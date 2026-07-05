@@ -9,7 +9,8 @@ from tests.fixtures.fix_atlas_fixture import build_fix_atlas_fixture
 FIX = Path(__file__).parent.parent / "fixtures"
 
 
-def test_fixeval_cli_writes_scorecard(tmp_path):
+def test_fixeval_cli_writes_scorecard(tmp_path, monkeypatch):
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)   # force the hermetic canned path
     ds = tmp_path / "ds"
     ds.mkdir()
     shutil.copytree(FIX / "android_ivi" / "gpuimage-352", ds / "GP-352")
