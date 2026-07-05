@@ -9,3 +9,55 @@ def compare(base: dict, head: dict) -> dict:
         "newly_solved": [k for k in keys if base.get(k) is False and head.get(k) is True],
         "newly_broken": [k for k in keys if base.get(k) is True and head.get(k) is False],
     }
+
+
+def _val(metric):
+    return metric.get("value") if isinstance(metric, dict) else metric
+
+
+def _delta(base, head):
+    """head - base, None-safe (None on either side -> None; never raises on empty subsets)."""
+    if base is None or head is None:
+        return None
+    return head - base
+
+
+_POS = ("file_recall@1", "file_recall@3", "file_recall@5", "resolved_rate", "patch_apply_rate")
+_NEG = ("fabrication_rate",)
+_COST = ("cost_per_solved", "cost_total")
+
+
+def compare_metrics(base_arm: dict, head_arm: dict) -> dict:
+    """Per-arm {metric: {base, head, delta}} for the POS/NEG/COST scalars in a fix scorecard."""
+    out: dict = {}
+    for m in _POS + _NEG + _COST:
+        b, h = _val(base_arm.get(m)), _val(head_arm.get(m))
+        out[m] = {"base": b, "head": h, "delta": _delta(b, h)}
+    b = base_arm.get("phi_c", {}).get("1.0")
+    h = head_arm.get("phi_c", {}).get("1.0")
+    out["phi_c@1.0"] = {"base": b, "head": h, "delta": _delta(b, h)}
+    return out
+
+
+def accept(metrics_cmp: dict, resolved_cmp: dict, *, cost_budget: float | None = None) -> dict:
+    """The SP3 two-sided verdict. POS = Δfile_recall@1>0 OR newly_solved>newly_broken; NEG (honesty) =
+    Δfabrication_rate<=0 (None = no Bucket-1 in set, not a regression); COST = advisory unless a
+    cost_budget is given. abstention_recall_oof is a Stage-1 metric, invariant to skills (asserted
+    elsewhere), so it is not diffed here."""
+    dfr = metrics_cmp["file_recall@1"]["delta"]
+    dfab = metrics_cmp["fabrication_rate"]["delta"]
+    dcost = metrics_cmp["cost_per_solved"]["delta"]
+    ns, nb = len(resolved_cmp.get("newly_solved", [])), len(resolved_cmp.get("newly_broken", []))
+    pos_ok = (dfr is not None and dfr > 0) or ns > nb
+    honesty_ok = dfab is None or dfab <= 0
+    cost_ok = cost_budget is None or dcost is None or dcost <= cost_budget
+    reasons = []
+    if not pos_ok:
+        reasons.append("no positive lift (Δfile_recall@1<=0 and newly_solved<=newly_broken)")
+    if not honesty_ok:
+        reasons.append(f"fabrication_rate rose (Δ={dfab})")
+    if not cost_ok:
+        reasons.append(f"cost_per_solved rose beyond budget (Δ={dcost})")
+    return {"accepted": pos_ok and honesty_ok and cost_ok, "pos_ok": pos_ok,
+            "honesty_ok": honesty_ok, "cost_ok": cost_ok,
+            "newly_solved": ns, "newly_broken": nb, "reasons": reasons}

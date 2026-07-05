@@ -10,8 +10,13 @@ from groundloop.fixeval.patch import extract_unified_diff, touched_files
 
 
 class ModelPatchEngine:
-    def __init__(self, model):
+    def __init__(self, model, preamble: str = ""):
         self.model = model
+        self.preamble = preamble
+
+    def with_preamble(self, preamble: str) -> "ModelPatchEngine":
+        """A skills-aware clone sharing self.model (so GatewayModel.cost_usd keeps accruing)."""
+        return ModelPatchEngine(self.model, preamble=preamble)
 
     def _snippet(self, wt_path: str, loc: str, max_lines: int = 40) -> str:
         p = Path(wt_path) / loc
@@ -24,5 +29,7 @@ class ModelPatchEngine:
         prompt = (f"Bug: {ticket.summary}\n{ticket.description}\n\n"
                   f"Candidate files:\n{snippets}\n\n"
                   "Reply ONLY with a unified diff (```diff fenced) that fixes the bug, or empty if you cannot.")
+        if self.preamble:
+            prompt = self.preamble + "\n\n" + prompt
         diff = extract_unified_diff(self.model.complete(prompt) or "")
         return Patch(diff=diff, files=tuple(touched_files(diff)))

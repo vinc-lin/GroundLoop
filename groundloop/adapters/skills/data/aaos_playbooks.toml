@@ -1,0 +1,61 @@
+# Development-experience KB seed — REAL playbooks distilled from GroundLoop RCA/ops experience.
+# "Mock" = the registry WIRING; the CONTENT is real, so the measured arm sees a genuine (small) effect.
+# Real Skills swap in by REPLACING this data file (see docs/skill-kb-migration.md) — no code change.
+# Each [skill.match] is a DECLARATIVE predicate compiled by groundloop/skills/predicate.compile_predicate
+# (no code in data). Oracle-blind: guidance must name no fleet repo (enforced by a leak red-test).
+
+[[skill]]
+id = "aaos-native-lib-load-failure"
+provenance = "docs/type2-atlas-build-findings.md; AAOS native-lib load RCA"
+signals = ["native", "so", "unsatisfiedlinkerror"]
+guidance = """
+UnsatisfiedLinkError / "couldn't find lib*.so" on an AAOS device is a native-library load failure, not a
+Java bug. Triage: (1) confirm the .so is packaged for the device ABI (arm64-v8a vs armeabi-v7a) under
+jniLibs/<abi>/; (2) "No implementation found for <method>" means the JNI symbol is unregistered — a
+missing RegisterNatives call or a static-JNI name mismatch (Java_<pkg>_<Class>_<method>); (3) verify the
+loader (System.loadLibrary) runs before the first native call. Fix at the JNI interface that declares the
+missing native method, not at the Java call site."""
+
+[skill.match]
+any_text = ["unsatisfiedlinkerror", "no implementation found", "couldn't find", "load library"]
+any_text_regex = ["lib\\w+\\.so"]
+
+[[skill]]
+id = "jni-native-handle-lifecycle"
+provenance = "AAOS JNI native-handle RCA"
+signals = ["jni", "nativecreate", "handle"]
+guidance = """
+A native "handle" (jlong returned by nativeCreateHandler / nativeInit) has a strict create->use->release
+lifecycle. Crashes at nativeCreateHandler / (Native Method) usually mean the native symbol is
+unregistered or the handle is used after release. RCA: pair every nativeCreate* with a nativeRelease*,
+guard against a 0/null handle before native calls, and confirm the JNI signature in the C/C++ interface
+matches the Java `native` declaration exactly."""
+
+[skill.match]
+any_text = ["nativecreatehandler", "native method", "registernatives", "nativecreate", "nativerelease"]
+
+[[skill]]
+id = "cbm-index-ops"
+provenance = "docs/type2-atlas-build-findings.md Finding 5/6 (CBM timeout + pgrep)"
+signals = ["cbm", "index", "timeout"]
+guidance = """
+CodebaseMemory (CBM) index "hangs" are a 30s call-timeout tripping a minutes-long cold build, not a
+deadlock. Raise KLOOP_CBM_INDEX_TIMEOUT (default 1800s), build the atlas from a native-ext4 copy of the
+repos (not the slow /mnt/x v9fs mount), avoid concurrent `gloop index` jobs (contention pushes cold
+builds past the timeout), and check liveness with `pgrep -fa 'gloop index'` — never `ps -C` (comm=gloop)."""
+
+[skill.match]
+any_text = ["codebase-memory", "cbm index", "index timeout", "call_timeout"]
+
+[[skill]]
+id = "produce-giant-repo"
+provenance = "docs/type2-atlas-build-findings.md Finding 1/2 (produce + load_wiki)"
+signals = ["produce", "codewiki", "wiki"]
+guidance = """
+`produce` (CodeWiki) is DeepSeek-latency-bound and crashes to an empty wiki on 2k-4k-file giants. For
+Stage-1 matching prefer a symbol-only atlas: skip produce and run `gloop index` directly — CBM symbol
+units carry the package/class/method/.so tokens the matcher needs and still get bge-m3 vectors. The index
+path tolerates a missing/incomplete wiki (empty WikiData)."""
+
+[skill.match]
+any_text = ["codewiki", "produce stage", "empty wiki", "load_wiki"]

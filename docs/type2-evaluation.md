@@ -302,6 +302,21 @@ Membership arms are fully deterministic (invariant #6). Semantic/judge arms are 
 and gated exactly like `tests/e2e`. A **reuse-contract guard** asserts the query embed model == index
 `bge-m3` (a mismatch silently yields `cosine=-1` and garbage ranks).
 
+### 6.4 Fix-stage arm — the dev-experience KB (SP3, LANDED 2026-07-06)
+
+Beyond the matcher (Stage-1) arms above, the downstream **fix loop** carries its own measured arm: a
+**dev-experience knowledge base** (`skills ∈ {none, mock}`). `gloop fixeval --skills mock` retrieves real
+RCA/ops playbooks from a `MockSkillRegistry` (predicate-filter default; optional bge-m3 rerank, gated)
+and injects them **post-match** as a `render_skills()` preamble on `ModelPatchEngine` — never a trusted
+input, and the frozen `FixEngine.propose` signature is untouched. It is graded as **two runs diffed by
+`gloop compare`** into a **two-sided `accept` verdict**: positive lift on `Δfile_recall@1` (or net
+`newly_solved`) **and** no honesty regression on `Δfabrication_rate` (cost advisory). Because skills
+inject *after* the match/abstain gates, they cannot move Stage-1 `abstention_recall_oof` — the only
+honesty metric they can move is `fabrication_rate`, so "help positives without eroding negative-honesty"
+is measured directly. The mock seed is small → the arm validates **plumbing + direction of effect**, not
+the full lift the migrated Skills will show (directional-only). Real Skills drop in via
+[`skill-kb-migration.md`](skill-kb-migration.md); full design in the SP3 spec §3.
+
 ---
 
 ## 7. Metrics & scorecard

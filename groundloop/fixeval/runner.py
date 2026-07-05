@@ -12,6 +12,8 @@ from groundloop.eval.arms import Arm
 from groundloop.eval.dataset import CaseRef, case_catalog
 from groundloop.fixeval.localize import localize
 from groundloop.fixeval.patch import patch_applies
+from groundloop.skills.base import render_skills
+from groundloop.skills.ctx import build_ctx
 
 
 @dataclass(frozen=True)
@@ -31,13 +33,15 @@ class FixRecord:
 
 
 class FixEvalRunner:
-    def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float, max_refine: int = 1):
+    def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float,
+                 max_refine: int = 1, skills=None):
         self.issues = issues
         self.estate = estate                     # materialize only
         self.catalog = list(catalog)             # list[RepoRef] for rank_repos
         self.tau_margin = tau_margin
         self.tau_score = tau_score
         self.max_refine = max_refine
+        self.skills = skills                     # a SkillRegistry or None (the `--skills` arm knob)
 
     def run(self, cases: Sequence[CaseRef], arms: Sequence[Arm], *, fixer) -> list[FixRecord]:
         records: list[FixRecord] = []
@@ -64,18 +68,25 @@ class FixEvalRunner:
         if d.predicted is None:                               # PRIMARY abstain gate (match)
             return rec(abstain_reason="no_repo_match")
         predicted = d.predicted
+        # SKILL INJECTION (post-match, oracle-blind): key on the arm's signals + the predicted repo +
+        # the raw ticket/log haystack. Empty when no playbook applies -> byte-identical to skills=none.
+        f = fixer
+        if self.skills is not None:
+            preamble = render_skills(self.skills.select(build_ctx(signals, ticket, predicted)))
+            if preamble:
+                f = fixer.with_preamble(preamble)
         c0 = self._cost(fixer)
         wt = self.estate.materialize(RepoRef(predicted))
         locations = localize(arm.index, predicted, signals, ticket.summary)
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
                        cost_usd=self._cost(fixer) - c0)
-        patch = fixer.propose(wt, ticket, locations)
+        patch = f.propose(wt, ticket, locations)
         applies = patch_applies(patch.diff, wt.path)
         iters = 0
         while patch.diff and not applies and iters < self.max_refine:   # bounded in-world refine
             iters += 1
-            patch = fixer.propose(wt, ticket, locations)
+            patch = f.propose(wt, ticket, locations)
             applies = patch_applies(patch.diff, wt.path)
         if not patch.diff or not applies:                     # SECONDARY: unappliable -> abstain
             return rec(predicted_repo=predicted, locations=locations, refine_iters=iters,

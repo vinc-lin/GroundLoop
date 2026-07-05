@@ -192,6 +192,15 @@ is answered by `resolved_rate` / `cost_per_solved`, not assumed. Grounded refine
 **in-world deterministic signals** (`git apply --check` fails → re-run fix; a cited location does not
 resolve → re-run localize), **never** the oracle.
 
+**Skills arm — LANDED in `gloop` (SP3, 2026-07-06).** The dev-experience **KB** is now a real measured
+arm on the SP2 fix loop: `gloop fixeval --skills {none, mock}` injects retrieved playbooks
+(`groundloop/skills/` + `MockSkillRegistry`, seeded with real RCA/ops playbooks) as a `render_skills()`
+preamble on `ModelPatchEngine` **post-match** — the frozen `FixEngine.propose` signature is untouched.
+Value is decided by running the two arms and diffing with `gloop compare` → the two-sided **`accept`**
+gate: a positive lift on `Δfile_recall@1` **and** no honesty regression (`Δfabrication_rate ≤ 0`), cost
+advisory. Real Skills drop in post-migration via `docs/skill-kb-migration.md` (contract + parity
+self-test). See the SP3 spec (`docs/superpowers/specs/2026-07-05-type2-negatives-fixloop-kb-design.md` §3).
+
 ---
 
 ## 5. Reconciling bfl's 4-step pipeline with GroundLoop's 8-stage `run_ticket`

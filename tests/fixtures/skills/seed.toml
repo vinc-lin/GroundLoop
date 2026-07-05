@@ -1,0 +1,17 @@
+# Native encoding of the SAME two logical skills as md/*.md — predicates written DIRECTLY as declarative
+# match specs. These are ALIGNED to what triggers_to_spec() produces from the markdown triggers, so the
+# two encodings represent the same skill and the parity self-test is meaningful (not vacuous).
+[[skill]]
+id = "aaos-native-lib-load-failure"
+provenance = "toml-fixture:native"
+guidance = "native lib load failure guidance"
+[skill.match]
+any_text = ["unsatisfiedlinkerror", "no implementation found", "native method", "couldn't find", "load library"]
+any_text_regex = ["lib\\w+\\.so"]
+
+[[skill]]
+id = "jni-native-handle-lifecycle"
+provenance = "toml-fixture:jni"
+guidance = "jni handle lifecycle guidance"
+[skill.match]
+any_text = ["nativecreatehandler", "registernatives", "nativecreate", "nativerelease"]
