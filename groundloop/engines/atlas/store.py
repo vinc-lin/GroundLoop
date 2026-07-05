@@ -120,20 +120,6 @@ class Store:
         rows = self.db.execute(sql, [_fts_query(query)] + params + [k]).fetchall()
         return [(self._row_to_unit(r), r["rank"]) for r in rows]
 
-    def token_repo_hits(self, query, repos=None):
-        """Set of repos (within `repos`) that have >=1 unit whose FTS matches `query`.
-
-        No top-k cap: unlike keyword_search's global LIMIT, a high-volume repo cannot crowd a
-        smaller one out of the result, so every repo that genuinely contains the token is counted.
-        This is the unbiased membership signal the IDF ranker needs (see adapters/index/atlas.py)."""
-        fts = _fts_query(query)
-        if not fts:
-            return set()
-        flt, params = self._filter_sql(repos, None)
-        sql = ("SELECT DISTINCT u.repo FROM units_fts JOIN units u ON u.id = units_fts.id "
-               "WHERE units_fts MATCH ?" + flt)
-        return {r["repo"] for r in self.db.execute(sql, [fts] + params).fetchall()}
-
     def vector_search(self, qvec, k=20, repos=None, kinds=None):
         flt, params = self._filter_sql(repos, kinds)
         sql = ("SELECT u.*, v.vec AS vec FROM vectors v JOIN units u ON u.id=v.id "
