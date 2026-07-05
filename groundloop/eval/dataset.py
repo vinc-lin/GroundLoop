@@ -42,6 +42,7 @@ class EvalOracle:
     is_answerable: bool = True
     negative_class: str | None = None
     expected_files: tuple[str, ...] = ()
+    required_apis: tuple[str, ...] = ()
 
 
 def load_eval_oracle(case: CaseRef) -> EvalOracle:
@@ -54,6 +55,7 @@ def load_eval_oracle(case: CaseRef) -> EvalOracle:
         is_answerable=bool(raw.get("is_answerable", True)),
         negative_class=raw.get("negative_class"),
         expected_files=tuple(raw.get("expected_files", [])),
+        required_apis=tuple(raw.get("required_apis", [])),
     )
 
 

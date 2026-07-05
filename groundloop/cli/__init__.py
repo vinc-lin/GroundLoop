@@ -214,6 +214,66 @@ def _run_eval(args) -> int:
     return 0
 
 
+def _run_fixeval(args) -> int:
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.adapters.index.atlas import AtlasIndex
+    from groundloop.adapters.mock.jira import MockJira
+    from groundloop.adapters.estate import GitFixtureEstate
+    from groundloop.adapters.fix.model_patch import ModelPatchEngine
+    from groundloop.adapters.mock.model import CannedModel
+    from groundloop.core.types import RepoRef
+    from groundloop.eval.arms import build_arms
+    from groundloop.eval.dataset import load_cases, load_eval_oracle
+    from groundloop.fixeval.runner import FixEvalRunner
+    from groundloop.fixeval.scorecard import grade_fix_all
+    from groundloop.fixeval.report import render_fix_markdown
+
+    catalog = [RepoRef(r["name"]) for r in json.loads(Path(args.catalog).read_text())]
+    if os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
+        from groundloop.adapters.model.gateway import GatewayModel
+        from groundloop.config.settings import Settings
+        s = Settings.load()
+        model = GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model)
+    else:
+        print("gloop fixeval: no KLOOP_PRODUCE_API_KEY — hermetic canned model (all cases abstain at fix).")
+        model = CannedModel({"default": ""})
+    cases = load_cases(args.dataset)
+    runner = FixEvalRunner(issues=MockJira(args.dataset),
+                           estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
+                           catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score)
+    records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
+                         fixer=ModelPatchEngine(model))
+    oracle_by_case = {c.case_id: load_eval_oracle(c) for c in cases}   # OFFLINE grade — oracle read here only
+    card = grade_fix_all(records, oracle_by_case=oracle_by_case)
+    Path(args.out).write_text(json.dumps(card, indent=2))
+    Path(args.out).with_suffix(".md").write_text(render_fix_markdown(card))
+    for arm, a in card["arms"].items():
+        fr = a["file_recall@1"]["value"]
+        fab = a["fabrication_rate"]["value"]
+        print(f"{arm}: file_recall@1={'n/a' if fr is None else f'{fr:.2f}'} "
+              f"apply_rate={a['patch_apply_rate']:.2f} "
+              f"fabrication={'n/a' if fab is None else f'{fab:.2f}'} gradeable_n={a['n_gradeable']}")
+    return 0
+
+
+def _run_compare(args) -> int:
+    import json
+    from pathlib import Path
+    from groundloop.fixeval.compare import compare
+
+    def _resolved(path):
+        arms = json.loads(Path(path).read_text()).get("arms", {})
+        arm = args.arm if args.arm else (next(iter(arms)) if arms else None)
+        return arms.get(arm, {}).get("resolved_by_case", {})
+
+    d = compare(_resolved(args.base), _resolved(args.head))
+    print(f"newly_solved ({len(d['newly_solved'])}): {d['newly_solved']}")
+    print(f"newly_broken ({len(d['newly_broken'])}): {d['newly_broken']}")
+    return 0
+
+
 def _run_build_atlas(args) -> int:
     import os
     import tomllib
@@ -316,6 +376,20 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--judge", action="store_true",
                     help="add the LLM-judge arms (reranks membership top-k via KLOOP_PRODUCE_* model)")
 
+    fx = sub.add_parser("fixeval", help="run the downstream fix/RCA loop over a dataset -> fix-scorecard")
+    fx.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
+    fx.add_argument("--catalog", required=True, help="path to catalog.json")
+    fx.add_argument("--index-db", required=True, help="path to atlas.db (membership AtlasIndex)")
+    fx.add_argument("--repos", required=True, help="fixtures/repos root for @base materialization")
+    fx.add_argument("--out", required=True, help="fix-scorecard.json output path (a .md twin is written too)")
+    fx.add_argument("--tau-margin", type=float, default=1.0)
+    fx.add_argument("--tau-score", type=float, default=1.0)
+
+    cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
+    cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
+    cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
+    cmp.add_argument("--arm", default="", help="arm to compare (default: the first arm)")
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
@@ -341,4 +415,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_mine(args)
     if args.cmd == "eval":
         return _run_eval(args)
+    if args.cmd == "fixeval":
+        return _run_fixeval(args)
+    if args.cmd == "compare":
+        return _run_compare(args)
     return 1
