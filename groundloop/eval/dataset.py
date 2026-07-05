@@ -1,5 +1,5 @@
-"""Dataset loading for the Type-2 eval. `load_cases` is oracle-blind; only `load_oracle`
-(used solely by the offline scorecard) touches _oracle/."""
+"""Dataset loading for the Type-2 eval. `load_cases` and `case_catalog` are oracle-blind; only
+`load_oracle` / `load_eval_oracle` (used solely by the offline scorecard) touch _oracle/."""
 from __future__ import annotations
 
 from dataclasses import dataclass
