@@ -16,6 +16,19 @@ from groundloop.skills.base import render_skills
 from groundloop.skills.ctx import build_ctx
 
 
+def _skill_query(skills) -> str:
+    """Build a localize-bias query from selected skills: their retrieval .signals plus the token(s) on
+    any 'Localize:' line of their guidance. Empty -> localize() stays byte-identical to skills=none."""
+    parts: list[str] = []
+    for s in skills:
+        parts.extend(s.signals)
+        for line in s.guidance.splitlines():
+            t = line.strip()
+            if t.lower().startswith("localize:"):
+                parts.append(t.split(":", 1)[1].strip())
+    return " ".join(p for p in parts if p).strip()
+
+
 @dataclass(frozen=True)
 class FixRecord:
     case_id: str
@@ -71,13 +84,16 @@ class FixEvalRunner:
         # SKILL INJECTION (post-match, oracle-blind): key on the arm's signals + the predicted repo +
         # the raw ticket/log haystack. Empty when no playbook applies -> byte-identical to skills=none.
         f = fixer
+        skill_query = ""
         if self.skills is not None:
-            preamble = render_skills(self.skills.select(build_ctx(signals, ticket, predicted)))
+            selected = self.skills.select(build_ctx(signals, ticket, predicted))
+            preamble = render_skills(selected)
             if preamble:
                 f = fixer.with_preamble(preamble)
+            skill_query = _skill_query(selected)
         c0 = self._cost(fixer)
         wt = self.estate.materialize(RepoRef(predicted))
-        locations = localize(arm.index, predicted, signals, ticket.summary)
+        locations = localize(arm.index, predicted, signals, ticket.summary, skill_query=skill_query)
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
                        cost_usd=self._cost(fixer) - c0)
