@@ -322,6 +322,45 @@ def _run_synth(args) -> int:
     return 0
 
 
+def _run_kb_ab(args) -> int:
+    """A/B the dev-experience KB {none, kb, placebo} then a strengthened two-sided accept verdict.
+
+    Builds an env-driven embedder EXACTLY like _run_fixeval (GatewayEmbedder when KLOOP_EMBED_BASE_URL is
+    set, else None) — this closes the run_ab(embedder=None) gap so bge-m3 rerank engages live. run_ab writes
+    scorecard-{none,kb,placebo}.json; we then read the chosen eval arm off each card and emit two verdicts:
+    kb_vs_placebo (primary — isolates guidance content) and kb_vs_none. Oracle-blind loop; grade is offline."""
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.kb.ab import run_ab
+    from groundloop.kb.accept import strengthened_accept
+
+    embedder = None
+    if os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+
+    cards = run_ab(dataset=args.dataset, repos=args.repos, index_db=args.index_db,
+                   catalog_path=args.catalog, out_dir=args.out,
+                   arms=("none", "kb", "placebo"), embedder=embedder)
+
+    eval_arm = args.eval_arm
+    base = cards["none"]["arms"][eval_arm]
+    head = cards["kb"]["arms"][eval_arm]
+    placebo = cards["placebo"]["arms"][eval_arm]
+    kb_vs_placebo = strengthened_accept(placebo, head, cost_budget=args.cost_budget)
+    kb_vs_none = strengthened_accept(base, head, cost_budget=args.cost_budget)
+
+    verdict = {"eval_arm": eval_arm, "kb_vs_placebo": kb_vs_placebo, "kb_vs_none": kb_vs_none}
+    (Path(args.out) / "verdict.json").write_text(json.dumps(verdict, indent=2))
+
+    decision = "ACCEPT" if kb_vs_placebo["accepted"] else "REJECT"
+    print(f"kb-ab[{eval_arm}]: kb_vs_placebo -> {decision} {kb_vs_placebo['reasons']}")
+    return 0
+
+
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
@@ -470,6 +509,18 @@ def main(argv: list[str] | None = None) -> int:
     sy.add_argument("--catalog", default="",
                     help="path to catalog.json (default: <src>/catalog.json)")
 
+    kab = sub.add_parser("kb-ab",
+                         help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
+    kab.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
+    kab.add_argument("--catalog", required=True, help="path to catalog.json")
+    kab.add_argument("--index-db", required=True, help="path to atlas.db (membership AtlasIndex)")
+    kab.add_argument("--repos", required=True, help="fixtures/repos root for @base materialization")
+    kab.add_argument("--out", required=True, help="output dir for scorecard-{none,kb,placebo}.json + verdict.json")
+    kab.add_argument("--eval-arm", dest="eval_arm", default="membership+logs",
+                     help="which eval arm to read for the verdict (default: membership+logs)")
+    kab.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
+                     help="reject if Δcost_per_solved exceeds this (default: advisory only)")
+
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
     cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
@@ -507,6 +558,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_fixeval(args)
     if args.cmd == "synth":
         return _run_synth(args)
+    if args.cmd == "kb-ab":
+        return _run_kb_ab(args)
     if args.cmd == "compare":
         return _run_compare(args)
     return 1
