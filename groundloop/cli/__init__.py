@@ -275,8 +275,12 @@ def _run_fixeval(args) -> int:
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
                            skills=skills)
-    records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
-                         fixer=ModelPatchEngine(model))
+    if getattr(args, "fixer", "direct") == "plan":
+        from groundloop.adapters.fix.planning import PlanningFixEngine
+        fixer = PlanningFixEngine(model, max_replan=args.max_replan)
+    else:
+        fixer = ModelPatchEngine(model)
+    records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)), fixer=fixer)
     oracle_by_case = {c.case_id: load_eval_oracle(c) for c in cases}   # OFFLINE grade — oracle read here only
     card = grade_fix_all(records, oracle_by_case=oracle_by_case)
     Path(args.out).write_text(json.dumps(card, indent=2))
@@ -670,7 +674,7 @@ def _run_build_atlas(args) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -749,6 +753,11 @@ def main(argv: list[str] | None = None) -> int:
                          "kb (our corpus) | placebo (length-matched irrelevant control)")
     fx.add_argument("--skills-seed", dest="skills_seed", default=None,
                     help="override the KB/placebo corpus TOML path (default: the packaged seed)")
+    fx.add_argument("--fixer", choices=["direct", "plan"], default="direct",
+                    help="fix engine: direct (single-shot ModelPatchEngine) | "
+                         "plan (two-phase PlanningFixEngine: plan->gate->re-plan->abstain->patch)")
+    fx.add_argument("--max-replan", dest="max_replan", type=int, default=1,
+                    help="plan fixer: bounded re-plan attempts before abstaining (default 1)")
 
     sy = sub.add_parser("synth", help="synthesize AAOS failure-log tickets from a mined dataset")
     sy.add_argument("--src", required=True, help="mined dataset root (case dirs + catalog.json)")
@@ -797,7 +806,11 @@ def main(argv: list[str] | None = None) -> int:
     cmp.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
                      help="reject if Δcost_per_solved exceeds this (default: advisory only)")
 
-    args = ap.parse_args(argv)
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     if args.cmd == "run":
         if args.index_db:
             index = AtlasIndex(args.index_db)
