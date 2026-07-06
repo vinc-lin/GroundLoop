@@ -37,3 +37,12 @@ def test_plan_correctness_penalizes_wrong_target():
     oracle = {"c1": O(expected_files=["src/Right.java"], required_apis=[])}
     card = grade_fix_all([_rec(plan, 1.0)], oracle_by_case=oracle)["arms"]["plan"]
     assert card["plan_target_recall@1"]["value"] == 0.0
+
+
+def test_malformed_plan_shape_does_not_crash():
+    # a raw-dict plan (runner._do_propose passthrough) missing "file" in a target / missing required_apis
+    plan = {"root_cause": "rc", "targets": [{"symbol": "x"}, "notadict"], "strategy": "s"}
+    oracle = {"c1": O(expected_files=["src/Right.java"], required_apis=["isAdded"])}
+    card = grade_fix_all([_rec(plan, 1.0)], oracle_by_case=oracle)["arms"]["plan"]
+    assert card["plan_target_recall@1"]["value"] == 0.0   # no valid target file -> no recall
+    assert card["plan_api_match"]["value"] == 0.0         # required_apis absent -> no match

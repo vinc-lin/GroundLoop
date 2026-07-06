@@ -68,12 +68,13 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
         pc_api = [(r, o) for r, o in pairs if getattr(r, "plan", None) and o.required_apis]
 
         def _plan_target_recall(r, o, k):
-            files = [t["file"] for t in r.plan["targets"]]
+            files = [t["file"] for t in (r.plan.get("targets") or [])
+                     if isinstance(t, dict) and t.get("file")]
             return recall_at_k([norm_path(x) for x in files],
                                {norm_path(e) for e in o.expected_files}, k)
 
         def _plan_api_match(r, o):
-            named = {a.lower() for a in r.plan["required_apis"]}
+            named = {str(a).lower() for a in (r.plan.get("required_apis") or [])}
             return sum(1 for a in o.required_apis if a.lower() in named) / len(o.required_apis)
 
         arms[arm] = {
