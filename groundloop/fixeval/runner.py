@@ -29,6 +29,17 @@ def _skill_query(skills) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
+def _do_propose(f, wt, ticket, locations):
+    """Use the plan-aware path when the fixer exposes it, else the frozen propose. Returns
+    (plan_dict|None, Patch, meta)."""
+    if hasattr(f, "propose_with_plan"):
+        plan, patch, meta = f.propose_with_plan(wt, ticket, locations)
+        from groundloop.fixeval.plan import plan_to_dict
+        pd = plan_to_dict(plan) if plan is not None and not isinstance(plan, dict) else plan
+        return pd, patch, (meta or {})
+    return None, f.propose(wt, ticket, locations), {}
+
+
 @dataclass(frozen=True)
 class FixRecord:
     case_id: str
@@ -43,6 +54,9 @@ class FixRecord:
     abstain_reason: str | None
     refine_iters: int
     cost_usd: float
+    plan: dict | None = None
+    groundedness: float | None = None
+    replans: int = 0
 
 
 class FixEvalRunner:
@@ -97,20 +111,22 @@ class FixEvalRunner:
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
                        cost_usd=self._cost(fixer) - c0)
-        patch = f.propose(wt, ticket, locations)
+        plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
         applies = patch_applies(patch.diff, wt.path)
         iters = 0
         while patch.diff and not applies and iters < self.max_refine:   # bounded in-world refine
             iters += 1
-            patch = f.propose(wt, ticket, locations)
+            plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
             applies = patch_applies(patch.diff, wt.path)
+        pmeta = dict(plan=plan_dict, groundedness=meta.get("groundedness"),
+                     replans=meta.get("replans", 0))
         if not patch.diff or not applies:                     # SECONDARY: unappliable -> abstain
             return rec(predicted_repo=predicted, locations=locations, refine_iters=iters,
-                       abstain_reason="patch_unappliable", cost_usd=self._cost(fixer) - c0)
+                       abstain_reason="patch_unappliable", cost_usd=self._cost(fixer) - c0, **pmeta)
         return FixRecord(case_id=case.case_id, arm=arm.name, predicted_repo=predicted,
                          locations=locations, patch_diff=patch.diff, patch_files=list(patch.files),
                          patch_emitted=True, patch_applies=True, abstained=False, abstain_reason=None,
-                         refine_iters=iters, cost_usd=self._cost(fixer) - c0)
+                         refine_iters=iters, cost_usd=self._cost(fixer) - c0, **pmeta)
 
     @staticmethod
     def _cost(fixer) -> float:
