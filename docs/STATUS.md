@@ -48,6 +48,25 @@ all shipped to master, `core/` untouched, hermetic + gated surfaces:
   declarative-compiled predicates; migration guide + non-vacuous parity self-test (`docs/skill-kb-migration.md`).
 - Detail: `docs/type2-evaluation.md` (§6.4 fix-stage arm), `docs/downstream-fix-loop.md`.
 
+### Plan-format fix stage (branch `feat/plan-format-fix-stage`) — code complete, live validation pending
+Turns the fix stage into a grounded **plan-then-act** loop: a two-phase `PlanningFixEngine`
+(plan → oracle-blind in-world gate → bounded re-plan → abstain → execute) behind
+`gloop fixeval --fixer plan`. Shipped hermetically — 16 commits, full suite **366 passed / 7 skipped**,
+ruff clean, `core/` + atlas schema **zero-diff**, per-phase spec+quality review + a final holistic review:
+- **resolved_rate hardening** — `resolved_rate_strict` (patch's OWN `touched_files` ∩ `expected_files`;
+  required APIs on non-comment code lines), reported beside the old proxy for comparability.
+- **PlanningFixEngine** + `RepairPlan` + tolerant parser + the **anti-leak** in-world gate
+  (scope-checked BEFORE any disk read; rejects `..`/absolute paths; never reads the oracle).
+- **Grounded grader** — `plan_groundedness` (oracle-blind, recorded at run time) + `plan_target_recall@1/5`
+  + `plan_api_match` (offline); plan archive (`plan.json` + `fired_skills` + outcome, capture-only).
+- **KB validation surface** — `--skills distilled` arm + `accept_grounded` two-sided gate
+  (POS = Δplan_target_recall@1 / Δresolved_rate_strict > 0; HONESTY = Δfabrication ≤ 0 ∧ Δgroundedness ≥ 0)
+  to validate **raw + distilled** KB knowledge under `--fixer plan`.
+- Spec `docs/superpowers/specs/2026-07-07-plan-format-fix-stage-design.md` · plan
+  `docs/superpowers/plans/2026-07-07-plan-format-fix-stage.md`.
+- **Pending (Phase 3–4):** the live A/B (`--fixer direct` vs `plan`; 4-arm skills sweep incl. distilled) +
+  write-up — gated on gateway availability (the kb-ab live run still holds it) + spend authorization.
+
 ### Testing environment
 - **Type-1 (hermetic)** — `tests/conftest.py` (shared fixtures: `case`, `harness`, `atlas_harness`,
   prebuilt atlas.db, canned model) + `tests/test_invariants.py` (the anti-leak §2.3 red-tests — the
