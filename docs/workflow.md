@@ -93,6 +93,84 @@ graded separately.
 
 ---
 
+## Under the hood: the atlas index & embedding
+
+Stages 3 (match) and 5 (localize) both run over the **atlas** — a SQLite database of *code units*, each stored
+in two searchable forms: an **FTS5 full-text row** (keyword search) and a **bge-m3 vector** (semantic search).
+Understanding what gets embedded, and how, explains the two matching modes.
+
+### What is a "unit", and what text is embedded
+
+The atlas holds two kinds of unit (`groundloop/engines/atlas/index.py::build_units`):
+
+- **Symbol units** — one per code symbol (class / method / function / …), enumerated by **CBM**
+  (`codebase-memory-mcp`) from the repo's symbol graph. The text that gets indexed **and embedded** is *not*
+  the raw file; it is a compact identity string (`_symbol_unit`):
+
+  ```
+  unit.text = "<name> <label> <qualified_name> <file_path>"        # e.g. "run Method oboe::DynamicWorkloadActivity::run  src/.../DynamicWorkloadActivity.cpp"
+             + "\n<source snippet>"                                 # optionally: the symbol's own source lines
+  ```
+  i.e. GroundLoop embeds **symbol identity + location (+ its source)**, which is exactly the shape a crash-log
+  signal (`package.Class.method`, a `.so` name) can match against.
+- **Doc units** — chunks of generated CodeWiki markdown (optional; the shipped fleet atlas is largely
+  *symbol-only* because CodeWiki `produce` is impractical at fleet scale, so doc units mostly feed the semantic
+  arm when present).
+
+Each unit also records its `repo`, `kind`, `file`, `qualified_name`, and the indexed **`repo_head` SHA**.
+
+### How index-time embedding works
+
+`index_repo` builds the units for a repo, then embeds them in one call
+(`vecs = embedder.embed([u.text for u in units])`) and stores `(unit, vector)` pairs
+(`Store.reindex_repo`, per-repo idempotent — it replaces only that repo's rows, so partial progress is durable).
+
+`GatewayEmbedder` (`groundloop/engines/atlas/embed.py`) does the embedding:
+
+- **Endpoint:** an OpenAI-compatible `POST <KLOOP_EMBED_BASE_URL>/embeddings` with
+  `{"model": "bge-m3", "input": [chunk…]}`. bge-m3 returns **1024-dimensional** vectors.
+- **Batching:** inputs are chunked at `KLOOP_EMBED_BATCH` (default 128; the GPU server caps `BGE_MAX_BATCH=256`).
+- **Truncation:** each input is cut to `KLOOP_EMBED_MAX_CHARS` (default 2000) — a batch or input over the server
+  caps returns **HTTP 413, a 4xx that is *not* retried**, so one oversized unit would abort the whole index.
+  Truncation is quality-free (bge-m3's window is ~8192 tokens, so a longer input is truncated by the model
+  regardless).
+- **Resilience:** transient **5xx / transport** errors are retried with backoff (a single gateway hiccup
+  mid-index doesn't abort the run); a hard 4xx raises.
+- **Storage:** the raw vector is written to the `vectors` table as JSON floats (alongside the `units_fts` FTS5
+  row and a `repos` row tagging `repo_head`).
+
+Embedding is the real time cost of a build (a repo of ~30k symbols is hundreds of gateway round-trips); run the
+index **detached**, one repo at a time.
+
+### How query-time embedding works
+
+The **same** pinned `bge-m3` model embeds queries at run time (the reuse contract — a construction-time
+**dimension guard** in `SemanticAtlasIndex` fails loudly if the query model's dim ≠ the indexed dim, rather than
+silently scoring everything `-1`):
+
+- **Semantic match** (`SemanticAtlasIndex.rank_repos`): embed the joined signal tokens
+  (`" ".join(signals.tokens())`) → `Store.vector_search` cosines that query vector against stored unit vectors
+  (restricted to the catalog) → **each repo scores by its single best (max-cosine) hit** → sort.
+- **Semantic localize** (`.retrieve`): embed the query → `vector_search` within the chosen repo → dedup files.
+- **KB skill rerank** (`MockSkillRegistry` with an embedder): each Skill's `guidance` is embedded **once** at
+  load; at query the ticket context is embedded and cosine-ranked to pick the top-k applicable playbooks.
+
+### Membership vs. semantic — where embedding does and doesn't matter
+
+This is the key point: **the `membership` arm uses no embedding at all.** It is pure **FTS5 keyword search** —
+each signal token is matched against the `units_fts` index, and a repo scores by the count of distinct tokens
+that hit. That FTS path is the arm behind the **0.60** headline, and it runs fully offline (**$0, no GPU**).
+
+**Embedding powers the complementary `semantic` arm** (bge-m3 cosine), which is what recovers signal on *real
+prose logs* — recall@1 **0.23** where membership collapses to 0.02 — plus the KB skill rerank. So the two are a
+division of labor: **keyword membership for signal-rich logs, semantic embedding for prose.**
+
+> **Limitation:** `Store.vector_search` is **brute-force** — it reads and cosines *every* stored vector in Python
+> (1024 floats × ~475k units), so semantic search is slow at fleet scale. A real ANN index (sqlite-vss / faiss)
+> is the eventual fix; see [user-guide §10](user-guide.md#10-known-seams--limitations).
+
+---
+
 ## Oracle-blindness & offline grading
 
 The loop is constructed with only the 7 behavioral ports — no oracle, no grader. The hidden
