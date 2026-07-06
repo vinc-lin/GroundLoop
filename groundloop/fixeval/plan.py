@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Sequence
+
+from groundloop.fixeval.patch import norm_path
 
 
 @dataclass(frozen=True)
@@ -77,3 +81,63 @@ def plan_to_dict(plan: RepairPlan) -> dict:
         "confidence": plan.confidence,
         "abstain": plan.abstain,
     }
+
+
+@dataclass(frozen=True)
+class PlanCheck:
+    ok: bool
+    failures: tuple[str, ...]
+    n_citations: int
+    n_resolved: int
+
+
+def _word(token: str, text: str) -> bool:
+    return re.search(rf"\b{re.escape(token)}\b", text) is not None
+
+
+def check_plan_in_world(plan: RepairPlan, worktree_path: str, candidates: Sequence[str]) -> PlanCheck:
+    """Oracle-blind gate: every claim must cite reality. Checks (a) each target file exists in the
+    work-tree, (b) each target is within the localize candidate set, (c) each target.symbol /
+    required_api appears textually in an existing target file, (d) root_cause/strategy/targets present.
+    Citations = target files + symbols + required_apis; groundedness = resolved / cited."""
+    if plan is None:
+        return PlanCheck(False, ("unparseable_plan",), 0, 0)
+    if plan.abstain:
+        return PlanCheck(False, ("model_abstained",), 0, 0)
+    failures: list[str] = []
+    cand = {norm_path(c) for c in candidates}
+    n_cit = n_res = 0
+    text_by_file: dict[str, str] = {}
+    if not plan.root_cause:
+        failures.append("empty_root_cause")
+    if not plan.strategy:
+        failures.append("empty_strategy")
+    if not plan.targets:
+        failures.append("no_targets")
+    for t in plan.targets:
+        n_cit += 1
+        p = Path(worktree_path) / t.file
+        if p.is_file():
+            n_res += 1
+            text_by_file[t.file] = p.read_text(errors="replace")
+        else:
+            failures.append(f"target_file_missing:{t.file}")
+        if norm_path(t.file) not in cand:
+            failures.append(f"target_out_of_scope:{t.file}")
+        if t.symbol:
+            n_cit += 1
+            if t.file in text_by_file and _word(t.symbol, text_by_file[t.file]):
+                n_res += 1
+            else:
+                failures.append(f"symbol_unresolved:{t.symbol}")
+    for a in plan.required_apis:
+        n_cit += 1
+        if any(_word(a, txt) for txt in text_by_file.values()):
+            n_res += 1
+        else:
+            failures.append(f"api_unresolved:{a}")
+    return PlanCheck(not failures, tuple(failures), n_cit, n_res)
+
+
+def plan_groundedness(check: PlanCheck) -> float:
+    return (check.n_resolved / check.n_citations) if check.n_citations else 0.0
