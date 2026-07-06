@@ -34,3 +34,13 @@ def test_strict_rejects_comment_only_api():
     oracle = {"c1": O(expected_files=["src/Right.java"], required_apis=["foo"])}
     card = grade_fix_all([rec], oracle_by_case=oracle)["arms"]["a"]
     assert card["resolved_rate_strict"]["value"] == 0.0   # api only name-dropped in a comment
+
+
+def test_strict_accepts_real_edit_and_code_api():
+    # patch TOUCHES the expected file and calls the required API on a real CODE line
+    diff = "--- a/src/Right.java\n+++ b/src/Right.java\n@@ -1 +1,2 @@\n+    foo();\n"
+    rec = _rec(patch_diff=diff, patch_files=["src/Right.java"])
+    oracle = {"c1": O(expected_files=["src/Right.java"], required_apis=["foo"])}
+    card = grade_fix_all([rec], oracle_by_case=oracle)["arms"]["a"]
+    assert card["resolved_rate_strict"]["value"] == 1.0                     # positive path resolves
+    assert card["resolved_rate_strict"]["value"] <= card["resolved_rate"]["value"]  # strict never exceeds proxy

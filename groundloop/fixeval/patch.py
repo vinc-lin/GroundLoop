@@ -47,7 +47,7 @@ def references_api(diff: str, api: str) -> bool:
     return any(pat.search(ln) for ln in added_lines(diff))
 
 
-_COMMENT_PREFIXES = ("//", "#", "*", "/*", "*/")
+_COMMENT_PREFIXES = ("//", "#", "*", "/*")
 
 
 def _is_comment_or_blank(content: str) -> bool:
@@ -57,7 +57,11 @@ def _is_comment_or_blank(content: str) -> bool:
 
 def code_added_lines(diff: str) -> list[str]:
     """Added ('+') line contents excluding the +++ header AND comment/blank lines (a heuristic:
-    single-line // # , block-comment * / */ continuations). Used by the hardened resolution check."""
+    single-line // # , block-comment * / /* continuations). Used by the hardened resolution check.
+
+    Caveat — Java/Kotlin-oriented, WHOLE-LINE comments only: a trailing `// ...` on a real code line
+    still counts (the line is kept), and native preprocessor lines (`#define`/`#include`) or pointer
+    lines starting with `*` may be misclassified as comments. Intentional MVP proxy semantics."""
     return [ln for ln in added_lines(diff) if not _is_comment_or_blank(ln)]
 
 
