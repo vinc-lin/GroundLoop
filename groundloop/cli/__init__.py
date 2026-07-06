@@ -292,9 +292,16 @@ def _run_fixeval(args) -> int:
     for arm, a in card["arms"].items():
         fr = a["file_recall@1"]["value"]
         fab = a["fabrication_rate"]["value"]
+        pg = a.get("plan_groundedness", {}).get("value")
+        rs = a.get("resolved_rate_strict", {}).get("value")
+        extra = ""
+        if pg is not None:
+            ptr = a.get("plan_target_recall@1", {}).get("value")
+            extra = (f" plan_grounded={pg:.2f} plan_recall@1={'n/a' if ptr is None else f'{ptr:.2f}'}"
+                     f" resolved_strict={'n/a' if rs is None else f'{rs:.2f}'}")
         print(f"{arm}: file_recall@1={'n/a' if fr is None else f'{fr:.2f}'} "
               f"apply_rate={a['patch_apply_rate']:.2f} "
-              f"fabrication={'n/a' if fab is None else f'{fab:.2f}'} gradeable_n={a['n_gradeable']}")
+              f"fabrication={'n/a' if fab is None else f'{fab:.2f}'} gradeable_n={a['n_gradeable']}{extra}")
     return 0
 
 
