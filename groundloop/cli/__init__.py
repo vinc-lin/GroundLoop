@@ -361,6 +361,52 @@ def _run_kb_ab(args) -> int:
     return 0
 
 
+def _run_kb_promote(args) -> int:
+    """Fold a kb-ab verdict into the KB provenance sidecar: walk each skill's trust-tier ladder.
+
+    Seeds any of the 12 corpus skills (validate.load_corpus(KB_SEED)) absent from the sidecar as fresh
+    `candidate`s, reads passed = verdict["kb_vs_placebo"]["accepted"] (the primary two-sided verdict),
+    then applies it to every KB skill via lifecycle.apply_verdict (hysteresis=2, so a lone failing A/B
+    cannot demote a playbook). Idempotent: re-running with the same verdict just re-walks the ladder.
+    Prints one tier transition per skill."""
+    import json
+    from pathlib import Path
+    from groundloop.kb.lifecycle import apply_verdict
+    from groundloop.kb.provenance import (
+        SIDECAR_PATH,
+        ProvenanceRecord,
+        load_sidecar,
+        save_sidecar,
+    )
+    from groundloop.kb.validate import SEED_PATH as KB_SEED
+    from groundloop.kb.validate import load_corpus
+
+    verdict = json.loads(Path(args.verdict).read_text())
+    passed = bool(verdict["kb_vs_placebo"]["accepted"])
+
+    prov_path = args.provenance or SIDECAR_PATH
+    records = load_sidecar(prov_path)
+    skill_ids = [s["id"] for s in load_corpus(KB_SEED)]
+    for sid in skill_ids:
+        records.setdefault(sid, ProvenanceRecord(
+            id=sid, tier="candidate", lineage="authored cold-start",
+            validating_case_ids=(), measured_lift={}, evidence_context={}))
+
+    transitions = []
+    for sid in skill_ids:
+        before = records[sid].tier
+        records[sid] = apply_verdict(records[sid], passed, hysteresis=2)
+        transitions.append((sid, before, records[sid].tier))
+    save_sidecar(prov_path, records)
+
+    verb = "PASS" if passed else "FAIL"
+    print(f"kb-promote[{verb}]: {len(skill_ids)} skills -> {prov_path}")
+    for sid, before, after in transitions:
+        note = f"{before}->{after}" if before != after else f"{after} (hold)"
+        print(f"  {sid}: {note}")
+    return 0
+
+
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
@@ -521,6 +567,12 @@ def main(argv: list[str] | None = None) -> int:
     kab.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
                      help="reject if Δcost_per_solved exceeds this (default: advisory only)")
 
+    kpr = sub.add_parser("kb-promote",
+                         help="fold a kb-ab verdict into the KB provenance sidecar (tier transitions)")
+    kpr.add_argument("--verdict", required=True, help="path to a kb-ab verdict.json")
+    kpr.add_argument("--provenance", default=None,
+                     help="provenance sidecar path (default: groundloop/kb/data/provenance.json)")
+
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
     cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
@@ -560,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_synth(args)
     if args.cmd == "kb-ab":
         return _run_kb_ab(args)
+    if args.cmd == "kb-promote":
+        return _run_kb_promote(args)
     if args.cmd == "compare":
         return _run_compare(args)
     return 1
