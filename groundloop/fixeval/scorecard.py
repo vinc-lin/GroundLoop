@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from groundloop.eval.metrics import phi_c, recall_at_k, wilson
-from groundloop.fixeval.patch import norm_path, references_api
+from groundloop.fixeval.patch import norm_path, references_api, references_api_code, touched_files
 
 
 def _wrap(v, n):
@@ -19,6 +19,15 @@ def _wrap(v, n):
 def _file_recall(rec, oracle, k):
     return recall_at_k([norm_path(x) for x in rec.locations],
                        {norm_path(e) for e in oracle.expected_files}, k)
+
+
+def _resolved_strict(rec, oracle) -> bool:
+    """Hardened resolution: the PATCH's own touched files intersect expected_files (not localize's
+    locations), and every required_api appears on an added CODE line (comments excluded)."""
+    tf = {norm_path(x) for x in touched_files(rec.patch_diff)}
+    ef = {norm_path(e) for e in oracle.expected_files}
+    return bool(rec.patch_applies and (tf & ef)
+                and all(references_api_code(rec.patch_diff, a) for a in oracle.required_apis))
 
 
 def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 2.0)) -> dict:
@@ -38,6 +47,7 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
         grd = [(r, o) for r, o in pairs if o.expected_files and o.required_apis]
         solved = [r for r, o in grd if r.patch_applies and _file_recall(r, o, 1) > 0
                   and all(references_api(r.patch_diff, a) for a in o.required_apis)]
+        solved_strict = [r for r, o in grd if _resolved_strict(r, o)]
         gradeable_ids = {r.case_id for r, _ in grd}
         solved_ids = {r.case_id for r in solved}
         # per-case resolved bit for `gloop compare` (None = not grounded-gradeable, never counts)
@@ -61,6 +71,8 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
             "required_api_pass_rate": (_wrap(sum(api_pass) / len(api_pass), len(api_pass))
                                        if api_pass else {"value": None, "n": 0}),
             "resolved_rate": _wrap(len(solved) / len(grd), len(grd)) if grd else {"value": None, "n": 0},
+            "resolved_rate_strict": (_wrap(len(solved_strict) / len(grd), len(grd))
+                                     if grd else {"value": None, "n": 0}),
             "n_gradeable": len(grd),
             "n_excluded": n - len(grd),
             "fabrication_rate": (_wrap(len(fabricated) / len(bucket1), len(bucket1))
