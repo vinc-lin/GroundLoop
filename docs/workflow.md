@@ -235,3 +235,62 @@ part → **re-validate** → fold in), so knowledge is admitted only on a verifi
 To take the loop to production you implement the two seam adapters (JIRA `IssueSource`, Gerrit/PR `ChangeSink`)
 and wire a live fleet estate — everything upstream of them (match → localize → fix) is built. Full deployment
 steps: [user-guide.md](user-guide.md).
+
+---
+
+## Future directions: improving the workflow
+
+The loop is deliberately staged so each part can improve independently. Directions are ordered by leverage —
+the [first evaluation](2026-07-06-first-evaluation.md) shows **match is the bottleneck** and **localize is
+already strong**, so the biggest wins are upstream.
+
+**1. Match — the bottleneck.**
+- **Fix the size-bias in `rank_repos`.** Large repos win rank-1 on generic tokens; the recall@1 0.60 vs
+  recall@3 0.80 gap *is* the size tax. Needs an eval-driven normalization (a naive IDF attempt was refuted and
+  reverted). `rank_repos` is also the miner's closed-loop-reject dependency — coordinate any change.
+- **Route by log type / fuse the arms.** Real prose logs collapse membership to 0.02 but reach 0.23 on the
+  semantic arm; a membership+semantic **fusion** (or a per-ticket router) should beat either alone.
+- **A prose-aware extractor.** Every arm keys off sparse structured tokens today; extracting weaker signal from
+  narrative text would lift the real-log numbers.
+
+**2. Index & embedding at scale.**
+- **Replace the brute-force `vector_search`** with a real ANN index (sqlite-vss / faiss) — it currently cosines
+  every 1024-float vector in Python.
+- **Incremental atlas refresh** and **pin SHAs back** (`corpus.toml` still carries `PIN_AT_CLONE`) for a
+  reproducible, cheaply-updated index.
+- **Doc units at fleet scale** — `produce`/CodeWiki is impractical on giants; a cheaper/tolerant doc path would
+  enrich the semantic arm.
+
+**3. Localize — score it, then deepen it.**
+- **Add localize to the harness.** It hits 0.85@1 but is unscored today; surfacing it makes the
+  match→localize cascade visible and gradeable.
+- **Feed the extracted `Signals` (not just `ticket.summary`) into `retrieve`**, and move from file-level to
+  **symbol/line-level** localization.
+
+**4. Fix & grading — replace the proxy.**
+- **Run the gated live fix-loop A/B** for the first real fix-quality + KB-lift numbers.
+- **Add a per-repo build/test harness** so `resolved_rate` becomes true pass/fail instead of the
+  localization∧required-API proxy; add AST/PatchSim similarity where tests are absent.
+
+**5. Honest refusal — measure it on real data.**
+- The abstention / `fabrication_rate` metrics are **fixture-only** today. Mine the **typed negatives**
+  (out-of-fleet / coverage-gap / not-a-defect) into the shipped eval datasets so Φ_c is exercised for real —
+  the missing anti-hallucination measurement, and the one most central to "grounding over narrative."
+
+**6. Dev-experience KB — close the retain loop.**
+- Run the `{none|kb|placebo}` A/B; if it lifts, build the **harvester → lifecycle/tiering → oracle-blind
+  distiller** (the effectiveness-driven KB,
+  [design spec](superpowers/specs/2026-07-06-effectiveness-driven-distilled-kb-design.md)). Expose the A/B as a
+  `gloop` subcommand — it is library-only (`kb/ab.py`) today.
+
+**7. Production adapters — leave the benchmark, run for real.**
+- Implement the real **`IssueSource`** (JIRA) and **`ChangeSink`** (Gerrit / GitHub-PR) and wire a **live
+  full-fleet estate** into `run` — the three seams that separate the measured benchmark from a production loop.
+
+**8. Dataset coverage.**
+- Broaden the **synth generator** to the crash classes it doesn't yet cover (binder /
+  `onSaveInstanceState` / ANR — currently 0 firings) and align prose↔log pairs, so more failure modes and more
+  of the KB corpus are exercised.
+
+See [`docs/roadmap.md`](roadmap.md) for milestone-level planning and
+[`2026-07-06-first-evaluation.md`](2026-07-06-first-evaluation.md) §8 for the ranked, evaluation-driven next steps.
