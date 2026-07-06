@@ -61,6 +61,21 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
         bucket1 = [r for r, o in pairs if not o.is_answerable]
         fabricated = [r for r in bucket1 if r.patch_emitted and r.patch_applies]
         cost_total = sum(r.cost_usd for r in recs)
+        # --- plan metrics (only cases that carry a captured plan) ---
+        plan_recs = [r for r in recs if getattr(r, "plan", None)]
+        gnd = [r.groundedness for r in plan_recs if r.groundedness is not None]
+        pc_loc = [(r, o) for r, o in pairs if getattr(r, "plan", None) and o.expected_files]
+        pc_api = [(r, o) for r, o in pairs if getattr(r, "plan", None) and o.required_apis]
+
+        def _plan_target_recall(r, o, k):
+            files = [t["file"] for t in r.plan["targets"]]
+            return recall_at_k([norm_path(x) for x in files],
+                               {norm_path(e) for e in o.expected_files}, k)
+
+        def _plan_api_match(r, o):
+            named = {a.lower() for a in r.plan["required_apis"]}
+            return sum(1 for a in o.required_apis if a.lower() in named) / len(o.required_apis)
+
         arms[arm] = {
             "n": n,
             "fix_coverage": len(answered) / n if n else 0.0,
@@ -80,6 +95,12 @@ def grade_fix_all(records, *, oracle_by_case, ks=(1, 3, 5), c_values=(0.5, 1.0, 
             "phi_c": {str(c): phi_c(phi_recs, c=c) for c in c_values},
             "cost_total": cost_total,
             "cost_per_solved": (cost_total / len(solved)) if solved else None,
+            "plan_groundedness": _wrap(sum(gnd) / len(gnd), len(gnd)) if gnd else {"value": None, "n": 0},
+            **{f"plan_target_recall@{k}":
+               (_wrap(sum(_plan_target_recall(r, o, k) for r, o in pc_loc) / len(pc_loc), len(pc_loc))
+                if pc_loc else {"value": None, "n": 0}) for k in (1, 5)},
+            "plan_api_match": (_wrap(sum(_plan_api_match(r, o) for r, o in pc_api) / len(pc_api), len(pc_api))
+                               if pc_api else {"value": None, "n": 0}),
             "resolved_by_case": resolved_by_case,
         }
     return {"arms": arms, "n_cases": len({r.case_id for recs in by_arm.values() for r in recs})}
