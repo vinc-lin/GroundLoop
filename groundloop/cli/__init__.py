@@ -233,6 +233,8 @@ def _load_skills(kind: str, seed: str | None, embedder):
         path = seed or KB_SEED
     elif kind == "placebo":
         path = seed or str(Path(KB_SEED).parent / "placebo.toml")
+    elif kind == "distilled":
+        path = seed or str(Path(KB_SEED).parent / "distilled.toml")   # produced by `gloop kb-distill`
     else:
         raise ValueError(f"unknown --skills kind: {kind!r}")
     return MockSkillRegistry.load(path, embedder=embedder)
@@ -759,9 +761,9 @@ def build_parser() -> argparse.ArgumentParser:
     fx.add_argument("--out", required=True, help="fix-scorecard.json output path (a .md twin is written too)")
     fx.add_argument("--tau-margin", type=float, default=1.0)
     fx.add_argument("--tau-score", type=float, default=1.0)
-    fx.add_argument("--skills", choices=["none", "mock", "kb", "placebo"], default="none",
-                    help="dev-experience KB arm: none (baseline) | mock (SP3 seed) | "
-                         "kb (our corpus) | placebo (length-matched irrelevant control)")
+    fx.add_argument("--skills", choices=["none", "mock", "kb", "placebo", "distilled"], default="none",
+                    help="dev-experience KB arm: none | mock | kb (raw corpus) | placebo | "
+                         "distilled (the kb-distill output, distilled.toml)")
     fx.add_argument("--skills-seed", dest="skills_seed", default=None,
                     help="override the KB/placebo corpus TOML path (default: the packaged seed)")
     fx.add_argument("--fixer", choices=["direct", "plan"], default="direct",
