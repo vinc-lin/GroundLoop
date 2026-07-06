@@ -223,10 +223,11 @@ CRASH_CLASSES: list[CrashClass] = [
     CrashClass("foreground-service-not-started", "java", build_fgs_crash, None),
     CrashClass("illegalstate-after-savedinstancestate", "java", build_ise_saved_crash, None),
     CrashClass("binder-transaction-too-large", "java", build_binder_too_large_crash, None),
-    CrashClass("media-player-illegal-state", "java", build_media_illegal_state_crash,
-               frozenset({"media3", "androidx-media"})),
-    CrashClass("camera-gl-surface-lifecycle", "java", build_camera_gl_crash,
-               frozenset({"cameraview", "android-gpuimage-plus"})),
+    # repo-agnostic: MediaCodec / Surface signatures are generic android.media/GL tokens (no owner leak),
+    # and the affine repos (media3/cameraview/gpuimage) are too thin to carry these classes — so keep them
+    # affinity-free to guarantee firing coverage across the fleet.
+    CrashClass("media-player-illegal-state", "java", build_media_illegal_state_crash, None),
+    CrashClass("camera-gl-surface-lifecycle", "java", build_camera_gl_crash, None),
     CrashClass("shared-state-race-cme", "java", build_cme_crash, None),
     CrashClass("native-lib-load-failure", "java", build_native_lib_load_crash, None),
     CrashClass("fragment-view-after-destroy-npe", "java", build_fragment_npe_crash, None),
