@@ -20,12 +20,18 @@ orchestrator owns control flow; **the loop never sees the oracle** (grading is a
   bind). Do **not** edit `core/` for a feature; swap behavior at the composition root (`cli/__init__.py`).
 - `groundloop/adapters/` — port implementations: `mock/` (MockJira, MockGerrit, CannedModel = the
   hermetic test substrate), `index/` (`TokenIndex` M0 stub, `AtlasIndex` real FTS5 matcher over an
-  atlas.db), `estate.py` (MockEstate), `fix/` (CannedFixEngine).
+  atlas.db), `estate.py` (MockEstate), `fix/` (`CannedFixEngine` hermetic stub + `ModelPatchEngine`
+  real propose-patch), `model/` (`GatewayModel`), `skills/` (`MockSkillRegistry` = the SP3 dev-experience KB).
 - `groundloop/engines/` — migrated **as-is** from the old knowledgeLoop (source:
   `/mnt/x/code/knowledgeLoop/knowledgeloop/`): `atlas/` (Store/embed/retrieve/registry/index),
   `lore/` (CBM client + launch + wiki), `produce/` (CodeWiki generation).
 - `groundloop/domains/android_ivi/` — the domain pack (fleet catalog, `AndroidSignalExtractor`).
   Multi-domain is a design-for-later seam; no plugin framework yet (YAGNI).
+- **Type-2 stack** (eval/benchmark side): `eval/` (oracle-blind Stage-1 matching eval → scorecard),
+  `fixeval/` (fix-loop eval: file_recall/patch_applies/resolved_rate/fabrication_rate + `compare`),
+  `mine/` (GitHub issue→merged-PR miner, incl. typed honest-refusal negatives), `synth/` (AAOS synth
+  failure-log generation), `skills/`+`kb/` (dev-experience KB primitive + leak-safe feedstock corpus),
+  `build/` (fleet clone + atlas build), `grade/` (offline grader).
 - `groundloop/config/settings.py` — the single env-reading surface (`KLOOP_*`).
 
 The **7 core ports** (`core/ports.py`): IssueSource, SignalExtractor (domain), RepoEstate, CodeIndex
@@ -39,6 +45,10 @@ Current state, blockers, and next steps live in **`docs/STATUS.md`** — read it
 Milestones **GL-M0** (walking skeleton) + **GL-M1** (real `AtlasIndex` + `gloop index` build) have landed
 — GroundLoop's own track, distinct from the `bfl` **BFL-M0..M9** and the repo-matching spec **M1–M5**
 tracks (never write a bare "M1"; see `docs/roadmap.md`).
+The Type-2 (Test 2) track has since shipped end-to-end: SP1 (honest-refusal negatives) → SP2 (fix-loop
+eval) → SP3 (dev-experience KB arm), plus the KB feedstock corpus. First cross-stage evaluation:
+`docs/2026-07-06-first-evaluation.md` (Stage-1 match recall@1 0.60 synth / 0.02–0.23 real; localize
+strong-but-unscored; fix + KB lift gated on the live env).
 
 ## Docs — single source of truth
 **GroundLoop `docs/` is the single source of truth** (consolidated 2026-07-04 from `../loop-agent` +
@@ -54,6 +64,8 @@ tracks (never write a bare "M1"; see `docs/roadmap.md`).
 - `docs/m1-index-build.md` · `docs/type2-eval-setup.md` · `docs/groundloop-testing-strategy.md`.
 - `docs/type2-atlas-build-findings.md` — portable atlas-build gotchas (CBM timeout, one-index-at-a-time,
   `pgrep -fa` not `ps -C`, exclude test/3party, run eval off ext4) + the first real-testing results.
+- `docs/skill-kb-migration.md` — SP3 dev-experience KB migration guide + parity self-test protocol.
+- `docs/2026-07-06-first-evaluation.md` — first cross-stage evaluation snapshot (match/localize/fix/KB).
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
@@ -64,7 +76,7 @@ GL-M1 plan (for provenance):
 - Tests: `.venv/bin/python -m pytest -q`  ·  Lint: `.venv/bin/ruff check groundloop tests` (line 110).
   Single test: `.venv/bin/python -m pytest tests/test_atlas_index.py -q` (or `-k <pattern>`).
   Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/type2-eval-setup.md`.
-- CLI: `.venv/bin/gloop {run,index,produce,doctor}`.
+- CLI: `.venv/bin/gloop {run,index,produce,doctor,build-atlas,mine,eval,fixeval,compare}`.
 - **Two test surfaces** (`docs/groundloop-testing-strategy.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in
   `tests/conftest.py`, anti-leak invariants in `tests/test_invariants.py`) and **Type-2 (Test 2)** live
@@ -81,6 +93,9 @@ GL-M1 plan (for provenance):
   logic verbatim (only the import rewire + the `_envcompat` shim change).
 - Reuse contract (keep an atlas.db shareable): embed model pinned `bge-m3` at index + query time;
   stable repo names + pinned SHAs; shared atlas.db path; schema unchanged.
+- **KB/fix-arm gotcha:** `localize` runs *before* fix `propose`, so a fix-stage Skill is
+  `file_recall`-invariant — grade Skill lift on `resolved_rate`/`patch_applies`/`fabrication_rate`, never
+  `file_recall@1`. The eval datasets carry **no** honest-refusal negatives yet (those metrics are fixture-only).
 - End commit messages with: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
   Commit only when the suite is green + ruff clean.
 - Plans / substantial features: subagent-driven (superpowers skills), two-stage review per task.
