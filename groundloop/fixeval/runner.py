@@ -57,6 +57,7 @@ class FixRecord:
     plan: dict | None = None
     groundedness: float | None = None
     replans: int = 0
+    fired_skills: tuple[str, ...] = ()
 
 
 class FixEvalRunner:
@@ -99,8 +100,10 @@ class FixEvalRunner:
         # the raw ticket/log haystack. Empty when no playbook applies -> byte-identical to skills=none.
         f = fixer
         skill_query = ""
+        fired: tuple = ()
         if self.skills is not None:
             selected = self.skills.select(build_ctx(signals, ticket, predicted))
+            fired = tuple(getattr(s, "id", "") for s in selected)
             preamble = render_skills(selected)
             if preamble:
                 f = fixer.with_preamble(preamble)
@@ -110,7 +113,7 @@ class FixEvalRunner:
         locations = localize(arm.index, predicted, signals, ticket.summary, skill_query=skill_query)
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
-                       cost_usd=self._cost(fixer) - c0)
+                       cost_usd=self._cost(fixer) - c0, fired_skills=fired)
         plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
         applies = patch_applies(patch.diff, wt.path)
         iters = 0
@@ -119,7 +122,7 @@ class FixEvalRunner:
             plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
             applies = patch_applies(patch.diff, wt.path)
         pmeta = dict(plan=plan_dict, groundedness=meta.get("groundedness"),
-                     replans=meta.get("replans", 0))
+                     replans=meta.get("replans", 0), fired_skills=fired)
         if not patch.diff or not applies:                     # SECONDARY: unappliable -> abstain
             return rec(predicted_repo=predicted, locations=locations, refine_iters=iters,
                        abstain_reason="patch_unappliable", cost_usd=self._cost(fixer) - c0, **pmeta)
