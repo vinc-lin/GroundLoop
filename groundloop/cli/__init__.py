@@ -285,6 +285,10 @@ def _run_fixeval(args) -> int:
     card = grade_fix_all(records, oracle_by_case=oracle_by_case)
     Path(args.out).write_text(json.dumps(card, indent=2))
     Path(args.out).with_suffix(".md").write_text(render_fix_markdown(card))
+    from groundloop.fixeval.archive import archive_plans
+    n_plans = archive_plans(records, str(Path(args.out).parent))
+    if n_plans:
+        print(f"archived {n_plans} plan(s) -> {Path(args.out).parent}/plans/")
     for arm, a in card["arms"].items():
         fr = a["file_recall@1"]["value"]
         fab = a["fabrication_rate"]["value"]
