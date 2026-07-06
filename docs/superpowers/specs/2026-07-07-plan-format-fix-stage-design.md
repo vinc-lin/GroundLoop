@@ -49,6 +49,9 @@ by default, exactly that prose. Therefore the load-bearing rule of this design:
 - A new grader tier (`plan_groundedness`, `plan_correctness`) that does not ride on `resolved_rate`.
 - Harden the `resolved_rate` proxy so both this arm and the KB retain-loop sit on honest ground.
 - Archive every plan + outcome from day one.
+- Validate the KB's **raw** (`aaos_kb_seed.toml`) and **distilled** (`distilled.toml`) knowledge as
+  measured `--skills` arms on the grounded plan metrics — a new `accept_grounded` two-sided gate — so the
+  KB retain-loop is judged on a trustworthy signal, not the game-able `resolved_rate`.
 
 **Non-goals (this effort)**
 - Symbol-level / line-level plan targets (schema leaves room; deferred).
@@ -199,6 +202,16 @@ These give the fix stage a signal grounded in *the plan's* correctness, independ
 `resolved_rate`. Reported alongside the existing `resolved_rate`/`patch_apply_rate`/`fabrication_rate` so
 we can see, per arm, whether planning improves the grounded signal even where the proxy is noisy.
 
+**Validating raw + distilled KB on this grader.** Because `plan_correctness`/`plan_groundedness` are
+non-game-able, they are also the gate for the KB. A new `accept_grounded` two-sided verdict (POS =
+`Δplan_target_recall@1 > 0` OR `Δresolved_rate_strict > 0`; HONESTY = `Δfabrication_rate ≤ 0` AND
+`Δplan_groundedness ≥ 0`) validates both the raw authored Skills (`aaos_kb_seed.toml`) and the distilled
+corpus (`distilled.toml`, from `gloop kb-distill`) as measured `--skills {kb, placebo, distilled}` arms
+under `--fixer plan`, against a length-matched placebo control. This makes the plan format the trustworthy
+substrate for the KB retain-loop, replacing the game-able `resolved_rate` the current KB A/B keys on. The
+distilled corpus is *distilled* under the proxy today but *validated* on the grounded signal here (a
+stringent survival test); re-gating `kb-distill`/`kb-ab` on the grounded signal is a tracked follow-on.
+
 ## 7. `resolved_rate` hardening (Phase 0)
 
 Small, independent, done first so every downstream number is honest. In `fixeval/scorecard.py` /
@@ -288,7 +301,9 @@ offline grade (separate pass, sees oracle):
   baseline; ship the hardened metric as a labeled variant.
 - **Phase 1** — `PlanningFixEngine` + `RepairPlan` + `check_plan_in_world` + re-plan/abstain + fault-site
   window + `--fixer plan` arm.
-- **Phase 2** — `plan_groundedness` + `plan_correctness` grader in the scorecard; archive capture.
+- **Phase 2** — `plan_groundedness` + `plan_correctness` grader in the scorecard; archive capture; the
+  `distilled` skills arm + `accept_grounded` grounded verdict; validate raw + distilled KB under
+  `--fixer plan`.
 - **Phase 3 (deferred, not this plan)** — structured KB field-injection; symbol/line-level targets +
   localize line spans; archive *use* (retrieval / regression / distill).
 
