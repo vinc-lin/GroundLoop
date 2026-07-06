@@ -46,6 +46,14 @@ def test_replan_recovers_from_hallucination(tmp_path):
     plan, patch, meta = PlanningFixEngine(m, max_replan=1).propose_with_plan(
         _wt(tmp_path), _ticket(), ["src/F.java"])
     assert patch.diff and meta["replans"] == 1
+    assert meta["groundedness"] == 1.0            # groundedness reflects the FINAL recovered plan
+
+
+def test_unparseable_plan_abstains(tmp_path):
+    m = SeqModel(["not json", "not json"])
+    plan, patch, meta = PlanningFixEngine(m, max_replan=1).propose_with_plan(
+        _wt(tmp_path), _ticket(), ["src/F.java"])
+    assert patch.diff == ""                       # never grounds -> honest refusal, no execute call
 
 
 def test_persistent_hallucination_abstains(tmp_path):

@@ -29,3 +29,19 @@ def test_round_trip_dict():
     d = plan_to_dict(p)
     assert d["targets"] == [{"file": "A", "symbol": None, "why": ""}]
     assert d["required_apis"] == ["k"]
+
+
+def test_parse_malformed_confidence_never_raises():
+    for bad in ('{"confidence":"high","root_cause":"x","targets":[{"file":"A"}],"strategy":"s"}',
+                '{"confidence":[1],"root_cause":"x","targets":[{"file":"A"}],"strategy":"s"}',
+                '{"confidence":{},"root_cause":"x","targets":[{"file":"A"}],"strategy":"s"}'):
+        p = parse_plan(bad)              # must NOT raise (would abort the whole fixeval batch)
+        assert isinstance(p, RepairPlan)
+        assert p.confidence == 0.0
+
+
+def test_parse_non_list_fields_not_char_iterated():
+    p = parse_plan('{"root_cause":"x","targets":"src/A.java","required_apis":"k",'
+                   '"citations":"c","strategy":"s"}')
+    assert isinstance(p, RepairPlan)
+    assert p.targets == () and p.required_apis == () and p.citations == ()
