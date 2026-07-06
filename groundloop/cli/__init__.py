@@ -290,6 +290,38 @@ def _run_fixeval(args) -> int:
     return 0
 
 
+def _run_synth(args) -> int:
+    """Synthesize AAOS failure-log tickets from a mined dataset (wraps build_synth_dataset)."""
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.config.settings import Settings
+    from groundloop.synth.dataset import build_synth_dataset
+
+    atlas_db = args.atlas_db or Settings.load().atlas_db
+    if not atlas_db:
+        print("gloop synth: --atlas-db is required (or set KLOOP_ATLAS_DB)")
+        return 2
+
+    # --catalog names a catalog.json path (default: the one alongside the mined dataset).
+    catalog_path = args.catalog or os.path.join(args.src, "catalog.json")
+    catalog_names = [c["name"] for c in json.loads(Path(catalog_path).read_text())]
+
+    made = build_synth_dataset(args.src, atlas_db, args.out, catalog_names)
+
+    # Tally the synth-log kind (native | logcat) per written case for a coverage summary.
+    kinds: dict[str, int] = {}
+    for cid in made:
+        oracle = json.loads((Path(args.out) / cid / "_oracle" / "oracle.json").read_text())
+        k = oracle.get("synth_log", "?")
+        kinds[k] = kinds.get(k, 0) + 1
+
+    print(f"synth: {len(made)} cases -> {args.out}")
+    for k in sorted(kinds):
+        print(f"  {k}: {kinds[k]}")
+    return 0
+
+
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
@@ -430,6 +462,14 @@ def main(argv: list[str] | None = None) -> int:
     fx.add_argument("--skills-seed", dest="skills_seed", default=None,
                     help="override the KB/placebo corpus TOML path (default: the packaged seed)")
 
+    sy = sub.add_parser("synth", help="synthesize AAOS failure-log tickets from a mined dataset")
+    sy.add_argument("--src", required=True, help="mined dataset root (case dirs + catalog.json)")
+    sy.add_argument("--atlas-db", default="",
+                    help="path to atlas.db for crash-site symbols (overrides KLOOP_ATLAS_DB)")
+    sy.add_argument("--out", required=True, help="destination synth dataset root")
+    sy.add_argument("--catalog", default="",
+                    help="path to catalog.json (default: <src>/catalog.json)")
+
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
     cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
@@ -465,6 +505,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_eval(args)
     if args.cmd == "fixeval":
         return _run_fixeval(args)
+    if args.cmd == "synth":
+        return _run_synth(args)
     if args.cmd == "compare":
         return _run_compare(args)
     return 1
