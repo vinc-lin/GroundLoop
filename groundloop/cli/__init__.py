@@ -630,7 +630,7 @@ def _run_kb_distill(args) -> int:
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
-    from groundloop.fixeval.compare import compare, compare_metrics, accept
+    from groundloop.fixeval.compare import accept, accept_grounded, compare, compare_metrics
 
     def _arms(path):
         return json.loads(Path(path).read_text()).get("arms", {})
@@ -640,14 +640,21 @@ def _run_compare(args) -> int:
     base_arm, head_arm = base_arms.get(arm, {}), head_arms.get(arm, {})
     resolved = compare(base_arm.get("resolved_by_case", {}), head_arm.get("resolved_by_case", {}))
     metrics = compare_metrics(base_arm, head_arm)
-    verdict = accept(metrics, resolved, cost_budget=args.cost_budget)
-    result = {"arm": arm, "resolved": resolved, "metrics": metrics, "verdict": verdict}
+    cost_budget = getattr(args, "cost_budget", None)
+    verdict = accept(metrics, resolved, cost_budget=cost_budget)
+    grounded = accept_grounded(metrics, resolved, cost_budget=cost_budget)
+    result = {"arm": arm, "resolved": resolved, "metrics": metrics, "verdict": verdict,
+              "grounded_verdict": grounded}
     if args.out:
         Path(args.out).write_text(json.dumps(result, indent=2))
     print(f"compare[{arm}]: Δfile_recall@1={metrics['file_recall@1']['delta']} "
           f"Δfabrication={metrics['fabrication_rate']['delta']} "
           f"newly_solved={verdict['newly_solved']} newly_broken={verdict['newly_broken']} "
           f"-> {'ACCEPT' if verdict['accepted'] else 'REJECT'} {verdict['reasons']}")
+    print(f"  grounded: Δplan_target_recall@1={metrics['plan_target_recall@1']['delta']} "
+          f"Δresolved_strict={metrics['resolved_rate_strict']['delta']} "
+          f"Δgroundedness={metrics['plan_groundedness']['delta']} "
+          f"-> {'ACCEPT' if grounded['accepted'] else 'REJECT'} {grounded['reasons']}")
     return 0
 
 

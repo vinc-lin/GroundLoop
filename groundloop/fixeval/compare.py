@@ -25,12 +25,14 @@ def _delta(base, head):
 _POS = ("file_recall@1", "file_recall@3", "file_recall@5", "resolved_rate", "patch_apply_rate")
 _NEG = ("fabrication_rate",)
 _COST = ("cost_per_solved", "cost_total")
+_GROUNDED = ("resolved_rate_strict", "plan_target_recall@1", "plan_target_recall@5",
+             "plan_api_match", "plan_groundedness")
 
 
 def compare_metrics(base_arm: dict, head_arm: dict) -> dict:
     """Per-arm {metric: {base, head, delta}} for the POS/NEG/COST scalars in a fix scorecard."""
     out: dict = {}
-    for m in _POS + _NEG + _COST:
+    for m in _POS + _NEG + _COST + _GROUNDED:
         b, h = _val(base_arm.get(m)), _val(head_arm.get(m))
         out[m] = {"base": b, "head": h, "delta": _delta(b, h)}
     b = base_arm.get("phi_c", {}).get("1.0")
@@ -61,3 +63,27 @@ def accept(metrics_cmp: dict, resolved_cmp: dict, *, cost_budget: float | None =
     return {"accepted": pos_ok and honesty_ok and cost_ok, "pos_ok": pos_ok,
             "honesty_ok": honesty_ok, "cost_ok": cost_ok,
             "newly_solved": ns, "newly_broken": nb, "reasons": reasons}
+
+
+def accept_grounded(metrics_cmp: dict, resolved_cmp: dict, *, cost_budget: float | None = None) -> dict:
+    """Two-sided verdict on the GROUNDED plan signal (not the game-able resolved_rate) — the gate for
+    validating raw KB AND distilled knowledge under --fixer plan. POS = Δplan_target_recall@1>0 OR
+    Δresolved_rate_strict>0 ; HONESTY = Δfabrication_rate<=0 AND Δplan_groundedness>=0 (must not
+    hallucinate more) ; COST advisory unless a budget is given. Absent plan metrics -> pos_ok False."""
+    dtr = metrics_cmp.get("plan_target_recall@1", {}).get("delta")
+    drs = metrics_cmp.get("resolved_rate_strict", {}).get("delta")
+    dfab = metrics_cmp.get("fabrication_rate", {}).get("delta")
+    dgnd = metrics_cmp.get("plan_groundedness", {}).get("delta")
+    dcost = metrics_cmp.get("cost_per_solved", {}).get("delta")
+    pos_ok = (dtr is not None and dtr > 0) or (drs is not None and drs > 0)
+    honesty_ok = (dfab is None or dfab <= 0) and (dgnd is None or dgnd >= 0)
+    cost_ok = cost_budget is None or dcost is None or dcost <= cost_budget
+    reasons = []
+    if not pos_ok:
+        reasons.append("no grounded lift (Δplan_target_recall@1<=0 and Δresolved_rate_strict<=0)")
+    if not honesty_ok:
+        reasons.append(f"honesty regressed (Δfabrication={dfab}, Δgroundedness={dgnd})")
+    if not cost_ok:
+        reasons.append(f"cost_per_solved rose beyond budget (Δ={dcost})")
+    return {"accepted": pos_ok and honesty_ok and cost_ok, "pos_ok": pos_ok,
+            "honesty_ok": honesty_ok, "cost_ok": cost_ok, "reasons": reasons}
