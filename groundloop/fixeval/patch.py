@@ -47,6 +47,26 @@ def references_api(diff: str, api: str) -> bool:
     return any(pat.search(ln) for ln in added_lines(diff))
 
 
+_COMMENT_PREFIXES = ("//", "#", "*", "/*", "*/")
+
+
+def _is_comment_or_blank(content: str) -> bool:
+    t = content.strip()
+    return t == "" or t.startswith(_COMMENT_PREFIXES)
+
+
+def code_added_lines(diff: str) -> list[str]:
+    """Added ('+') line contents excluding the +++ header AND comment/blank lines (a heuristic:
+    single-line // # , block-comment * / */ continuations). Used by the hardened resolution check."""
+    return [ln for ln in added_lines(diff) if not _is_comment_or_blank(ln)]
+
+
+def references_api_code(diff: str, api: str) -> bool:
+    """Whole-word `\\bapi\\b` over added CODE lines only (comments/blanks excluded)."""
+    pat = re.compile(rf"\b{re.escape(api)}\b")
+    return any(pat.search(ln) for ln in code_added_lines(diff))
+
+
 def norm_path(p: str) -> str:
     """Normalize a diff/oracle path to a bare repo-relative form: strip ONE leading a/ or b/,
     then a leading ./, and collapse //. (Single-strip so a real path like 'a/b/foo' keeps 'b/foo'.)"""
