@@ -85,11 +85,50 @@ The preview de-risked the run; a *meaningful* efficacy number needs:
 - Ideally, **synth cases populated with `required_apis`** so `resolved_rate`/`resolved_rate_strict` become
   gradeable for the claim arm.
 
+## 7. Follow-up — a correct-match efficacy read (Phase D lite, ~7.5 min)
+
+A reduced Phase D was run on a slice the matcher gets **right** (6 positives from the native repos **oboe +
+dlt-daemon**, which match 42/45 and 26/26, + 2 negatives), with `--repos` staged on ext4 (Finding 10) — so
+localize runs on the correct repo and the grounded metrics are real (not the antennapod mispredict → zeros of
+§3). Reused the 60 candidate claims. It **completed in ~7.5 min** — each `plan` fixeval ~50 s thanks to ext4,
+vs the 6-min timeouts on v9fs.
+
+Grounded arm comparison (`membership+logs`, 6 gradeable positives):
+
+| arm | `plan_target_recall@1` | `plan_groundedness` | `fabrication_rate` |
+|---|---|---|---|
+| plan / none (baseline) | 0.625 | 0.34 | 0.0 |
+| plan / claims-candidate | 0.50 | 0.19 | 0.0 |
+| plan / skills-placebo (control) | 0.50 | 0.12 | 0.0 |
+
+**Finding: the raw candidate claims show no benefit and do not beat the placebo.** All three arms sit in the
+same **0.5–0.625** band; on 6 cases the 0.625→0.50 gap is ~one case (noise), so this is not evidence claims
+*hurt*, but there is **zero evidence the wholesale candidate dump helps**, and it clearly ties (does not
+beat) the length-matched control (0.50 = 0.50 on recall; +0.07 on groundedness, also noise-level).
+Fabrication was 0 across all arms. `apply_rate = 0` everywhere — plans were emitted with reasonable targets
+(recall ~0.5–0.62) but the executed patches didn't apply, so `resolved_rate_strict` = n/a.
+
+**This confirms the design rather than refuting it.** Injecting all 60 *unvalidated* candidate claims at
+once buys nothing over a placebo — exactly what the distill-first, per-claim-gated architecture assumes. The
+`candidate` tier is eval-only precisely because it must not be trusted wholesale; only claims that *earn* the
+`validated` tier (per-claim LOFO-confirmed lift over placebo) are meant to reach production.
+
+**The honest gap:** the retain-loop that would prune the 60 candidates to a validated subset —
+`gloop kb-attribute` — **timed out** (240 s cap; each per-claim LOFO-confirm re-runs a fixeval, exceeding a
+4-min slot). No tiers changed (all 60 stayed `candidate`). So the **validated-set-vs-placebo verdict (spec
+§8) is still open** — it needs attribution run unbounded (~30–45 min), which the ext4 fix now makes
+affordable.
+
+**Tooling nit surfaced:** `gloop compare`'s printed verdict read the empty `membership+text` arm (no plan
+metrics → Δ=None) instead of the signal-bearing `membership+logs`; the conclusion (no lift) held on both, but
+`compare` should target the arm carrying the metrics.
+
 ## Bottom line
 
 The claim-centric KB **works as a live system** — Skills decompose into 60 grounded claims, the gate rejects
-hallucinated refs, and the full inject→archive→score→compare loop runs. **Whether distilled claims beat a
-placebo on the grounded metric remains unmeasured** (the preview was too small and confound-dominated to
-say); that verdict is the full Phase D, which the ext4 materialization fix now makes affordable. The most
-valuable artifacts of this pass: the extraction/ground-check validation, and the ext4-materialization
-operational fix.
+hallucinated refs, and the full inject→archive→score→compare loop runs. A first **directional efficacy read
+(§7)** shows the **raw candidate claims do NOT beat placebo** on a correct-match slice — consistent with the
+design (unvalidated claims aren't trusted wholesale). Whether the *validated*, LOFO-pruned set beats placebo
+(spec §8) is still open — it needs the attribution retain-loop run unbounded (~30–45 min), now affordable via
+the ext4 fix. The most valuable artifacts of this pass: the extraction/ground-check validation, the first
+grounded efficacy read, and the ext4-materialization operational fix.

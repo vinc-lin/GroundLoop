@@ -83,8 +83,12 @@ grounding, redundant live-eval spend, an uncaught promotion-gate regression, the
   numbers were zero on a 4–8-case slice, but for **artifacts** (match size-bias mispredicting the slice's
   repo; only 1 repo staged on ext4 → wholesale abstain; synth cases lack `required_apis`) — a plumbing
   validation, not an efficacy verdict. One honesty hint: `plan` abstained where `direct` fabricated.
-- **Pending:** the full **Phase D** efficacy verdict (does the validated claim set beat the raw-Skill
-  placebo) — needs all 9 repos on ext4 + a larger slice + correct matches; now practical via Finding 10.
+- **First efficacy read (Phase D lite, ~7.5 min via the ext4 fix):** on a correct-match slice
+  (oboe + dlt-daemon), the raw **candidate** claims do NOT beat placebo (`plan_target_recall@1`: none 0.625,
+  claims 0.50, placebo 0.50; fabrication 0 all) — consistent with the design (unvalidated claims aren't
+  trusted wholesale). `kb-attribute` (the retain-loop) timed out under the 15-min cap, so no tiers promoted.
+- **Pending:** the *validated*-set-vs-placebo verdict (spec §8) — needs attribution run unbounded
+  (~30–45 min), now practical via Finding 10. Detail: `docs/2026-07-07-claim-kb-preview-findings.md` §7.
 
 ### Testing environment
 - **Type-1 (hermetic)** — `tests/conftest.py` (shared fixtures: `case`, `harness`, `atlas_harness`,
