@@ -48,7 +48,7 @@ all shipped to master, `core/` untouched, hermetic + gated surfaces:
   declarative-compiled predicates; migration guide + non-vacuous parity self-test (`docs/skill-kb-migration.md`).
 - Detail: `docs/type2-evaluation.md` (§6.4 fix-stage arm), `docs/downstream-fix-loop.md`.
 
-### Plan-format fix stage — MERGED to master + pushed (2026-07-07); live A/B pending
+### Plan-format fix stage — MERGED to master + pushed (2026-07-07); live A/B RUN ✅
 Turns the fix stage into a grounded **plan-then-act** loop: a two-phase `PlanningFixEngine`
 (plan → oracle-blind in-world gate → bounded re-plan → abstain → execute) behind
 `gloop fixeval --fixer plan`. Shipped hermetically — 16 commits, full suite **366 passed / 7 skipped**,
@@ -65,10 +65,18 @@ ruff clean, `core/` + atlas schema **zero-diff**, per-phase spec+quality review 
 - Spec `docs/superpowers/specs/2026-07-07-plan-format-fix-stage-design.md` · plan
   `docs/superpowers/plans/2026-07-07-plan-format-fix-stage.md`.
 - **Merged + a follow-on FTS5 fix** (`_fts_query` now quotes leaf tokens so a KB Localize hint containing
-  `NOT` no longer crashes matching/localize — this had crashed the earlier kb-ab live run). **Pending:** the
-  live A/B (`--fixer direct` vs `plan`; skills sweep) — attempted live but not completed (killed to
-  prioritize the claim-KB preview below); now cheap via the ext4 materialization fix
-  (`docs/type2-atlas-build-findings.md` Finding 10).
+  `NOT` no longer crashes matching/localize — this had crashed the earlier kb-ab live run).
+- **Live A/B RUN (Phase 3, `docs/2026-07-07-plan-format-phase3-findings.md`):** 56-case correct-match
+  slice (oboe 25 + dlt-daemon 19 positives + 12 neg), ext4-staged (Finding 10), 4 arms + 2 compares.
+  **Q1 engine (direct vs plan):** a *structural* tie — `file_recall@1` is fixer-invariant (0.189 both,
+  localize precedes fix) and the grounded axis is uncomparable (direct emits no plan → Δ=None). The plan
+  arm produces the intended grounded artifact (`plan_target_recall@1` 0.48 / `@5` 0.68, groundedness 0.56,
+  fabrication 0.0) that `direct` lacks, but its *executed patches* don't apply on synth (`apply_rate`
+  1.0→0.0) and resolution is ungradeable (no `required_apis`) — so **plan-vs-direct on resolution stays
+  open**, blocked on a `required_apis`-bearing slice, not the plan format. **Q2 KB-under-plan:** raw KB
+  **hurts** — `plan_target_recall@1` **plan/none 0.48 > placebo 0.36 > kb 0.22** (Δ kb-vs-placebo −0.14),
+  an independent fresh-run reproduction of the claim-KB §8 verdict (messy Skills injected wholesale
+  degrade the planner). Fabrication 0.0 all arms.
 
 ### Claim-centric distilled KB — MERGED to master (2026-07-07); live preview ✅, full efficacy pending
 Inverts the KB onto atomic grounded **claims** (design/plan: `docs/superpowers/{specs,plans}/2026-07-07-
