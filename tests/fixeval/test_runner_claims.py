@@ -61,6 +61,21 @@ def test_claims_inject_into_plan_prompt(tmp_path):
     assert any(_CONTENT in p for p in injected)
 
 
+def test_both_channels_inject_and_compose_in_order(tmp_path):
+    # BOTH arms on: the plan prompt must carry the skill preamble AND the claim preamble, skills first.
+    db = build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
+    cap = _Capture()
+    reg = ClaimRegistry([_claim("c-seg")])                    # always-firing candidate claim
+    runner, cases = _runner(tmp_path, "both", skills=MockSkillRegistry.load(), claims=reg,
+                            claims_tier_floor="candidate")
+    runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(cap))
+    composed = [p for p in cap.prompts
+                if "# Applicable playbooks" in p and "# Grounded claims" in p]
+    assert composed, "both arms on -> one prompt must carry BOTH preambles"
+    for p in composed:
+        assert p.index("# Applicable playbooks") < p.index("# Grounded claims")   # skills first
+
+
 def test_candidate_tier_gated_out_at_validated_floor(tmp_path):
     db = build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
     cap = _Capture()

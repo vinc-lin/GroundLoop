@@ -41,3 +41,11 @@ def test_each_content_is_a_bulleted_line():
     out = render_claims([_claim("c-api", "api_requirement", "Call startForeground within 5s.")])
     assert "Required APIs for this crash class" in out
     assert "- Call startForeground within 5s." in out
+
+
+def test_multiline_content_is_collapsed_to_one_bullet():
+    # a claim whose content smuggles a markdown header must NOT break the preamble structure.
+    out = render_claims([_claim("c-inj", "fix_step", "step one\n## Injected Header\nstep two")])
+    assert "- step one ## Injected Header step two" in out    # single-line bullet, whitespace collapsed
+    assert "\n## Injected Header" not in out                  # no stray group-level header
+    assert out.count("# Grounded claims") == 1                # only the renderer's own top header

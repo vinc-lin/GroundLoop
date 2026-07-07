@@ -23,7 +23,9 @@ def render_claims(claims: list[Claim]) -> str:
         items = [c for c in claims if c.type == type_key]     # preserves selection order within a group
         if not items:
             continue
-        lines = "\n".join(f"- {c.content}" for c in items)
+        # collapse whitespace so a multi-line content cannot smuggle a stray markdown header (## / #)
+        # into the preamble the renderer is meant to control — each claim stays a single bullet line.
+        lines = "\n".join(f"- {' '.join(c.content.split())}" for c in items)
         blocks.append(f"## {head}\n{lines}")
     if not blocks:                                            # only off-taxonomy claims -> no injection
         return ""
