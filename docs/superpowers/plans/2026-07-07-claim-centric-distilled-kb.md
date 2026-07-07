@@ -1892,7 +1892,11 @@ Paths + working store (all outputs on **ext4**, never the v9fs mount):
 ```bash
 ATLAS=/home/vinc/gl-eval/atlas-9.db
 SUB=/home/vinc/gl-eval/dataset-neg-synth-sub          # 278 cases: 128 neg + 150 pos
-REPOS=/mnt/x/code/corpora-local                       # plain-dir @base snapshots (NOT gl-corpora)
+REPOS=/home/vinc/gl-eval/corpora-fast                 # EXT4 copy of the fleet repos (stage once:
+                                                      # cp -a /mnt/x/code/corpora-local/* $REPOS/). REQUIRED:
+                                                      # GitFixtureEstate re-copies the whole repo PER CASE, so
+                                                      # v9fs corpora-local makes fixeval minutes/case — see
+                                                      # docs/type2-atlas-build-findings.md Finding 10.
 SEED=groundloop/kb/data/aaos_kb_seed.toml             # the 12 authored Skills (feedstock, never injected raw)
 OUT=/home/vinc/gl-eval/claim-run ; mkdir -p "$OUT"
 CLAIMS=$OUT/claims.json                               # WORKING store (repo default groundloop/kb/data/claims.json

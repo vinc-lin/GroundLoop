@@ -48,7 +48,7 @@ all shipped to master, `core/` untouched, hermetic + gated surfaces:
   declarative-compiled predicates; migration guide + non-vacuous parity self-test (`docs/skill-kb-migration.md`).
 - Detail: `docs/type2-evaluation.md` (§6.4 fix-stage arm), `docs/downstream-fix-loop.md`.
 
-### Plan-format fix stage (branch `feat/plan-format-fix-stage`) — code complete, live validation pending
+### Plan-format fix stage — MERGED to master + pushed (2026-07-07); live A/B pending
 Turns the fix stage into a grounded **plan-then-act** loop: a two-phase `PlanningFixEngine`
 (plan → oracle-blind in-world gate → bounded re-plan → abstain → execute) behind
 `gloop fixeval --fixer plan`. Shipped hermetically — 16 commits, full suite **366 passed / 7 skipped**,
@@ -64,8 +64,27 @@ ruff clean, `core/` + atlas schema **zero-diff**, per-phase spec+quality review 
   to validate **raw + distilled** KB knowledge under `--fixer plan`.
 - Spec `docs/superpowers/specs/2026-07-07-plan-format-fix-stage-design.md` · plan
   `docs/superpowers/plans/2026-07-07-plan-format-fix-stage.md`.
-- **Pending (Phase 3–4):** the live A/B (`--fixer direct` vs `plan`; 4-arm skills sweep incl. distilled) +
-  write-up — gated on gateway availability (the kb-ab live run still holds it) + spend authorization.
+- **Merged + a follow-on FTS5 fix** (`_fts_query` now quotes leaf tokens so a KB Localize hint containing
+  `NOT` no longer crashes matching/localize — this had crashed the earlier kb-ab live run). **Pending:** the
+  live A/B (`--fixer direct` vs `plan`; skills sweep) — attempted live but not completed (killed to
+  prioritize the claim-KB preview below); now cheap via the ext4 materialization fix
+  (`docs/type2-atlas-build-findings.md` Finding 10).
+
+### Claim-centric distilled KB — MERGED to master (2026-07-07); live preview ✅, full efficacy pending
+Inverts the KB onto atomic grounded **claims** (design/plan: `docs/superpowers/{specs,plans}/2026-07-07-
+claim-centric-distilled-kb*.md`): Skills are feedstock; `kb-extract` (LLM proposes → ground-check disposes)
+→ `--claims` arm injects only tier-qualifying claims into the plan → `kb-attribute` (screen → LOFO-confirm
+vs placebo → per-claim promote/retire). Phases A–C shipped subagent-driven — **15 commits, 449 tests, `core/`
++ atlas schema zero-diff**, per-phase spec+quality review + final holistic review (caught + fixed: porous
+grounding, redundant live-eval spend, an uncaught promotion-gate regression, the `--claims-store` gap).
+- **Live preview (2026-07-07, `docs/2026-07-07-claim-kb-preview-findings.md`):** the full path runs on real
+  infra — `kb-extract` minted **60 grounded candidate claims** from the 12 Skills (ground-check correctly
+  dropped ~14 templated/unindexed refs = "LLM proposes, gate disposes" validated). The fix-eval efficacy
+  numbers were zero on a 4–8-case slice, but for **artifacts** (match size-bias mispredicting the slice's
+  repo; only 1 repo staged on ext4 → wholesale abstain; synth cases lack `required_apis`) — a plumbing
+  validation, not an efficacy verdict. One honesty hint: `plan` abstained where `direct` fabricated.
+- **Pending:** the full **Phase D** efficacy verdict (does the validated claim set beat the raw-Skill
+  placebo) — needs all 9 repos on ext4 + a larger slice + correct matches; now practical via Finding 10.
 
 ### Testing environment
 - **Type-1 (hermetic)** — `tests/conftest.py` (shared fixtures: `case`, `harness`, `atlas_harness`,

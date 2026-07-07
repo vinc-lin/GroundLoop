@@ -188,6 +188,22 @@ env-configurable timeout instead of 30 s.
   (Trade-off noted: the other 7 repos were indexed *with* tests — mixed handling, negligible for
   matching. A future `index_repository` exclude-glob would make this uniform.)
 
+## Finding 10 — `gloop fixeval` materializes the WHOLE repo PER CASE; stage `--repos` on ext4 too
+- **Symptom (2026-07-07):** every `gloop fixeval` on the v9fs `--repos` (`/mnt/x/code/corpora-local`)
+  crawled — a 278-case run took hours, and short-timeout preview runs died mid-materialization (STAT `D`,
+  I/O-wait) before making a single model call.
+- **Cause:** `GitFixtureEstate.materialize` (`groundloop/adapters/estate.py`) does, **for every case**,
+  `rmtree` → `shutil.copytree(<repo>)` from `--repos` → `git init/add -A/commit` — a full repo copy +
+  commit with **no caching** (it re-copies every call). Over v9fs that is minutes per case (per-file 9p
+  round-trips), repeated for all N cases.
+- **Fix (portable, measured):** stage `--repos` on **real ext4** — `cp -a /mnt/x/code/corpora-local/<repo>
+  /home/vinc/gl-eval/corpora-fast/` once (one v9fs read), then `gloop fixeval --repos
+  /home/vinc/gl-eval/corpora-fast`. Per-case materialization drops from minutes to **~seconds**
+  (antennapod 22 MB → 35 s copy; a 6-case A/B incl. extraction then ran in ~15 min). This EXTENDS Finding
+  8: for `gloop eval` stage atlas + dataset on ext4; for `gloop fixeval` **also stage `--repos`**. (A
+  caching materialize — reuse an existing work-tree instead of rmtree+recopy — would remove the per-case
+  cost entirely; an adapter change, future.) See `docs/2026-07-07-claim-kb-preview-findings.md`.
+
 ## First real eval — matcher & dataset findings (Type-2, 2026-07-05)
 Ran `gloop eval` on the mined GitHub-issue dataset over the real atlas (6-repo preview, 187 cases;
 9-repo run pending the two excluded repos). The benchmark did its job — it exposed real weaknesses:
