@@ -154,11 +154,18 @@ class Store:
 
 
 def _fts_query(text: str) -> str:
-    """Sanitize free text into a safe FTS5 OR query of bare tokens.
+    """Sanitize free text into a safe FTS5 OR query of double-quoted tokens.
 
     Splits on non-alphanumeric boundaries AND on camelCase/PascalCase word
     boundaries so that e.g. ``cgeApplyBrightness`` also emits the sub-words
     ``cge``, ``Apply``, ``Brightness`` for fuzzy nearest-symbol matching.
+
+    Each leaf token is wrapped in double quotes so that FTS5 reserved words
+    (``AND``/``OR``/``NOT``/``NEAR``) become literal terms instead of operators
+    — tokens are already ``[A-Za-z0-9]+`` so no escaping is needed. Without this,
+    free text like "…NOT the abort frame…" produces a bare ``… OR NOT OR …`` and
+    raises ``fts5: syntax error near "NOT"``. Quoting a single alphanumeric token
+    matches the identical documents as the bare term, so ranking is unchanged.
     """
     # First split on non-alphanumeric separators
     raw = re.findall(r"[A-Za-z0-9]+", text)
@@ -173,4 +180,4 @@ def _fts_query(text: str) -> str:
                 toks.append(p)
     seen: set[str] = set()
     unique = [t for t in toks if not (t.lower() in seen or seen.add(t.lower()))]  # type: ignore[func-returns-value]
-    return " OR ".join(unique) if unique else '""'
+    return " OR ".join(f'"{t}"' for t in unique) if unique else '""'
