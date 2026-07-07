@@ -10,7 +10,7 @@ whose grade_fix_all is the sole, offline oracle read. The loop stays oracle-blin
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from groundloop.kb.claim import Claim
@@ -60,3 +60,15 @@ def screen_claims(archive: Iterable[dict], claims: dict[str, Claim], *,
             scored.append((abs(lift), cid))
     scored.sort(key=lambda t: (-t[0], t[1]))
     return [cid for _, cid in scored]
+
+
+def lofo_claims(claim_ids: Iterable[str], run_fn: Callable[[frozenset[str]], float]) -> dict[str, float]:
+    """Leave-one-CLAIM-out attribution — the claim-granular analogue of kb/distill/lofo.lofo_fragments.
+    baseline = run_fn(full_set); for each claim, Δ = baseline - run_fn(full_set without that claim). A
+    POSITIVE Δ means removing the claim dropped the metric (the claim was load-bearing). `run_fn(set[str])
+    -> float` is a driver-supplied closure that re-runs the grounded fix eval with exactly that claim set
+    (grade_fix_all inside it is the sole, offline oracle read). Returns {claim_id: Δ}, first-seen order."""
+    ids = list(dict.fromkeys(claim_ids))            # de-dup, preserve first-seen order
+    full = frozenset(ids)
+    baseline = run_fn(full)
+    return {cid: baseline - run_fn(full - {cid}) for cid in ids}
