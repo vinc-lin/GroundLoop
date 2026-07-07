@@ -45,3 +45,50 @@ def test_load_claims_maps_kind_to_registry_and_floor(monkeypatch):
     assert len(reg_c.claims) == 1                                # actually loaded the (fixture) store
     reg_v, floor_v = _load_claims("validated", None)
     assert isinstance(reg_v, ClaimRegistry) and floor_v == "validated"  # PRODUCTION floor
+
+
+def test_load_claims_reads_from_store_path_fixture(tmp_path):
+    """--claims-store override: _load_claims(store_path=<fixture>) loads the FIXTURE store, not the
+    packaged default (proves external/working claim stores work — the Phase D runbook requirement)."""
+    from groundloop.cli import _load_claims
+    from groundloop.kb.claim import Claim, save_claims
+    from groundloop.kb.registry import ClaimRegistry
+
+    store = tmp_path / "claims.json"
+    save_claims(str(store), {"only": Claim(id="only", applies_when={"any_text": ["z"]}, type="fix_step",
+                                           content="from-the-fixture", grounding_refs=(), provenance="p",
+                                           tier="candidate", evidence={})})
+    reg, floor = _load_claims("candidate", None, store_path=str(store))
+    assert isinstance(reg, ClaimRegistry) and floor == "candidate"
+    assert [c.id for c in reg.claims] == ["only"]                # loaded the FIXTURE store...
+    assert reg.claims[0].content == "from-the-fixture"          # ...not the packaged claims.json
+
+
+def test_fixeval_threads_claims_store_to_load_claims(tmp_path, monkeypatch):
+    """`gloop fixeval --claims candidate --claims-store <fixture>` threads the override through to
+    _load_claims as store_path (so the working store on ext4 is what the run reads)."""
+    import groundloop.cli as cli
+    from groundloop.kb.claim import Claim, save_claims
+
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)    # hermetic canned model
+    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)     # no live bge-m3 rerank
+    store = tmp_path / "claims.json"
+    save_claims(str(store), {"fx": Claim(id="fx", applies_when={"any_text": ["z"]}, type="fix_step",
+                                         content="fixture-only", grounding_refs=(), provenance="p",
+                                         tier="candidate", evidence={})})
+
+    seen: dict = {}
+    real = cli._load_claims
+
+    def spy(kind, embedder, store_path=None):
+        seen["store_path"] = store_path
+        return real(kind, embedder, store_path=store_path)
+
+    monkeypatch.setattr(cli, "_load_claims", spy)
+
+    ds, db = _ds(tmp_path), build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
+    rc = cli.main(["fixeval", "--dataset", str(ds), "--catalog", str(FIX / "android_ivi" / "catalog.json"),
+                   "--index-db", db, "--repos", str(FIX / "repos"), "--fixer", "plan",
+                   "--claims", "candidate", "--claims-store", str(store), "--out", str(tmp_path / "out.json")])
+    assert rc == 0
+    assert seen["store_path"] == str(store)                       # the flag reached _load_claims

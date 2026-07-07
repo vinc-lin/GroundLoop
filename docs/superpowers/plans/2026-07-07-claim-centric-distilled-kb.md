@@ -727,7 +727,7 @@ Wires the claim path from Phase A (`Claim` + `claims.json` + `load_claims`) into
 
 **Execution order within Phase B:** B1 → B2 → B3 → B4 (linear; no forward references). B3 names the `selected_claims` local that B4 threads into `FixRecord.fired_claims`.
 
-**Dependency:** Phase A must have shipped `groundloop/kb/claim.py` exposing the frozen `Claim`, `load_claims(path)->list[Claim]`, and `CLAIMS_PATH` (= `groundloop/kb/data/claims.json`). Every B task carries an implementer-verify note where it leans on a Phase-A or reuse signature.
+**Dependency:** Phase A must have shipped `groundloop/kb/claim.py` exposing the frozen `Claim`, `load_claims(path)->dict[str, Claim]` (keyed by claim id — iterate `.values()` for the `Claim`s), and `CLAIMS_PATH` (= `groundloop/kb/data/claims.json`). Every B task carries an implementer-verify note where it leans on a Phase-A or reuse signature.
 
 **Design note carried by all B tasks — the localize/fix boundary (CLAUDE.md gotcha):** claims inject ONLY into the PLAN preamble (fix stage, via `PlanningFixEngine._plan`); they do NOT contribute to the localize `_skill_query`. `localize` runs *before* fix `propose`, so claims are `file_recall@1`-invariant by construction. Grade claim lift on `resolved_rate_strict` / `plan_target_recall@1` / `plan_groundedness` / `fabrication_rate` (via `accept_grounded`), never `file_recall@1`. This is deliberate scoping, not an omission.
 
@@ -1916,9 +1916,10 @@ PY
 
 ```bash
 [ -z "$(gw_busy)" ] || { echo "gateway busy; abort"; exit 1; }
-.venv/bin/gloop kb-extract --seed $SEED --index-db $ATLAS --claims-store $CLAIMS --out $OUT/extract
-# Implementer-verify: exact flag names on kb-extract (built in Phase A) — mirror the kb-ab arg shape
-#   (--index-db/--out) + --seed/--claims-store; the ground-check + leak red-test run inside this command.
+.venv/bin/gloop kb-extract --skills-seed $SEED --index-db $ATLAS --out $CLAIMS
+# kb-extract flags (Phase A): --skills-seed <feedstock.toml>, --index-db <atlas>, --out <claims.json>.
+#   The --out IS the claim store it merges into (there is NO --claims-store on extract); the ground-check
+#   + leak red-test run inside this command and survivors persist at tier=candidate.
 ```
 
 - [ ] Report the extraction ledger and inspect the survivors (drops are expected and healthy — a bad decomposition just produces candidates that fail the gate, spec §10):
@@ -1927,11 +1928,11 @@ PY
 .venv/bin/python - <<PY
 from collections import Counter
 from groundloop.kb.claim import load_claims
-cs = load_claims("$CLAIMS")
-print("candidates:", len(cs), "by type:", dict(Counter(c.type for c in cs)))
-print("provenance (source Skill) coverage:", len({c.provenance for c in cs}), "of 12 Skills")
+cs = load_claims("$CLAIMS")                           # load_claims -> dict[str, Claim]; iterate .values()
+print("candidates:", len(cs), "by type:", dict(Counter(c.type for c in cs.values())))
+print("provenance (source Skill) coverage:", len({c.provenance for c in cs.values()}), "of 12 Skills")
 PY
-# Read $OUT/extract for the proposed/grounded/dropped-hallucinated/dropped-leaky counts.
+# The kb-extract stdout ledger reports admitted/rejected counts + each dropped claim's reasons.
 ```
 
 Sanity floor: extraction should net **more than 12** grounded candidates (atomic claims per Skill) but drop a nonzero hallucinated/leaky slice. If it nets ~0 grounded, stop — the atlas or the extract prompt is wrong, not the KB.
@@ -1963,31 +1964,34 @@ Cost/time: `--fixer plan` is ~2–3× `direct`'s model calls (plan + execute + �
 ```bash
 [ -z "$(gw_busy)" ] || { echo "gateway busy; abort"; exit 1; }
 .venv/bin/gloop kb-attribute --archive $OUT/plans --dataset $SUB --catalog $SUB/catalog.json \
-  --index-db $ATLAS --repos $REPOS --claims-store $CLAIMS \
-  --max-lofo 20 --cost-budget 0.02 --out $OUT/attribute.W1
-# Implementer-verify: kb-attribute flags (Phase C) — mirror the kb-ab arg shape (--dataset/--catalog/
-#   --index-db/--repos/--out/--cost-budget) + --archive/--claims-store/--max-lofo (shortlist cap).
+  --index-db $ATLAS --repos $REPOS --claims-store $CLAIMS --screen-threshold 0.0 \
+  --max-lofo 20 --cost-budget 0.02
+# kb-attribute flags (Phase C): --archive <plans dir>, --dataset, --catalog, --index-db, --repos,
+#   --claims-store <claims.json it governs IN PLACE>, --screen-threshold (shortlist), --max-lofo
+#   (shortlist cap), --cost-budget. There is NO --out: it mutates tier + evidence back into --claims-store
+#   and prints the tier ledger to stdout.
 ```
 
 **Promotion arithmetic (do not skip — this is why one pass is not enough).** The ladder is the **4‑rung** `TIERS=(candidate, applied, validated, canonical)`, and `apply_verdict` advances **exactly one rung per passing verdict**. So a `candidate` that clears the grounded gate once reaches only **`applied`** — the EVAL floor, *not* the PRODUCTION floor. Reaching **`validated`** (what production injects, `tier_floor="validated"`) requires the claim to clear the gate **twice, on independent windows** — a built‑in double‑confirm against overfitting. Run a second round on a disjoint case window:
 
 ```bash
 # Round-2 window (W2): a DISJOINT slice so the promotion is double-confirmed on unseen cases.
-#   (use fixeval sharding if available: --shard 1/2 for W2 vs --shard 0/2 for W1; else split $SUB into
-#    two dataset dirs. Implementer-verify sharding support; disjoint windows > re-running the same cases.)
+#   fixeval has NO --shard flag — materialize a second disjoint dataset dir $SUB_W2 (split $SUB into
+#   $SUB_W1 for W1 above and $SUB_W2 here) and point --dataset/--catalog at it; disjoint windows beat
+#   re-running the same cases. The archive under $OUT/plans accumulates across both windows.
 [ -z "$(gw_busy)" ] || { echo "gateway busy; abort"; exit 1; }
-.venv/bin/gloop fixeval --dataset $SUB --catalog $SUB/catalog.json --index-db $ATLAS --repos $REPOS \
-  --fixer plan --max-replan 1 --claims candidate --claims-store $CLAIMS --shard 1/2 \
+.venv/bin/gloop fixeval --dataset $SUB_W2 --catalog $SUB_W2/catalog.json --index-db $ATLAS --repos $REPOS \
+  --fixer plan --max-replan 1 --claims candidate --claims-store $CLAIMS \
   --out $OUT/fix-plan-claims-cand.W2.json
-.venv/bin/gloop kb-attribute --archive $OUT/plans --dataset $SUB --catalog $SUB/catalog.json \
-  --index-db $ATLAS --repos $REPOS --claims-store $CLAIMS --max-lofo 20 --cost-budget 0.02 \
-  --out $OUT/attribute.W2
+.venv/bin/gloop kb-attribute --archive $OUT/plans --dataset $SUB_W2 --catalog $SUB_W2/catalog.json \
+  --index-db $ATLAS --repos $REPOS --claims-store $CLAIMS --screen-threshold 0.0 \
+  --max-lofo 20 --cost-budget 0.02
 # After W2: claims that passed BOTH windows are tier=validated; a persistent fail (streak >= hysteresis 2)
-# is tier-demoted toward retired. Inspect the ladder:
+# is tier-demoted toward retired. Inspect the ladder (load_claims -> dict; iterate .values()):
 .venv/bin/python - <<PY
 from collections import Counter
 from groundloop.kb.claim import load_claims
-print("tiers:", dict(Counter(c.tier for c in load_claims("$CLAIMS"))))
+print("tiers:", dict(Counter(c.tier for c in load_claims("$CLAIMS").values())))
 PY
 ```
 
@@ -2032,7 +2036,7 @@ from groundloop.kb.claim import load_claims
 from groundloop.kb.render import render_claims
 from groundloop.adapters.skills.mock import load_skills
 from groundloop.skills.base import render_skills
-val = [c for c in load_claims("$CLAIMS") if c.tier in ("validated", "canonical")]
+val = [c for c in load_claims("$CLAIMS").values() if c.tier in ("validated", "canonical")]
 skills = load_skills("$SEED")
 print("validated claims :", len(val), "| render_claims chars:", len(render_claims(val)))
 print("raw Skills       :", len(skills), "| render_skills chars:", len(render_skills(skills)))

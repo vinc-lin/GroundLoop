@@ -1,7 +1,8 @@
 """Cheap oracle-blind per-claim archive screen (Phase C2). Fixture archive = plan payloads shaped exactly
-like fixeval/archive.archive_plans output (fired_claims + outcome.groundedness). Asserts the pinned
-fired-vs-non-fired groundedness-delta formula shortlists BOTH promising and suspicious claims, skips
-no-contrast claims, and that load_archive tolerates a missing dir + malformed files."""
+like fixeval/archive.archive_plans output (fired_claims + outcome.groundedness/patch_applies). Asserts the
+pinned fired-vs-non-fired screen_lift over the 0.5*groundedness + 0.5*patch_applies composite shortlists
+BOTH promising and suspicious claims, skips no-contrast claims, and that load_archive tolerates a missing
+dir + malformed files."""
 import json
 
 from groundloop.kb.attribute import load_archive, screen_claims

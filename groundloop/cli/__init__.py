@@ -240,15 +240,18 @@ def _load_skills(kind: str, seed: str | None, embedder):
     return MockSkillRegistry.load(path, embedder=embedder)
 
 
-def _load_claims(kind: str, embedder):
+def _load_claims(kind: str, embedder, store_path: str | None = None):
     """Compose the fixeval claim arm. kind: none|candidate|validated.
     none -> (None, "validated"); candidate -> (registry, "candidate") [EVAL floor];
-    validated -> (registry, "validated") [PRODUCTION floor]. The registry always loads the full
-    claim store (groundloop/kb/data/claims.json); the tier floor is what gates candidates out of prod."""
+    validated -> (registry, "validated") [PRODUCTION floor]. The registry loads the claim store at
+    `store_path` (an external/working claims.json, e.g. the Phase D ext4 store); `store_path=None`
+    resolves to the packaged CLAIMS_PATH -> byte-identical to today. The tier floor gates candidates out
+    of prod."""
     if kind == "none":
         return None, "validated"
+    from groundloop.kb.claim import CLAIMS_PATH
     from groundloop.kb.registry import ClaimRegistry
-    return ClaimRegistry.load(embedder=embedder), kind
+    return ClaimRegistry.load(path=store_path or CLAIMS_PATH, embedder=embedder), kind
 
 
 def _run_fixeval(args) -> int:
@@ -285,7 +288,7 @@ def _run_fixeval(args) -> int:
         st = Settings.load()
         embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
     skills = _load_skills(args.skills, args.skills_seed, embedder)
-    claims, claims_tier_floor = _load_claims(args.claims, embedder)
+    claims, claims_tier_floor = _load_claims(args.claims, embedder, store_path=args.claims_store)
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
@@ -934,6 +937,8 @@ def build_parser() -> argparse.ArgumentParser:
     fx.add_argument("--claims", choices=["none", "candidate", "validated"], default="none",
                     help="claim-KB arm (claims.json): none | candidate (EVAL floor — includes "
                          "unvalidated candidates) | validated (PRODUCTION floor — validated+canonical only)")
+    fx.add_argument("--claims-store", dest="claims_store", default=None,
+                    help="claim store JSON to read (default: groundloop/kb/data/claims.json)")
     fx.add_argument("--fixer", choices=["direct", "plan"], default="direct",
                     help="fix engine: direct (single-shot ModelPatchEngine) | "
                          "plan (two-phase PlanningFixEngine: plan->gate->re-plan->abstain->patch)")
