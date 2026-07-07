@@ -100,3 +100,23 @@ def test_back_compat_none_none_no_preamble(tmp_path):
     runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=ModelPatchEngine(cap))
     assert cap.prompts and not any(
         "# Applicable playbooks" in p or "# Grounded claims" in p for p in cap.prompts)
+
+
+def test_runner_records_fired_claims(tmp_path):
+    db = build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
+    reg = ClaimRegistry([_claim("c-seg")])
+    runner, cases = _runner(tmp_path, "rec", claims=reg, claims_tier_floor="candidate")
+    recs = runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(_Capture()))
+    matched = [r for r in recs if r.predicted_repo]                # claim fires only post-match
+    assert matched and all("c-seg" in r.fired_claims for r in matched)
+
+
+def test_runner_no_claim_fires_empty_fired_claims(tmp_path):
+    db = build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
+    # a predicate that never matches this fixture -> selection empty -> fired_claims == ()
+    non_firing = Claim(id="c-none", applies_when={"any_text": ["nonexistent_token_zzz"]}, type="fix_step",
+                       content=_CONTENT, grounding_refs=(), provenance="p", tier="candidate", evidence={})
+    runner, cases = _runner(tmp_path, "nofire", claims=ClaimRegistry([non_firing]),
+                            claims_tier_floor="candidate")
+    recs = runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(_Capture()))
+    assert recs and all(r.fired_claims == () for r in recs)

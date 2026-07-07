@@ -59,6 +59,7 @@ class FixRecord:
     groundedness: float | None = None
     replans: int = 0
     fired_skills: tuple[str, ...] = ()
+    fired_claims: tuple[str, ...] = ()
 
 
 class FixEvalRunner:
@@ -121,12 +122,13 @@ class FixEvalRunner:
         preamble = skill_pre + claim_pre                       # skills first; each is "" when its arm is off
         if preamble:
             f = fixer.with_preamble(preamble)
+        fired_claims = tuple(getattr(c, "id", "") for c in selected_claims)
         c0 = self._cost(fixer)
         wt = self.estate.materialize(RepoRef(predicted))
         locations = localize(arm.index, predicted, signals, ticket.summary, skill_query=skill_query)
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
-                       cost_usd=self._cost(fixer) - c0, fired_skills=fired)
+                       cost_usd=self._cost(fixer) - c0, fired_skills=fired, fired_claims=fired_claims)
         plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
         applies = patch_applies(patch.diff, wt.path)
         iters = 0
@@ -135,7 +137,7 @@ class FixEvalRunner:
             plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
             applies = patch_applies(patch.diff, wt.path)
         pmeta = dict(plan=plan_dict, groundedness=meta.get("groundedness"),
-                     replans=meta.get("replans", 0), fired_skills=fired)
+                     replans=meta.get("replans", 0), fired_skills=fired, fired_claims=fired_claims)
         if not patch.diff or not applies:                     # SECONDARY: unappliable -> abstain
             return rec(predicted_repo=predicted, locations=locations, refine_iters=iters,
                        abstain_reason="patch_unappliable", cost_usd=self._cost(fixer) - c0, **pmeta)
