@@ -240,6 +240,17 @@ def _load_skills(kind: str, seed: str | None, embedder):
     return MockSkillRegistry.load(path, embedder=embedder)
 
 
+def _load_claims(kind: str, embedder):
+    """Compose the fixeval claim arm. kind: none|candidate|validated.
+    none -> (None, "validated"); candidate -> (registry, "candidate") [EVAL floor];
+    validated -> (registry, "validated") [PRODUCTION floor]. The registry always loads the full
+    claim store (groundloop/kb/data/claims.json); the tier floor is what gates candidates out of prod."""
+    if kind == "none":
+        return None, "validated"
+    from groundloop.kb.registry import ClaimRegistry
+    return ClaimRegistry.load(embedder=embedder), kind
+
+
 def _run_fixeval(args) -> int:
     import json
     import os
@@ -267,16 +278,18 @@ def _run_fixeval(args) -> int:
         model = CannedModel({"default": ""})
     cases = load_cases(args.dataset)
     embedder = None
-    if args.skills != "none" and os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
+    want_embed = args.skills != "none" or args.claims != "none"
+    if want_embed and os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
         from groundloop.config.settings import Settings
         from groundloop.engines.atlas.embed import GatewayEmbedder
         st = Settings.load()
         embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
     skills = _load_skills(args.skills, args.skills_seed, embedder)
+    claims, claims_tier_floor = _load_claims(args.claims, embedder)
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
-                           skills=skills)
+                           skills=skills, claims=claims, claims_tier_floor=claims_tier_floor)
     if getattr(args, "fixer", "direct") == "plan":
         from groundloop.adapters.fix.planning import PlanningFixEngine
         fixer = PlanningFixEngine(model, max_replan=args.max_replan)
@@ -823,6 +836,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "distilled (the kb-distill output, distilled.toml)")
     fx.add_argument("--skills-seed", dest="skills_seed", default=None,
                     help="override the KB/placebo corpus TOML path (default: the packaged seed)")
+    fx.add_argument("--claims", choices=["none", "candidate", "validated"], default="none",
+                    help="claim-KB arm (claims.json): none | candidate (EVAL floor — includes "
+                         "unvalidated candidates) | validated (PRODUCTION floor — validated+canonical only)")
     fx.add_argument("--fixer", choices=["direct", "plan"], default="direct",
                     help="fix engine: direct (single-shot ModelPatchEngine) | "
                          "plan (two-phase PlanningFixEngine: plan->gate->re-plan->abstain->patch)")

@@ -12,6 +12,7 @@ from groundloop.eval.arms import Arm
 from groundloop.eval.dataset import CaseRef, case_catalog
 from groundloop.fixeval.localize import localize
 from groundloop.fixeval.patch import patch_applies
+from groundloop.kb.render import render_claims
 from groundloop.skills.base import render_skills
 from groundloop.skills.ctx import build_ctx
 
@@ -62,7 +63,7 @@ class FixRecord:
 
 class FixEvalRunner:
     def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float,
-                 max_refine: int = 1, skills=None):
+                 max_refine: int = 1, skills=None, claims=None, claims_tier_floor: str = "validated"):
         self.issues = issues
         self.estate = estate                     # materialize only
         self.catalog = list(catalog)             # list[RepoRef] for rank_repos
@@ -70,6 +71,8 @@ class FixEvalRunner:
         self.tau_score = tau_score
         self.max_refine = max_refine
         self.skills = skills                     # a SkillRegistry or None (the `--skills` arm knob)
+        self.claims = claims                     # a ClaimRegistry or None (the `--claims` arm knob)
+        self.claims_tier_floor = claims_tier_floor   # TIERS floor: `candidate` in eval, `validated` in prod
 
     def run(self, cases: Sequence[CaseRef], arms: Sequence[Arm], *, fixer) -> list[FixRecord]:
         records: list[FixRecord] = []
@@ -96,18 +99,28 @@ class FixEvalRunner:
         if d.predicted is None:                               # PRIMARY abstain gate (match)
             return rec(abstain_reason="no_repo_match")
         predicted = d.predicted
-        # SKILL INJECTION (post-match, oracle-blind): key on the arm's signals + the predicted repo +
-        # the raw ticket/log haystack. Empty when no playbook applies -> byte-identical to skills=none.
+        # SKILL/CLAIM INJECTION (post-match, oracle-blind): key on the arm's signals + the predicted repo
+        # + the raw ticket/log haystack. Empty when nothing applies -> byte-identical to none/none.
         f = fixer
         skill_query = ""
         fired: tuple = ()
+        selected_claims: list = []               # B4 captures ids off this local
+        ctx = None
+        if self.skills is not None or self.claims is not None:
+            ctx = build_ctx(signals, ticket, predicted)       # loop-visible only (oracle-blind)
+        skill_pre = ""
         if self.skills is not None:
-            selected = self.skills.select(build_ctx(signals, ticket, predicted))
+            selected = self.skills.select(ctx)
             fired = tuple(getattr(s, "id", "") for s in selected)
-            preamble = render_skills(selected)
-            if preamble:
-                f = fixer.with_preamble(preamble)
-            skill_query = _skill_query(selected)
+            skill_pre = render_skills(selected)
+            skill_query = _skill_query(selected)              # claims DO NOT feed the localize query
+        claim_pre = ""
+        if self.claims is not None:
+            selected_claims = self.claims.select(ctx, self.claims_tier_floor)
+            claim_pre = render_claims(selected_claims)         # PLAN-prompt preamble only
+        preamble = skill_pre + claim_pre                       # skills first; each is "" when its arm is off
+        if preamble:
+            f = fixer.with_preamble(preamble)
         c0 = self._cost(fixer)
         wt = self.estate.materialize(RepoRef(predicted))
         locations = localize(arm.index, predicted, signals, ticket.summary, skill_query=skill_query)
