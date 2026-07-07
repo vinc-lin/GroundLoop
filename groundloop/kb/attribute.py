@@ -1,7 +1,7 @@
 """Staged per-claim attribution + lifecycle governance (design spec §5.4/§5.5). Three primitives:
-  * screen_claims (C2) — a cheap, ORACLE-BLIND directional screen over the plan archive's per-case
-    `groundedness` -> a shortlist of promising/suspicious claims (correlational; prioritizes, never
-    promotes);
+  * screen_claims (C2) — a cheap, ORACLE-BLIND directional screen over a composite of the plan archive's
+    per-case `groundedness` + `patch_applies` -> a shortlist of promising/suspicious claims (correlational;
+    prioritizes, never promotes);
   * lofo_claims (C3) — leave-one-CLAIM-out ablation Δ (mirrors kb/distill/lofo.lofo_fragments);
   * attribute_and_govern (C4) — LOFO-confirm vs the per-claim placebo -> accept_grounded two-sided verdict
     -> apply_verdict per claim (promote/retire), bridged onto the Claim via a small ClaimRecord adapter.
@@ -16,7 +16,6 @@ from pathlib import Path
 
 from groundloop.fixeval.compare import accept_grounded, compare, compare_metrics
 from groundloop.kb.claim import Claim
-from groundloop.kb.claim_placebo import build_claim_placebo
 from groundloop.kb.lifecycle import TIERS, apply_verdict
 
 
@@ -36,28 +35,39 @@ def load_archive(plans_dir: str) -> list[dict]:
     return out
 
 
-def _case_groundedness(payload: dict) -> float | None:
-    """The archive's per-case ORACLE-BLIND grounded signal (fraction of a plan's cited entities that resolve
-    in the atlas). None when absent (e.g. an abstain-only case) -> excluded from the mean."""
-    g = (payload.get("outcome") or {}).get("groundedness")
-    return float(g) if isinstance(g, (int, float)) else None
+def _case_signal(payload: dict) -> float | None:
+    """The archive's per-case ORACLE-BLIND screen signal: a documented composite of the two grounded fields
+    the loop already writes — `0.5*groundedness + 0.5*(patch_applies?1:0)`. groundedness alone would score a
+    claim that lifts `patch_applies` without moving groundedness at 0 (filtered before LOFO at any
+    threshold>0); the composite catches it. Both fields are oracle-blind (in the archive, no oracle read).
+    None when groundedness is absent (e.g. an abstain-only case) -> excluded from the mean."""
+    outcome = payload.get("outcome") or {}
+    g = outcome.get("groundedness")
+    if not isinstance(g, (int, float)):
+        return None
+    return 0.5 * float(g) + 0.5 * (1.0 if outcome.get("patch_applies") else 0.0)
 
 
 def screen_claims(archive: Iterable[dict], claims: dict[str, Claim], *,
                   threshold: float = 0.0, min_fired: int = 1) -> list[str]:
-    """Cheap oracle-blind directional screen (spec §5.4). Pinned formula, per claim:
-        screen_lift = mean(groundedness | claim FIRED) - mean(groundedness | claim did NOT fire).
+    """Cheap oracle-blind directional screen (spec §5.4). Pinned formula, per LIVE claim (tier in TIERS):
+        screen_lift = mean(signal | claim FIRED) - mean(signal | claim did NOT fire)
+    where `signal` is the oracle-blind composite of groundedness + patch_applies (see _case_signal).
     Shortlist = claims with |screen_lift| >= threshold (promising OR suspicious), sorted by |screen_lift|
-    desc (so a --max-lofo cap keeps the strongest signals). No firing case (< min_fired) or no baseline
-    case -> no contrast -> skipped. Correlational only: it PRIORITIZES the LOFO shortlist, never promotes."""
+    desc (so a --max-lofo cap keeps the strongest signals). A retired / non-TIER claim is skipped (the
+    ClaimRegistry never fires it, so its LOFO run would be a no-op — no spend on the dead). No firing case
+    or no baseline case -> no contrast -> skipped. Correlational only: PRIORITIZES the shortlist, never
+    promotes."""
     rows = list(archive)
     scored: list[tuple[float, str]] = []
-    for cid in claims:
-        fv = [g for g in (_case_groundedness(p) for p in rows
+    for cid, claim in claims.items():
+        if claim.tier not in TIERS:                       # retired/dead never re-enters the LOFO shortlist
+            continue
+        fv = [g for g in (_case_signal(p) for p in rows
                           if cid in (p.get("fired_claims") or [])) if g is not None]
-        bv = [g for g in (_case_groundedness(p) for p in rows
+        bv = [g for g in (_case_signal(p) for p in rows
                           if cid not in (p.get("fired_claims") or [])) if g is not None]
-        if len(fv) < min_fired or not bv:
+        if not fv or not bv or len(fv) < min_fired:       # guard min_fired<=0 too (no ZeroDivisionError)
             continue
         lift = sum(fv) / len(fv) - sum(bv) / len(bv)
         if abs(lift) >= threshold:
@@ -142,21 +152,30 @@ def attribute_and_govern(claims: dict[str, Claim], shortlist: Iterable[str],
       * placebo-swap comparison — the claim arm (head) vs the arm with the claim replaced by its
         length-matched placebo (base, same firing set) -> accept_grounded's two-sided grounded gate;
     promote iff BOTH pass; else fail -> promote_or_retire records the streak/retirement. Returns the full
-    updated store (non-shortlisted claims pass through unchanged)."""
-    valid = [cid for cid in dict.fromkeys(shortlist) if cid in claims]
-    active = frozenset(valid)
-    placebos = build_claim_placebo({cid: claims[cid] for cid in valid})     # C1: one placebo per candidate
+    updated store (non-shortlisted AND retired/non-TIER claims pass through unchanged)."""
+    valid = [cid for cid in dict.fromkeys(shortlist) if cid in claims and claims[cid].tier in TIERS]
+    active = frozenset(valid)                                               # loop-invariant; never rebinds
+
+    # Memoize the (expensive, live) fix-eval by claim set: head, the LOFO baseline (== head's set), and
+    # every per-claim head collapse to ONE run per distinct set. Mirrors _build_distill_run_fn's hoisted
+    # baseline — restores parity and bounds live spend to 1 + one placebo-swap run per shortlisted claim.
+    _cache: dict[frozenset[str], dict] = {}
+
+    def card(s: frozenset[str]) -> dict:
+        key = frozenset(s)
+        if key not in _cache:
+            _cache[key] = run_card_fn(key)
+        return _cache[key]
 
     def metric_fn(s: frozenset[str]) -> float:
-        return _metric_value(run_card_fn(frozenset(s)), primary)
+        return _metric_value(card(s), primary)
 
     deltas = lofo_claims(valid, metric_fn)                                  # C3: leave-one-claim-out Δ
+    head = card(active)                                                     # claim present (loop-invariant)
     updated = dict(claims)
     for cid in valid:
         pid = "placebo-" + cid
-        assert pid in placebos                                             # C1 built one per shortlisted claim
-        head = run_card_fn(active)                                         # claim present
-        base = run_card_fn((active - {cid}) | {pid})                       # claim swapped for its placebo
+        base = card((active - {cid}) | {pid})                              # claim swapped for its placebo
         metrics_cmp = compare_metrics(base, head)
         resolved_cmp = compare(base.get("resolved_by_case", {}), head.get("resolved_by_case", {}))
         verdict = accept_grounded(metrics_cmp, resolved_cmp, cost_budget=cost_budget)

@@ -30,7 +30,7 @@ def test_screen_shortlists_promising_and_suspicious():
 
 
 def test_threshold_filters_weak_signal():
-    archive = [_payload("a", ["c1"], 0.55), _payload("b", [], 0.5)]   # lift = +0.05
+    archive = [_payload("a", ["c1"], 0.55), _payload("b", [], 0.5)]   # composite lift = +0.025 (patch True)
     assert screen_claims(archive, {"c1": _claim("c1")}, threshold=0.1) == []
     assert screen_claims(archive, {"c1": _claim("c1")}, threshold=0.0) == ["c1"]
 
@@ -52,3 +52,31 @@ def test_load_archive_reads_payloads_and_tolerates_junk(tmp_path):
 
 def test_load_archive_missing_dir_is_empty():
     assert load_archive("/no/such/plans/dir") == []
+
+
+def test_screen_skips_retired_claims():
+    # a retired claim with lingering fired_claims in the archive must NOT consume a LOFO/--max-lofo slot.
+    archive = [_payload("a", ["c1"], 0.9), _payload("b", [], 0.2)]         # strong contrast on paper
+    retired = Claim(id="c1", applies_when={"any_text": ["x"]}, type="fix_step", content="c",
+                    grounding_refs=(), provenance="p", tier="retired", evidence={})
+    assert screen_claims(archive, {"c1": retired}, threshold=0.0) == []    # retired never shortlisted
+
+
+def test_screen_all_equal_signal_still_shortlisted_at_zero_threshold():
+    archive = [_payload("a", ["c1"], 0.5), _payload("b", [], 0.5)]         # identical composite -> lift 0.0
+    assert screen_claims(archive, {"c1": _claim("c1")}, threshold=0.0) == ["c1"]  # >= gate keeps a 0.0 lift
+
+
+def test_screen_min_fired_zero_does_not_crash():
+    archive = [_payload("a", [], 0.5)]                                     # c1 never fires -> fv empty
+    assert screen_claims(archive, {"c1": _claim("c1")}, threshold=0.0, min_fired=0) == []   # no ZeroDivision
+
+
+def test_screen_catches_patch_applies_lift_without_groundedness():
+    # c1 fires where the patch APPLIES; the non-firing baseline does not apply — groundedness is FLAT (0.5).
+    archive = [{"case_id": "a", "fired_claims": ["c1"],
+                "outcome": {"groundedness": 0.5, "patch_applies": True}},
+               {"case_id": "b", "fired_claims": [],
+                "outcome": {"groundedness": 0.5, "patch_applies": False}}]
+    # groundedness-only lift = 0.0 (would be filtered at threshold 0.1); the composite lifts via patch_applies.
+    assert screen_claims(archive, {"c1": _claim("c1")}, threshold=0.1) == ["c1"]

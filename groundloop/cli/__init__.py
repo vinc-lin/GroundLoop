@@ -695,6 +695,7 @@ def _build_attribute_run_card_fn(args, claims):
     EXACTLY the passed claim ids (candidates AND their per-claim placebos) injected via a ClaimRegistry at
     the candidate (EVAL) floor, and returns the eval arm of grade_fix_all (the offline grade = sole oracle
     read). Mirrors _build_distill_run_fn. Hermetic tests monkeypatch THIS symbol to a scripted stub."""
+    import itertools
     import json
     import os
     from pathlib import Path
@@ -726,18 +727,22 @@ def _build_attribute_run_card_fn(args, claims):
 
     pool = dict(claims)
     pool.update(build_claim_placebo(claims))         # candidates + one placebo each, keyed by id
+    _work_seq = itertools.count()                    # unique work-dir per call (mirrors _build_distill_run_fn)
 
     def run_card_fn(claim_ids):
         selected = [pool[i] for i in claim_ids if i in pool]
         registry = ClaimRegistry(selected, embedder=embedder)
-        estate = GitFixtureEstate(args.repos, args.dataset + "/_work-attr")
+        estate = GitFixtureEstate(args.repos, args.dataset + f"/_work-attr-{next(_work_seq)}")
         runner = FixEvalRunner(issues=MockJira(args.dataset), estate=estate, catalog=catalog,
                                tau_margin=0.0, tau_score=0.0,
                                claims=registry, claims_tier_floor="candidate")
         records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
                              fixer=_make_fixer())
         card = grade_fix_all(records, oracle_by_case=oracle_by_case)
-        return card["arms"][eval_arm]
+        arms = card.get("arms", {})
+        if eval_arm not in arms:
+            raise KeyError(f"kb-attribute: eval arm {eval_arm!r} not in scorecard arms {sorted(arms)}")
+        return arms[eval_arm]
 
     return run_card_fn
 

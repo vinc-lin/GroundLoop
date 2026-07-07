@@ -84,3 +84,30 @@ def test_govern_retires_placebo_equivalent_claim_on_second_fail():
         return _card(0.5)
 
     assert attribute_and_govern(claims, ["c1"], run_card_fn)["c1"].tier == "retired"
+
+
+# --- both gates are INDEPENDENT: promotion needs accept_grounded AND a positive LOFO Δ ---
+def test_govern_requires_lofo_even_when_accept_passes():
+    """accept_grounded PASSES (claim beats its placebo) but the LOFO ablation Δ == 0 (removing the claim
+    does not drop the primary — a sibling/baseline compensates). Deleting the `and deltas[cid] > 0` gate
+    would wrongly promote this claim, so this locks the LOFO gate independently."""
+    claims = {"c1": _claim("c1")}
+
+    def run_card_fn(ids):                       # metric depends only on the placebo's ABSENCE, not on c1
+        return _card(0.8 if "placebo-c1" not in set(ids) else 0.4)
+
+    # LOFO: primary({c1}) == primary({}) == 0.8 -> Δ = 0 ; placebo-swap: head 0.8 vs base 0.4 -> accept ok.
+    assert attribute_and_govern(claims, ["c1"], run_card_fn)["c1"].tier == "candidate"   # held (Δ not > 0)
+
+
+def test_govern_requires_accept_even_when_lofo_passes():
+    """The LOFO ablation Δ > 0 (the claim IS load-bearing) but the placebo-swap accept_grounded FAILS
+    (no positive grounded lift over its placebo). Deleting the `bool(verdict["accepted"])` gate would
+    wrongly promote this claim, so this locks the accept gate independently."""
+    claims = {"c1": _claim("c1")}
+
+    def run_card_fn(ids):                       # metric depends only on ANY id present (c1 OR its placebo)
+        return _card(0.8 if set(ids) else 0.4)
+
+    # LOFO: primary({c1})=0.8 vs primary({})=0.4 -> Δ=0.4>0 ; placebo-swap: head 0.8 == base 0.8 -> reject.
+    assert attribute_and_govern(claims, ["c1"], run_card_fn)["c1"].tier == "candidate"   # held (not accepted)
