@@ -87,8 +87,11 @@ grounding, redundant live-eval spend, an uncaught promotion-gate regression, the
   (oboe + dlt-daemon), the raw **candidate** claims do NOT beat placebo (`plan_target_recall@1`: none 0.625,
   claims 0.50, placebo 0.50; fabrication 0 all) — consistent with the design (unvalidated claims aren't
   trusted wholesale). `kb-attribute` (the retain-loop) timed out under the 15-min cap, so no tiers promoted.
-- **Pending:** the *validated*-set-vs-placebo verdict (spec §8) — needs attribution run unbounded
-  (~30–45 min), now practical via Finding 10. Detail: `docs/2026-07-07-claim-kb-preview-findings.md` §7.
+- **Full Phase D verdict (§8, ~2 h unbounded, 2 disjoint windows):** the retain-loop validated **0** of the
+  60 candidates (all `lofo_delta=0`, none load-bearing; 4 retired) → the empty validated set = no-injection,
+  and *no-injection (0.51) beats placebo (0.37) beats the raw 12 Skills (0.22)* on `plan_target_recall@1` —
+  the messy Skills injected wholesale HURT the planner. Empirical vindication of the distill-first /
+  distrust-unverified design. Detail: `docs/2026-07-07-claim-kb-preview-findings.md` §8.
 
 ### Testing environment
 - **Type-1 (hermetic)** — `tests/conftest.py` (shared fixtures: `case`, `harness`, `atlas_harness`,

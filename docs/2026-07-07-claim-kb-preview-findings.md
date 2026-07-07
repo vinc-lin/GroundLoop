@@ -123,12 +123,48 @@ affordable.
 metrics → Δ=None) instead of the signal-bearing `membership+logs`; the conclusion (no lift) held on both, but
 `compare` should target the arm carrying the metrics.
 
+## 8. The full Phase D verdict — unbounded two-window run (~2 h)
+
+Re-ran the retain-loop unbounded on a correct-match slice (**oboe + dlt-daemon, 44 positives + 12
+negatives**, ext4-staged), two **disjoint** windows so a claim must clear the per-claim gate twice to reach
+`validated`. Wall time ~2 h (the two LOFO-confirm passes are the cost).
+
+**No claim earned `validated`.** Every LOFO-confirmed claim across both windows had `lofo_delta = 0.0`
+(removing it did not change the grounded metric → not individually load-bearing), so **none promoted**;
+**4 claims were retired** (foreground-service, realtime-audio, native-null-deref fix/api claims) for failing
+the W2 gate. Final store: **56 candidate, 4 retired, 0 applied/validated**.
+
+Because the `validated` set is empty, `--claims validated` injects nothing — so that arm is the
+plan-with-**no-claims** baseline. Reading D.6 (`membership+logs`, ~25 gradeable positives) with that in mind:
+
+| arm | `plan_target_recall@1` | `plan_groundedness` |
+|---|---|---|
+| **no-claims** (validated set = ∅) | **0.51** | **0.60** |
+| skills-placebo (control) | 0.37 | 0.43 |
+| raw 12 Skills | 0.22 | 0.39 |
+
+`gloop compare` (now reading the signal arm, fix `e5caaa0`) rules **validated-vs-placebo ACCEPT** (+0.14
+recall, +0.17 groundedness) and **validated-vs-raw-Skills ACCEPT** (+0.30, +0.21). **The honest reading:**
+*injecting nothing beats the placebo, which beats the raw Skills* — knowledge injection does not help, and
+the **messy raw 12-Skill dump hurts the planner most** (0.22 vs 0.51 no-injection; 17,860 chars of playbook
+vs 0).
+
+**§8 answer:** run correctly over two windows, the per-claim retain-loop **admitted none of the 60 candidate
+claims** (none load-bearing) and retired 4 — the safest KB here is the empty one, and the messy Skills,
+injected wholesale, **actively degrade** the plan. A direct empirical vindication of the design's thesis:
+*unverified knowledge is not trusted, and the messy Skills injected wholesale hurt.* **Caveats:** small slice
+(2 native repos; no `required_apis` → resolution ungradeable, `plan_target_recall@1` is the signal);
+`lofo_delta = 0.0` across all shortlisted claims means single-claim ablation didn't move the coarse per-case
+metric at this scale — consistent with "no claim helps," but a larger/gradeable slice could still surface a
+load-bearing claim this one couldn't.
+
 ## Bottom line
 
 The claim-centric KB **works as a live system** — Skills decompose into 60 grounded claims, the gate rejects
 hallucinated refs, and the full inject→archive→score→compare loop runs. A first **directional efficacy read
 (§7)** shows the **raw candidate claims do NOT beat placebo** on a correct-match slice — consistent with the
-design (unvalidated claims aren't trusted wholesale). Whether the *validated*, LOFO-pruned set beats placebo
-(spec §8) is still open — it needs the attribution retain-loop run unbounded (~30–45 min), now affordable via
-the ext4 fix. The most valuable artifacts of this pass: the extraction/ground-check validation, the first
+design (unvalidated claims aren't trusted wholesale). The full Phase D (§8, ~2 h unbounded, two disjoint windows)
+resolved it: the retain-loop validated **zero** of the 60 candidates (all `lofo_delta=0`, none load-bearing;
+4 retired), and *injecting nothing beats the placebo beats the raw Skills* — the messy Skills injected
+wholesale hurt the planner. The distill-first / distrust-unverified design is empirically vindicated. The most valuable artifacts of this pass: the extraction/ground-check validation, the first
 grounded efficacy read, and the ext4-materialization operational fix.
