@@ -54,3 +54,20 @@ def test_retrieve_returns_files_for_repo(tmp_path):
     idx = SemanticAtlasIndex(db, _FakeEmbedder([1.0, 0.0, 0.0]))
     files = idx.retrieve(RepoRef("repo_a"), "anything")
     assert files == ["repo_a/src.ext"]
+
+
+def test_retrieve_excludes_doc_units(tmp_path):
+    """Semantic retrieve, like membership, returns only source files — never doc-unit .md names."""
+    db = str(tmp_path / "atlas.db")
+    s = Store(db)
+    vec = [1.0, 0.0, 0.0]
+    units = [
+        Unit(repo="r", kind="symbol", name="Sym", qualified_name="r.Sym",
+             file="src/Sym.kt", repo_head="fix", text="Sym", meta={}),
+        Unit(repo="r", kind="doc", name="Mod", qualified_name="r.Mod",
+             file="Mod.md", repo_head="fix", text="Mod", meta={}),
+    ]
+    s.reindex_repo("r", [(units[0], vec), (units[1], vec)], repo_head="fix")
+    files = SemanticAtlasIndex(db, _FakeEmbedder(vec)).retrieve(RepoRef("r"), "anything")
+    assert "src/Sym.kt" in files
+    assert "Mod.md" not in files

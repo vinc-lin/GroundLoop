@@ -50,7 +50,8 @@ class SemanticAtlasIndex:
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         qvec = self.embedder.embed([query])[0]
         files: list[str] = []
-        for unit, _ in self.store.vector_search(qvec, k=20, repos=[repo.name]):
+        # kinds=['symbol']: keep localization to source files (doc units carry wiki basenames).
+        for unit, _ in self.store.vector_search(qvec, k=20, repos=[repo.name], kinds=["symbol"]):
             if unit.file and unit.file not in files:
                 files.append(unit.file)
         return files

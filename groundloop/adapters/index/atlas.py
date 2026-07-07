@@ -29,7 +29,9 @@ class AtlasIndex:
 
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         files: list[str] = []
-        for unit, _rank in self.store.keyword_search(query, repos=[repo.name], k=20):
+        # kinds=['symbol'] keeps localization to source files — a doc unit's `file` is its wiki
+        # basename (never a source expected_files), so it only pollutes the candidate list.
+        for unit, _rank in self.store.keyword_search(query, repos=[repo.name], k=20, kinds=["symbol"]):
             if unit.file and unit.file not in files:
                 files.append(unit.file)
         return files
