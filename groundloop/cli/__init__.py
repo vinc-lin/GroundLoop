@@ -690,6 +690,96 @@ def _run_kb_extract(args) -> int:
     return 0
 
 
+def _build_attribute_run_card_fn(args, claims):
+    """Return `run_card_fn(claim_id_set) -> eval-arm scorecard dict`: re-runs the plan-format fix eval with
+    EXACTLY the passed claim ids (candidates AND their per-claim placebos) injected via a ClaimRegistry at
+    the candidate (EVAL) floor, and returns the eval arm of grade_fix_all (the offline grade = sole oracle
+    read). Mirrors _build_distill_run_fn. Hermetic tests monkeypatch THIS symbol to a scripted stub."""
+    import json
+    import os
+    from pathlib import Path
+
+    from groundloop.adapters.estate import GitFixtureEstate
+    from groundloop.adapters.index.atlas import AtlasIndex
+    from groundloop.adapters.mock.jira import MockJira
+    from groundloop.core.types import RepoRef
+    from groundloop.eval.arms import build_arms
+    from groundloop.eval.dataset import load_cases, load_eval_oracle
+    from groundloop.fixeval.runner import FixEvalRunner
+    from groundloop.fixeval.scorecard import grade_fix_all
+    from groundloop.kb.ab import _make_fixer
+    from groundloop.kb.claim_placebo import build_claim_placebo
+    from groundloop.kb.registry import ClaimRegistry
+
+    catalog_path = args.catalog or os.path.join(args.dataset, "catalog.json")
+    catalog = [RepoRef(r["name"]) for r in json.loads(Path(catalog_path).read_text())]
+    cases = load_cases(args.dataset)
+    oracle_by_case = {c.case_id: load_eval_oracle(c) for c in cases}   # OFFLINE grade — sole oracle read
+    eval_arm = getattr(args, "eval_arm", None) or "membership+logs"
+
+    embedder = None
+    if os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+
+    pool = dict(claims)
+    pool.update(build_claim_placebo(claims))         # candidates + one placebo each, keyed by id
+
+    def run_card_fn(claim_ids):
+        selected = [pool[i] for i in claim_ids if i in pool]
+        registry = ClaimRegistry(selected, embedder=embedder)
+        estate = GitFixtureEstate(args.repos, args.dataset + "/_work-attr")
+        runner = FixEvalRunner(issues=MockJira(args.dataset), estate=estate, catalog=catalog,
+                               tau_margin=0.0, tau_score=0.0,
+                               claims=registry, claims_tier_floor="candidate")
+        records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
+                             fixer=_make_fixer())
+        card = grade_fix_all(records, oracle_by_case=oracle_by_case)
+        return card["arms"][eval_arm]
+
+    return run_card_fn
+
+
+def _run_kb_attribute(args) -> int:
+    """Staged per-claim attribution + governance (spec §5.4/§5.5). GATED on a plan archive: no plans/ ->
+    exit 0 (nothing to attribute). screen (archive, oracle-blind) -> shortlist (capped by --max-lofo) ->
+    LOFO-confirm vs per-claim placebo -> accept_grounded -> apply_verdict per claim; writes tier + evidence
+    back to claims.json. Oracle-blind loop; grade_fix_all inside the run-card seam is the sole oracle read."""
+    from collections import Counter
+
+    from groundloop.kb.attribute import attribute_and_govern, load_archive, screen_claims
+    from groundloop.kb.claim import CLAIMS_PATH, load_claims, save_claims
+
+    payloads = load_archive(args.archive)
+    if not payloads:
+        print(f"kb-attribute: no plan archive at {args.archive} — nothing to attribute "
+              f"(run `gloop fixeval --claims candidate` first)")
+        return 0
+
+    store_path = args.claims_store or CLAIMS_PATH
+    claims = load_claims(store_path)
+    shortlist = screen_claims(payloads, claims, threshold=args.screen_threshold)
+    if args.max_lofo and len(shortlist) > args.max_lofo:
+        shortlist = shortlist[: args.max_lofo]
+    if not shortlist:
+        print(f"kb-attribute: screened {len(payloads)} plan(s) -> 0 shortlisted "
+              f"(no claim cleared |screen_lift| >= {args.screen_threshold})")
+        return 0
+
+    run_card_fn = _build_attribute_run_card_fn(args, claims)
+    updated = attribute_and_govern(claims, shortlist, run_card_fn, cost_budget=args.cost_budget)
+    save_claims(store_path, updated)
+
+    print(f"kb-attribute: screened {len(payloads)} plan(s) -> shortlist {len(shortlist)} -> {store_path}")
+    print("  tiers:", dict(Counter(c.tier for c in updated.values())))
+    for cid in shortlist:
+        c = updated[cid]
+        print(f"  {cid}: {c.tier}  (lofo_delta={c.evidence.get('measured_lift', {}).get('lofo_delta')})")
+    return 0
+
+
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
@@ -892,6 +982,24 @@ def build_parser() -> argparse.ArgumentParser:
     kex.add_argument("--out", default=None,
                      help="claim store JSON to merge into (default: groundloop/kb/data/claims.json)")
 
+    kat = sub.add_parser("kb-attribute",
+                         help="staged per-claim attribution: archive screen -> LOFO confirm vs placebo -> "
+                              "promote/retire (per-claim governance of claims.json)")
+    kat.add_argument("--archive", required=True,
+                     help="plan archive dir (<out>/plans from `gloop fixeval --claims candidate`)")
+    kat.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
+    kat.add_argument("--catalog", default="", help="catalog.json (default: <dataset>/catalog.json)")
+    kat.add_argument("--index-db", required=True, help="path to atlas.db (membership AtlasIndex)")
+    kat.add_argument("--repos", required=True, help="fixtures/repos root for @base materialization")
+    kat.add_argument("--claims-store", dest="claims_store", default=None,
+                     help="claim store JSON to govern (default: groundloop/kb/data/claims.json)")
+    kat.add_argument("--screen-threshold", dest="screen_threshold", type=float, default=0.0,
+                     help="|screen_lift| shortlist threshold (default 0.0 = shortlist any claim with contrast)")
+    kat.add_argument("--max-lofo", dest="max_lofo", type=int, default=20,
+                     help="cap the LOFO-confirm shortlist (bounds the real fix-loop spend)")
+    kat.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
+                     help="reject a claim if Δcost_per_solved exceeds this (default: advisory only)")
+
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
     cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
@@ -941,6 +1049,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_kb_distill(args)
     if args.cmd == "kb-extract":
         return _run_kb_extract(args)
+    if args.cmd == "kb-attribute":
+        return _run_kb_attribute(args)
     if args.cmd == "compare":
         return _run_compare(args)
     return 1
