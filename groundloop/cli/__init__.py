@@ -642,10 +642,15 @@ def _extract_model():
 
 
 def _extract_resolver(index_db: str):
-    """The fleet-wide atlas existence probe for the ground-check (hermetic tests monkeypatch this seam)."""
+    """The fleet-wide atlas existence probe for the ground-check (hermetic tests monkeypatch this seam).
+    Fails fast on an empty atlas: a wrong/typo'd --index-db makes Store() create an EMPTY schema, which
+    would silently reject every ref ('N rejected', exit 0) — misleading. Detect 0 indexed units and error."""
     from groundloop.engines.atlas.store import Store
     from groundloop.kb.claim_ground import atlas_resolver
-    return atlas_resolver(Store(index_db))
+    store = Store(index_db)
+    if sum(st.unit_count for st in store.list_repo_states()) == 0:
+        raise SystemExit(f"gloop kb-extract: atlas {index_db!r} has 0 indexed units — wrong --index-db?")
+    return atlas_resolver(store)
 
 
 def _run_kb_extract(args) -> int:

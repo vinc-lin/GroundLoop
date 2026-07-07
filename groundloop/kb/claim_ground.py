@@ -13,6 +13,8 @@ never scoped to the predicted/owning repo).
 """
 from __future__ import annotations
 
+import re
+import sqlite3
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -31,20 +33,47 @@ class GroundCheck:
     reasons: tuple[str, ...]
 
 
-def atlas_resolver(store, *, k: int = 1) -> Callable[[str], bool]:
-    """A fleet-wide existence probe over the atlas: a ref resolves iff Store.keyword_search returns any
-    unit for it, across ALL repos (oracle-blind — never scoped to the predicted/owning repo).
+def _bounded(ref: str) -> re.Pattern:
+    """A whole-identifier matcher for a grounding ref: the ref must appear delimited by non-identifier
+    chars (treating `_` as part of the identifier). This rejects a fabricated `get_totally_fake_buffer`
+    that would otherwise ride on a real `getBuffer`, and a qualified `std::totally_made_up::lock` that
+    would otherwise ride on a real `lock`. A qualified ref may still match as a boundary-delimited suffix
+    of a longer indexed qualified_name (e.g. `Foo::bar` inside `ns::Foo::bar`) — tolerant of over-
+    qualification, but never of the bare last segment alone."""
+    return re.compile(rf"(?<![A-Za-z0-9_]){re.escape(ref)}(?![A-Za-z0-9_])", re.IGNORECASE)
+
+
+def atlas_resolver(store, *, k: int = 20) -> Callable[[str], bool]:
+    """A fleet-wide EXACT existence probe over the atlas: a ref resolves iff some indexed unit actually
+    NAMES it — its whole identifier appears verbatim (whole-word) in a returned unit's name /
+    qualified_name / text, across ALL repos (oracle-blind — never scoped to the predicted/owning repo).
+
+    Why the post-filter: Store.keyword_search runs the ref through `_fts_query`, which OR-splits a
+    qualified/snake ref (`std::weak_ptr::lock` -> std OR weak OR ptr OR lock) — so a bare truthiness check
+    grounds a *fabricated* ref whenever ANY subtoken exists standalone fleet-wide. We use keyword_search
+    only for RECALL (candidate units), then require the FULL ref to appear verbatim in a candidate before
+    admitting it — defeating hallucinated qualified/snake refs.
 
     Implementer-verify (confirmed in engines/atlas/store.py): Store.keyword_search(query, k=20, repos=None,
-    kinds=None) -> list[(Unit, rank)]; an empty query is sanitized safely by _fts_query.
+    kinds=None) -> list[(Unit, rank)]; Unit carries .name/.qualified_name/.text; an empty query is
+    sanitized safely by _fts_query.
     """
     def _resolves(ref: str) -> bool:
-        if not ref or not ref.strip():
+        ref = (ref or "").strip()
+        if not ref:
             return False
+        pat = _bounded(ref)
         try:
-            return bool(store.keyword_search(ref, k=k))
-        except Exception:                              # a malformed FTS term must never crash the gate
+            hits = store.keyword_search(ref, k=k)
+        except sqlite3.Error:                          # a malformed FTS term is 'not found', not masked infra
             return False
+        for unit, _rank in hits:
+            hay = " ".join((getattr(unit, "name", "") or "",
+                            getattr(unit, "qualified_name", "") or "",
+                            getattr(unit, "text", "") or ""))
+            if pat.search(hay):
+                return True
+        return False
     return _resolves
 
 

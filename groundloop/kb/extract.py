@@ -78,7 +78,9 @@ def _extract_prompt(skill: dict) -> str:
 def claims_from_skill(skill: dict, model) -> list[Claim]:
     """LLM PROPOSES: decompose one feedstock Skill (a raw dict from kb/validate.load_corpus) into candidate
     Claims at tier=candidate. `applies_when` falls back to the Skill's [skill.match] when the proposal omits
-    it. Content-identical claims within a Skill are de-duplicated by their derived id. Never raises."""
+    it. Content-identical claims within a Skill are de-duplicated by their derived id. Never raises on parse
+    (the parse is tolerant); a `model.complete()` failure (e.g. a live gateway timeout) DOES propagate — the
+    batch driver `extract_to_store` guards it per-skill so one failure never aborts the whole run."""
     skill_id = skill.get("id", "skill")
     default_match = dict(skill.get("match", {}) or {})
     raw = parse_claims(model.complete(_extract_prompt(skill)) or "")
@@ -110,7 +112,12 @@ def extract_to_store(skills, model, resolver, *, denylist=None,
     store: dict[str, Claim] = dict(existing or {})
     rejected: list[tuple[Claim, GroundCheck]] = []
     for skill in skills:
-        for claim in claims_from_skill(skill, model):
+        try:
+            claims = claims_from_skill(skill, model)   # the only step that can hit the live model
+        except Exception as e:                         # one skill's model failure must not lose the batch
+            print(f"kb-extract: skill {skill.get('id', '?')!r} extraction failed ({e}) — skipped")
+            continue
+        for claim in claims:
             chk = check_claim_grounded(claim, resolver, denylist=denylist)
             if not chk.grounded:
                 rejected.append((claim, chk))

@@ -4,8 +4,11 @@ cli._extract_resolver) so no network / no real atlas is touched; exercises the r
 check_claim_grounded + claims.json write path over a 1-skill feedstock corpus."""
 import json
 
+import pytest
+
 import groundloop.cli as cli
 from groundloop.adapters.mock.model import CannedModel
+from groundloop.engines.atlas.store import Store
 from groundloop.kb.claim import load_claims
 
 _SEED = '''
@@ -58,3 +61,13 @@ def test_kb_extract_drops_hallucinated_ref(tmp_path, monkeypatch):
     rc = cli.main(["kb-extract", "--skills-seed", str(seed), "--index-db", "unused.db", "--out", str(out)])
     assert rc == 0
     assert load_claims(str(out)) == {}          # the sole candidate failed grounding -> store empty
+
+
+def test_extract_resolver_fails_fast_on_empty_atlas(tmp_path):
+    """A wrong/typo'd --index-db yields a 0-unit atlas; the resolver seam errors loudly instead of
+    silently rejecting every ref (which would misleadingly print 'N rejected' + exit 0)."""
+    empty_db = tmp_path / "empty.db"
+    Store(str(empty_db))                         # creates the schema, indexes nothing
+    with pytest.raises(SystemExit) as ei:
+        cli._extract_resolver(str(empty_db))
+    assert "0 indexed units" in str(ei.value)

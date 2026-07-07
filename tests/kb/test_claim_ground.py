@@ -1,5 +1,10 @@
 """Oracle-blind ground-check for candidate Claims (Phase A2). Hermetic: a fake resolver stands in for the
 atlas; the leak red-test runs against the REAL FLEET_OWNER_TOKENS denylist (kb/validate.owner_denylist)."""
+import sqlite3
+
+import pytest
+
+from groundloop.engines.atlas.store import Store, Unit
 from groundloop.kb.claim import Claim
 from groundloop.kb.claim_ground import atlas_resolver, check_claim_grounded
 
@@ -54,12 +59,43 @@ def test_empty_grounding_refs_not_grounded():
     assert "no_grounding_refs" in chk.reasons
 
 
-def test_atlas_resolver_wraps_keyword_search():
-    class FakeStore:                                  # stands in for engines/atlas/store.Store
-        def __init__(self, hits): self.hits = set(hits)
-        def keyword_search(self, query, k=1, repos=None, kinds=None):
-            return [("unit", 0.0)] if query in self.hits else []
-    resolve = atlas_resolver(FakeStore({"GetLongField"}))
+def _real_store(tmp_path) -> Store:
+    """A tiny REAL atlas indexing one plain symbol + one qualified symbol — so grounding is exercised
+    against the true FTS + post-filter path (a set-membership fake would MASK the OR-subtoken bug)."""
+    s = Store(str(tmp_path / "atlas.db"))
+    units = [
+        Unit(repo="r1", kind="symbol", name="GetLongField", qualified_name="GetLongField",
+             file="jni.cpp", repo_head="h", text="jint GetLongField(JNIEnv*, jobject, jfieldID)", meta={}),
+        Unit(repo="r1", kind="symbol", name="lock", qualified_name="std::weak_ptr::lock",
+             file="ptr.h", repo_head="h", text="template lock() returns a shared_ptr", meta={}),
+    ]
+    s.reindex_repo("r1", list(zip(units, [[0.0]] * len(units))), repo_head="h")
+    return s
+
+
+def test_atlas_resolver_grounds_real_symbols_rejects_fabricated(tmp_path):
+    resolve = atlas_resolver(_real_store(tmp_path))
+    # real indexed identifiers ground (plain name + fully-qualified symbol)
     assert resolve("GetLongField") is True
+    assert resolve("std::weak_ptr::lock") is True
+    # fabricated qualified/snake refs must NOT ground even though their SUBTOKENS (std, lock, get, buffer)
+    # exist fleet-wide — the exact-match post-filter is the whole point (masks the OR-subtoken bug).
+    assert resolve("std::totally_made_up::lock") is False
+    assert resolve("get_totally_fake_buffer") is False
     assert resolve("DoesNotExist") is False
     assert resolve("") is False
+
+
+def test_atlas_resolver_swallows_fts_error(tmp_path):
+    class BoomStore:                                   # a malformed FTS term -> 'not found', never crashes
+        def keyword_search(self, query, k=20, repos=None, kinds=None):
+            raise sqlite3.OperationalError("fts5: syntax error")
+    assert atlas_resolver(BoomStore())("anything") is False
+
+
+def test_atlas_resolver_does_not_mask_infra_errors(tmp_path):
+    class BrokenStore:                                 # a non-sqlite (infra/programming) error must propagate
+        def keyword_search(self, query, k=20, repos=None, kinds=None):
+            raise RuntimeError("db connection lost")
+    with pytest.raises(RuntimeError):
+        atlas_resolver(BrokenStore())("GetLongField")

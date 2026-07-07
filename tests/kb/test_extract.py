@@ -49,3 +49,40 @@ def test_extract_to_store_grounds_and_merges():
     store2, rejected2 = extract_to_store([_SKILL], CannedModel({"default": _GOOD}),
                                          resolver=lambda ref: False)
     assert store2 == {} and len(rejected2) == 1
+
+
+def test_extract_to_store_is_idempotent_on_re_extract():
+    """content-derived ids are stable, so re-extracting over the prior store keeps the first (setdefault)
+    and never duplicates — the docstring's merge contract."""
+    def resolver(ref):
+        return ref == "GetLongField"
+    store1, _ = extract_to_store([_SKILL], CannedModel({"default": _GOOD}), resolver=resolver)
+    store2, rejected2 = extract_to_store([_SKILL], CannedModel({"default": _GOOD}), resolver=resolver,
+                                         existing=store1)
+    assert store2 == store1 and rejected2 == []       # same store, no new candidates, no growth
+    assert len(store2) == 1
+
+
+class _BoomModel:
+    """A model whose completion always fails (mimics a live GatewayModel timeout)."""
+    def complete(self, prompt: str) -> str:
+        raise TimeoutError("gateway timed out")
+
+
+def test_extract_to_store_skips_a_skill_whose_model_call_fails(capsys):
+    """One skill's model failure must NOT abort the batch or lose the survivors of other skills."""
+    good = {"id": "other-skill", "guidance": "Signature: x.\nFix: y.", "hint_apis": ["GetLongField"],
+            "match": {"any_text": ["sigsegv"]}}
+
+    class _MixedModel:                                 # boom on _SKILL (its guidance names nativePtr), good elsewhere
+        def complete(self, prompt: str) -> str:
+            if "nativePtr" in prompt:                  # unique to _SKILL's guidance
+                raise TimeoutError("gateway timed out")
+            return _GOOD
+
+    store, rejected = extract_to_store([_SKILL, good], _MixedModel(),
+                                       resolver=lambda ref: ref == "GetLongField")
+    assert len(store) == 1                              # the second skill still contributed a candidate
+    (claim,) = store.values()
+    assert claim.provenance == "other-skill"
+    assert "extraction failed" in capsys.readouterr().out
