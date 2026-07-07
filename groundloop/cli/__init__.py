@@ -797,25 +797,33 @@ def _run_compare(args) -> int:
         return json.loads(Path(path).read_text()).get("arms", {})
 
     base_arms, head_arms = _arms(args.base), _arms(args.head)
-    arm = args.arm if args.arm else (next(iter(base_arms)) if base_arms else None)
-    base_arm, head_arm = base_arms.get(arm, {}), head_arms.get(arm, {})
-    resolved = compare(base_arm.get("resolved_by_case", {}), head_arm.get("resolved_by_case", {}))
-    metrics = compare_metrics(base_arm, head_arm)
+    # Default: compare EVERY arm present in both scorecards, so the signal-bearing arm is never silently
+    # dropped. (The old default — the first-inserted arm — is often `membership+text`, which carries no plan
+    # metrics for log-based cases, giving a misleading Δ=None verdict.) `--arm` still selects a single arm.
+    if args.arm:
+        arms = [args.arm]
+    else:
+        arms = [a for a in base_arms if a in head_arms] or ([next(iter(base_arms))] if base_arms else [])
     cost_budget = getattr(args, "cost_budget", None)
-    verdict = accept(metrics, resolved, cost_budget=cost_budget)
-    grounded = accept_grounded(metrics, resolved, cost_budget=cost_budget)
-    result = {"arm": arm, "resolved": resolved, "metrics": metrics, "verdict": verdict,
-              "grounded_verdict": grounded}
+    out: dict = {}
+    for arm in arms:
+        base_arm, head_arm = base_arms.get(arm, {}), head_arms.get(arm, {})
+        resolved = compare(base_arm.get("resolved_by_case", {}), head_arm.get("resolved_by_case", {}))
+        metrics = compare_metrics(base_arm, head_arm)
+        verdict = accept(metrics, resolved, cost_budget=cost_budget)
+        grounded = accept_grounded(metrics, resolved, cost_budget=cost_budget)
+        out[arm] = {"resolved": resolved, "metrics": metrics, "verdict": verdict,
+                    "grounded_verdict": grounded}
+        print(f"compare[{arm}]: Δfile_recall@1={metrics['file_recall@1']['delta']} "
+              f"Δfabrication={metrics['fabrication_rate']['delta']} "
+              f"newly_solved={verdict['newly_solved']} newly_broken={verdict['newly_broken']} "
+              f"-> {'ACCEPT' if verdict['accepted'] else 'REJECT'} {verdict['reasons']}")
+        print(f"  grounded: Δplan_target_recall@1={metrics['plan_target_recall@1']['delta']} "
+              f"Δresolved_strict={metrics['resolved_rate_strict']['delta']} "
+              f"Δgroundedness={metrics['plan_groundedness']['delta']} "
+              f"-> {'ACCEPT' if grounded['accepted'] else 'REJECT'} {grounded['reasons']}")
     if args.out:
-        Path(args.out).write_text(json.dumps(result, indent=2))
-    print(f"compare[{arm}]: Δfile_recall@1={metrics['file_recall@1']['delta']} "
-          f"Δfabrication={metrics['fabrication_rate']['delta']} "
-          f"newly_solved={verdict['newly_solved']} newly_broken={verdict['newly_broken']} "
-          f"-> {'ACCEPT' if verdict['accepted'] else 'REJECT'} {verdict['reasons']}")
-    print(f"  grounded: Δplan_target_recall@1={metrics['plan_target_recall@1']['delta']} "
-          f"Δresolved_strict={metrics['resolved_rate_strict']['delta']} "
-          f"Δgroundedness={metrics['plan_groundedness']['delta']} "
-          f"-> {'ACCEPT' if grounded['accepted'] else 'REJECT'} {grounded['reasons']}")
+        Path(args.out).write_text(json.dumps({"arms": out}, indent=2))
     return 0
 
 
@@ -1013,7 +1021,7 @@ def build_parser() -> argparse.ArgumentParser:
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
     cmp.add_argument("--head", required=True, help="head fix-scorecard.json")
-    cmp.add_argument("--arm", default="", help="arm to compare (default: the first arm)")
+    cmp.add_argument("--arm", default="", help="arm to compare (default: every arm in both scorecards)")
     cmp.add_argument("--out", default="", help="write the full compare (metrics+verdict) JSON here")
     cmp.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
                      help="reject if Δcost_per_solved exceeds this (default: advisory only)")

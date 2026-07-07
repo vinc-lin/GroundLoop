@@ -41,8 +41,30 @@ def test_compare_emits_accept_verdict(tmp_path):
     rc = main(["compare", "--base", str(tmp_path / "off.json"), "--head", str(tmp_path / "on.json"),
                "--arm", "membership+logs", "--out", str(out)])
     assert rc == 0
-    v = json.loads(out.read_text())
+    v = json.loads(out.read_text())["arms"]["membership+logs"]
     assert v["verdict"]["accepted"] and v["metrics"]["file_recall@1"]["delta"] == 1.0
+
+
+def test_compare_reports_all_arms_by_default(tmp_path, capsys):
+    # two-arm case: membership+text carries no plan metrics; membership+logs does. Default compare must
+    # surface BOTH (the old default silently dropped the signal-bearing logs arm, giving a misleading verdict).
+    def board(logs_recall):
+        return {"arms": {
+            "membership+text": {"file_recall@1": {"value": 0.0}, "fabrication_rate": {"value": None},
+                                "plan_target_recall@1": {"value": None}, "resolved_by_case": {}, "phi_c": {}},
+            "membership+logs": {"file_recall@1": {"value": 0.2}, "fabrication_rate": {"value": 0.0},
+                                "plan_target_recall@1": {"value": logs_recall},
+                                "plan_groundedness": {"value": 0.3}, "resolved_by_case": {}, "phi_c": {}},
+        }}
+    (tmp_path / "b.json").write_text(json.dumps(board(0.5)))
+    (tmp_path / "h.json").write_text(json.dumps(board(0.7)))
+    out = tmp_path / "cmp.json"
+    assert main(["compare", "--base", str(tmp_path / "b.json"), "--head", str(tmp_path / "h.json"),
+                 "--out", str(out)]) == 0
+    res = json.loads(out.read_text())["arms"]
+    assert set(res) == {"membership+text", "membership+logs"}                    # both arms, not just the first
+    assert abs(res["membership+logs"]["metrics"]["plan_target_recall@1"]["delta"] - 0.2) < 1e-9  # signal surfaced
+    assert "compare[membership+logs]" in capsys.readouterr().out                 # the bug: this line was missing
 
 
 def test_load_skills_selects_seed_corpus(tmp_path):
