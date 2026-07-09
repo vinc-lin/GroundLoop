@@ -1,4 +1,4 @@
-from groundloop.domains.android_ivi.frame_norm import NormFrame, normalize_java, normalize_native  # noqa: F401
+from groundloop.domains.android_ivi.frame_norm import normalize_java, normalize_native
 
 
 def test_java_basic_key_and_package():

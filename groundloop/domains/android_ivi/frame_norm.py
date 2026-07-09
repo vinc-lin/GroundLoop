@@ -38,7 +38,11 @@ def _strip_class(cls: str) -> str:
 
 
 def normalize_java(fq_class: str, method: str, *, raw: str = "") -> NormFrame:
-    """fq_class like 'a.b.Class' or 'a.b.Outer$Inner' or a JNI 'Java_a_b_Class_method'."""
+    """fq_class like 'a.b.Class' or 'a.b.Outer$Inner' or a JNI 'Java_a_b_Class_method'.
+
+    Caveat: the JNI split is naive — it does not decode JNI '_1'-escaped underscores and
+    greedily splits on the last underscore, so identifiers containing underscores mis-split.
+    """
     method = _SYNTHETIC.sub("", (method or "").strip())
     jni = _JNI.match(fq_class)
     if jni and not method:
@@ -61,6 +65,7 @@ def normalize_java(fq_class: str, method: str, *, raw: str = "") -> NormFrame:
 def normalize_native(so_path: str, symbol: str, *, raw: str = "") -> NormFrame:
     """so_path like '/system/lib64/libfoo.so.1.2'; symbol like 'Cls::method+0x1c' or 'func+164'."""
     base = so_path.rsplit("/", 1)[-1]
+    # assumes a 'lib*.so' basename; non-'lib'-prefixed vendor HAL sonames fall through to raw basename.
     m = re.match(r"(lib[\w.+-]*?\.so)", base)                # strip version suffix after .so
     soname = m.group(1) if m else base
     sym = re.split(r"\+0x|\+\d", symbol.strip())[0].strip()  # drop +offset
