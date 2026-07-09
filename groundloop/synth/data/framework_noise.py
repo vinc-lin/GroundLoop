@@ -36,8 +36,8 @@ def _fill(tmpl: str, rng: random.Random) -> str:
 
 def _ts(base_ms: int, i: int) -> str:
     ms = base_ms + i * 7
-    s, mm = divmod(ms // 1000, 60)
-    return f"07-05 10:{34 + (mm % 24):02d}:{s % 60:02d}.{ms % 1000:03d}"
+    mins, secs = divmod(ms // 1000, 60)
+    return f"07-05 10:{34 + (mins % 24):02d}:{secs:02d}.{ms % 1000:03d}"
 
 
 def render_noise_lines(rng: random.Random, n: int, base_ms: int) -> list[str]:

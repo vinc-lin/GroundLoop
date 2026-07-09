@@ -17,6 +17,6 @@ def test_lines_are_logcat_shaped():
 
 def test_noise_excludes_owner_tokens():
     text = "\n".join(render_noise_lines(random.Random(3), n=500, base_ms=0))
-    for owner_tok in ("net.osmand", "org.schabi.newpipe", "liboboe.so", "com.google.oboe"):
+    for owner_tok in FLEET_OWNER_HINTS:
         assert owner_tok not in text
     assert isinstance(FLEET_OWNER_HINTS, frozenset)
