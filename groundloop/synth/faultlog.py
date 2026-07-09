@@ -8,7 +8,7 @@ import os
 
 from groundloop.domains.android_ivi.frame_norm import normalize_java, normalize_native
 from groundloop.engines.atlas.store import Store
-from groundloop.synth.data.framework_noise import render_noise_lines
+from groundloop.synth.data.framework_noise import decoy_lines, decoy_tokens_for, render_noise_lines
 from groundloop.synth.logs import (_NATIVE_SO, _rng, crash_frames, parse_source_file,
                                    select_crash_class)
 
@@ -79,12 +79,11 @@ def build_faultlog_case(src_case_dir: str, store: Store, dest_root: str, *,
 
 
 def _hard_decoys(owner: str, rng) -> list[str]:
-    """Clean mode: no decoys. Phase 3 (a later task) implements hard-mode decoys here."""
-    return []
+    return decoy_lines(owner, rng, n=40, base_ms=0)
 
 
 def _decoy_manifest(owner: str) -> list[str]:
-    return []
+    return decoy_tokens_for(owner)
 
 
 def build_faultlog_dataset(src_root: str, atlas_db: str, dest_root: str, catalog_names: list[str], *,
