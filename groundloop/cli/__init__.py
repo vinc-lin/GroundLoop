@@ -364,6 +364,22 @@ def _run_synth(args) -> int:
     return 0
 
 
+def _run_faulteval(args) -> int:
+    import json
+    from pathlib import Path
+    from groundloop.faulteval.runner import run_faulteval
+    card = run_faulteval(args.dataset, args.index_db, arms=tuple(args.arms.split(",")))
+    Path(args.out).write_text(json.dumps(card, indent=2))
+    loc = card["localization"]
+    print(f"localization: frame@1={loc['frame@1']['value']:.2f} "
+          f"frame@5={loc['frame@5']['value']:.2f} file@1={loc['file@1']['value']:.2f} "
+          f"no_fault={loc['no_fault_found']}/{loc['n']}")
+    for arm, a in card["attribution"]["arms"].items():
+        print(f"  {arm}: attribution_recall@1={a['forced']['recall@1']['value']:.2f} "
+              f"recall@3={a['forced']['recall@3']['value']:.2f} coverage={a['selective']['coverage']:.2f}")
+    return 0
+
+
 def _run_kb_ab(args) -> int:
     """A/B the dev-experience KB {none, kb, placebo} then a strengthened two-sided accept verdict.
 
@@ -976,6 +992,13 @@ def build_parser() -> argparse.ArgumentParser:
     sy.add_argument("--noise-lines", dest="noise_lines", type=int, default=3000,
                     help="faultlog only: framework-noise line count (default 3000)")
 
+    fe = sub.add_parser("faulteval", help="fault-localization + attribution eval over a faultlog dataset")
+    fe.add_argument("--dataset", required=True, help="faultlog dataset root (case dirs + catalog.json)")
+    fe.add_argument("--index-db", required=True, help="path to atlas.db")
+    fe.add_argument("--out", required=True, help="scorecard.json output path")
+    fe.add_argument("--arms", default="flood,faultslice,routing",
+                    help="comma list of arms: flood,faultslice,routing (routing needs Phase 2)")
+
     kab = sub.add_parser("kb-ab",
                          help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
     kab.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
@@ -1074,6 +1097,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_fixeval(args)
     if args.cmd == "synth":
         return _run_synth(args)
+    if args.cmd == "faulteval":
+        return _run_faulteval(args)
     if args.cmd == "kb-ab":
         return _run_kb_ab(args)
     if args.cmd == "kb-promote":
