@@ -30,6 +30,17 @@ def test_faultlog_clean_case(tmp_path):
     assert ticket["logs"][0]["path"] == "logs/000.txt"
 
 
+def test_faultlog_fault_file_skips_same_basename_testfile(tmp_path):
+    db = build_atlas_fixture(str(tmp_path / "atlas.db"))
+    store = Store(db)
+    files = ["app/src/test/java/app/organicmaps/Framework.java",
+             "app/src/main/java/app/organicmaps/Framework.java"]
+    src = _src_case(tmp_path, "C3", "organicmaps", files)
+    build_faultlog_case(src, store, str(tmp_path / "out"), difficulty="clean", noise_lines=100)
+    oracle = json.loads((tmp_path / "out" / "C3" / "_oracle" / "oracle.json").read_text())
+    assert oracle["fault_file"] == "app/src/main/java/app/organicmaps/Framework.java"
+
+
 def test_faultlog_is_deterministic(tmp_path):
     db = build_atlas_fixture(str(tmp_path / "atlas.db"))
     store = Store(db)
