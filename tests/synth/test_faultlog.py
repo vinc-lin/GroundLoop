@@ -16,7 +16,7 @@ def _src_case(tmp, cid, owner, files):
 def test_faultlog_clean_case(tmp_path):
     db = build_atlas_fixture(str(tmp_path / "atlas.db"))
     store = Store(db)
-    src = _src_case(tmp_path, "C1", "organicmaps", ["app/organicmaps/Framework.java"])
+    src = _src_case(tmp_path, "C1", "organicmaps", ["app/src/main/java/app/organicmaps/Framework.java"])
     cid = build_faultlog_case(src, store, str(tmp_path / "out"), difficulty="clean", noise_lines=300)
     assert cid == "C1"
     out = tmp_path / "out" / "C1"
@@ -33,7 +33,7 @@ def test_faultlog_clean_case(tmp_path):
 def test_faultlog_is_deterministic(tmp_path):
     db = build_atlas_fixture(str(tmp_path / "atlas.db"))
     store = Store(db)
-    src = _src_case(tmp_path, "C2", "organicmaps", ["app/organicmaps/Framework.java"])
+    src = _src_case(tmp_path, "C2", "organicmaps", ["app/src/main/java/app/organicmaps/Framework.java"])
     build_faultlog_case(src, store, str(tmp_path / "o1"), difficulty="clean", noise_lines=200)
     build_faultlog_case(src, store, str(tmp_path / "o2"), difficulty="clean", noise_lines=200)
     assert (tmp_path / "o1" / "C2" / "logs" / "000.txt").read_text() == \

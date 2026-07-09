@@ -9,11 +9,7 @@ import os
 from groundloop.domains.android_ivi.frame_norm import normalize_java, normalize_native
 from groundloop.engines.atlas.store import Store
 from groundloop.synth.data.framework_noise import render_noise_lines
-from groundloop.synth.logs import (_NATIVE_SO, Frame, _atlas_method, _rng, crash_frames,
-                                   select_crash_class)
-
-_NATIVE_EXT = (".cpp", ".cc", ".cxx", ".c", ".mm")
-_JAVA_EXT = (".java", ".kt")
+from groundloop.synth.logs import (_NATIVE_SO, _rng, crash_frames, select_crash_class)
 
 
 def _dump(path, obj):
@@ -26,24 +22,6 @@ def _family(cc) -> str:
     if cc.surface == "native":
         return "native"
     return "anr" if cc.skill_id == "main-thread-blocking-anr" else "java"
-
-
-def _relaxed_frame(store: Store, owner: str, files: list[str], rng) -> Frame | None:
-    """Fallback when `crash_frames` (which requires a conventional .../java/... or .../kotlin/...
-    path segment — see `parse_source_file` in synth/logs.py) finds no frames at all, e.g. because
-    an `expected_files` entry records a path relative to the package root rather than the source
-    root. Derives the language from the plain extension and the package from the remaining path
-    segments, so every case with at least one source-like file still gets a crash frame."""
-    for path in files:
-        base = os.path.basename(path)
-        stem, ext = os.path.splitext(base)
-        if ext not in _JAVA_EXT and ext not in _NATIVE_EXT:
-            continue
-        method = (_atlas_method(store, owner, base, stem)
-                  or rng.choice(["<init>", "run", "process", "onEvent"]))
-        pkg = ".".join(p for p in os.path.dirname(path).split("/") if p) if ext in _JAVA_EXT else ""
-        return Frame(package=pkg, cls=stem, method=method, filename=base, line=rng.randrange(40, 900))
-    return None
 
 
 def _oracle_frame(top, family: str, so: str):
@@ -64,9 +42,6 @@ def build_faultlog_case(src_case_dir: str, store: Store, dest_root: str, *,
         return None
     rng = _rng(cid)
     frames = crash_frames(store, owner, files, rng)
-    if not frames:
-        fb = _relaxed_frame(store, owner, files, rng)
-        frames = [fb] if fb else []
     if not frames:
         return None
     cc = select_crash_class(owner, frames, cid)
