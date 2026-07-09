@@ -9,16 +9,20 @@ from groundloop.domains.android_ivi.frame_norm import NormFrame, normalize_java,
 from groundloop.domains.android_ivi.logcat_parse import LogLine
 
 # Framework/system prefixes to SKIP when picking the fault site. NOTE: precise androidx subpackages only —
-# a blanket "androidx." would wrongly skip the media3 OWNER namespace (androidx.media3.*). Native system
-# libs are listed so the owner's fleet .so becomes the first non-framework native frame.
+# a blanket "androidx." would wrongly skip the media3 OWNER namespace (androidx.media3.*).
 _FRAMEWORK_PREFIXES = (
     "android.", "java.", "javax.", "kotlin.", "kotlinx.", "dalvik.",
     "com.android.", "com.google.android.",
     "androidx.fragment.", "androidx.appcompat.", "androidx.core.", "androidx.recyclerview.",
     "androidx.lifecycle.", "androidx.activity.",
-    "libc", "libart", "libaaudio", "libandroid", "libbinder", "libgui",
-    "libutils", "libhwui", "libEGL", "libGLES", "libbase", "libcutils",
 )
+# Full system sonames (EXACT match, not startswith — a bare "libc" prefix would wrongly skip owner
+# libs like libcge.so / libcamera.so). normalize_native strips the version suffix, so these are canonical.
+_FRAMEWORK_SONAMES = frozenset({
+    "libc.so", "libart.so", "libaaudio.so", "libandroid.so", "libbinder.so", "libgui.so",
+    "libutils.so", "libhwui.so", "libEGL.so", "libGLESv1_CM.so", "libGLESv2.so", "libGLESv3.so",
+    "libbase.so", "libcutils.so",
+})
 _JAVA_FRAME = re.compile(r"\bat\s+([A-Za-z_][\w.$]+)\.([A-Za-z_<][\w$>]*)\(([^:)]+)(?::(\d+))?\)")
 _NATIVE_FRAME = re.compile(r"#\d+\s+pc\s+[0-9a-fA-F]+\s+(\S+\.so[\w.]*)\s*\(([^)]+)\)")
 _EXC = re.compile(r"^\s*((?:[a-z]\w*\.)+[A-Z]\w*(?:Error|Exception))", re.M)
@@ -37,9 +41,10 @@ class FaultRecord:
 
 
 def _is_framework(nf: NormFrame) -> bool:
+    if nf.soname:                                    # native frame
+        return nf.soname in _FRAMEWORK_SONAMES
     key = (nf.package + "." if nf.package else "") + nf.klass
-    return any(key.startswith(p) or nf.soname.startswith(p) for p in _FRAMEWORK_PREFIXES) or \
-        nf.soname in ("libc.so", "libart.so")
+    return any(key.startswith(p) for p in _FRAMEWORK_PREFIXES)
 
 
 def _first_owner(frames: list[NormFrame]) -> NormFrame | None:
@@ -87,7 +92,7 @@ def extract_fault_record(lines: list[LogLine]) -> FaultRecord | None:
     if top is None:
         conf = "LOW"
         top = frames[0] if frames else None
-    elif top.obfuscated or len(frames) == 0:
+    elif top.obfuscated:
         conf = "MEDIUM"
     else:
         conf = "HIGH"

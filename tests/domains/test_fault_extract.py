@@ -48,5 +48,13 @@ def test_all_framework_is_low_confidence():
     assert fr is not None and fr.confidence == "LOW"
 
 
+def test_lowercase_owner_soname_not_framework():
+    # libcge.so is a real owner soname (android-gpuimage-plus); must NOT be skipped as framework
+    text = build_native_backtrace("libcge.so", [NF], RNG())
+    fr = extract_fault_record(parse_logcat(text))
+    assert fr is not None and fr.top_frame.soname == "libcge.so"
+    assert fr.top_frame.key() == "AudioStreamAAudio::requestStart" and fr.confidence == "HIGH"
+
+
 def test_no_anchor_returns_none():
     assert extract_fault_record(parse_logcat("07-05 10:34:07.221 1 1 I Foo: nothing crashed here")) is None
