@@ -26,3 +26,17 @@ def test_faulteval_runs_flood_and_faultslice(tmp_path):
     assert set(card["attribution"]["arms"]) >= {"flood", "faultslice"}
     assert "frame@1" in card["localization"]
     assert card["localization"]["n"] == 1
+
+
+def test_faulteval_routing_arm(tmp_path):
+    db = build_atlas_fixture(str(tmp_path / "atlas.db"))
+    store = Store(db)
+    src = _mk_case(tmp_path, "C9", "organicmaps", ["app/src/main/java/app/organicmaps/Framework.java"])
+    out = tmp_path / "ds9"
+    build_faultlog_case(src, store, str(out), difficulty="clean", noise_lines=150)
+    (out / "catalog.json").write_text(json.dumps(
+        [{"name": r} for r in ("organicmaps", "androidx-media", "cameraview", "android-gpuimage-plus")]))
+    card = run_faulteval(str(out), db, arms=("flood", "faultslice", "routing"))
+    assert "routing" in card["attribution"]["arms"]
+    # routing must rank the true owner (organicmaps) top-1 on the app.organicmaps prefix hit
+    assert card["attribution"]["arms"]["routing"]["forced"]["recall@1"]["value"] == 1.0
