@@ -40,3 +40,6 @@ def test_faulteval_routing_arm(tmp_path):
     assert "routing" in card["attribution"]["arms"]
     # routing must rank the true owner (organicmaps) top-1 on the app.organicmaps prefix hit
     assert card["attribution"]["arms"]["routing"]["forced"]["recall@1"]["value"] == 1.0
+    # routing must ACTUALLY predict (not abstain) — the selective view catches a tau-scale mismatch
+    sel = card["attribution"]["arms"]["routing"]["selective"]
+    assert sel["coverage"] == 1.0 and sel["selective_accuracy"]["value"] == 1.0

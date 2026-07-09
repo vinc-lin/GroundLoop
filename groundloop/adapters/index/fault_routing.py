@@ -21,16 +21,16 @@ class FaultRoutingIndex:
     def rank_repos(self, signals: Signals, catalog: Sequence[RepoRef]) -> list[RepoScore]:
         allowed = {r.name for r in catalog}
         fts = self.base.rank_repos(signals, catalog)                       # base fault-scoped FTS
-        fts_rank = {s.repo.name: i for i, s in enumerate(s for s in fts if s.score > 0)}
+        nonzero = [x for x in fts if x.score > 0]                          # sorted score-desc by AtlasIndex
+        fts_rank = {x.repo.name: i for i, x in enumerate(nonzero)}
         routes = [(r, w) for r, w in route_signals(signals) if r in allowed]
-        route_rank = {r: i for i, (r, _w) in enumerate(routes)}
         fused: dict[str, float] = {r.name: 0.0 for r in catalog}
         ev: dict[str, list[str]] = {r.name: [] for r in catalog}
         for name, i in fts_rank.items():
             fused[name] += 1.0 / (_RRF_K + i)
             ev[name].append("fts")
-        for name, i in route_rank.items():
-            fused[name] += _ROUTING_WEIGHT / (_RRF_K + i)
+        for name, _w in routes:                     # routed hits are equal-weight -> equal (rank-0) bonus;
+            fused[name] += _ROUTING_WEIGHT / _RRF_K  # ordinal position is NOT a confidence proxy
             ev[name].append("route")
         ranked = [RepoScore(RepoRef(n), sc, tuple(ev[n])) for n, sc in fused.items()]
         ranked.sort(key=lambda s: s.score, reverse=True)
