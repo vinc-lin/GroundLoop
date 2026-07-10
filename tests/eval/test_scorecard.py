@@ -77,3 +77,13 @@ def test_per_case_rows_join_prediction_and_grade():
     abst = by_id["cam-1"]
     assert abst["predicted"] is None and abst["answered"] is False
     assert abst["ranked_top1"] == "osmand"     # forced top-1 recorded even when abstained
+
+
+def test_score_match_surfaces_bug_kind():
+    from groundloop.eval.scorecard import score_match
+    from groundloop.eval.runner import MatchRecord
+    from groundloop.eval.dataset import EvalOracle
+    rec = MatchRecord(case_id="c", arm="a", ranked_names=["oboe"], scores=[1.0],
+                      predicted="oboe", margin=1.0, top1_score=1.0)
+    m = score_match(rec, EvalOracle("oboe", bug_kind="functional"))
+    assert m["bug_kind"] == "functional"

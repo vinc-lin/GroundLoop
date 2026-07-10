@@ -12,6 +12,7 @@ def score_match(rec: MatchRecord, oracle) -> dict:
     owner = oracle.owning_repo
     is_answerable = bool(getattr(oracle, "is_answerable", True))
     negative_class = getattr(oracle, "negative_class", None)
+    bug_kind = getattr(oracle, "bug_kind", None)
     rank = repo_rank(rec.ranked_names, owner)
     answered = rec.predicted is not None
     return {
@@ -22,6 +23,7 @@ def score_match(rec: MatchRecord, oracle) -> dict:
         "correct": bool(answered and rec.predicted == owner),
         "answerable": is_answerable,
         "negative_class": negative_class,
+        "bug_kind": bug_kind,
         "ranked_names": rec.ranked_names,
     }
 
