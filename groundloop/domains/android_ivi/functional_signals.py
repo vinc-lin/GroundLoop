@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from groundloop.core.types import LogAttachment, Signals, Ticket
+from groundloop.domains.android_ivi.fault_signals import fault_record_for_logs, signals_from_fault
 from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
 
 PROSE_MARK = "\x00fn\x00"      # reserves symbols[0] as a prose query (crash symbols never start with it)
@@ -36,4 +37,15 @@ class FunctionalTextExtractor:
     """SignalExtractor for the `functional` arm — prose query + optional log tokens."""
 
     def extract(self, logs: Sequence[LogAttachment], ticket: Ticket) -> Signals:
+        return pack_prose(ticket, logs)
+
+
+class DispatchExtractor:
+    """Route discriminator carried in Signals: a crash ANCHOR -> fault Signals (no prose mark);
+    no anchor -> prose Signals (symbols[0] starts with PROSE_MARK). Lets a Signals-only index route."""
+
+    def extract(self, logs: Sequence[LogAttachment], ticket: Ticket) -> Signals:
+        fr = fault_record_for_logs(logs)
+        if fr is not None:
+            return signals_from_fault(fr)
         return pack_prose(ticket, logs)

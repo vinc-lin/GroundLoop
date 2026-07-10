@@ -8,7 +8,7 @@ from typing import Sequence
 
 from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.core.types import RepoRef, RepoScore, Signals
-from groundloop.domains.android_ivi.functional_signals import prose_query
+from groundloop.domains.android_ivi.functional_signals import PROSE_MARK, prose_query
 from groundloop.engines.atlas.store import Store
 
 _LOG_WEIGHT = 0.15     # optional log evidence is supporting, not primary (calibration seed)
@@ -45,3 +45,22 @@ class FunctionalTextIndex:
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         # localization uses the code atlas (the text-profile store has no source files)
         return self._atlas.retrieve(repo, query) if self._atlas else []
+
+
+class DispatchIndex:
+    """Per-case composite: prose-marked Signals -> functional index; else -> fault index. The
+    Signals-only discriminator (symbols[0] PROSE_MARK) mirrors DispatchExtractor's routing."""
+
+    def __init__(self, fault_index, functional_index):
+        self.fault = fault_index
+        self.functional = functional_index
+
+    def _is_functional(self, signals: Signals) -> bool:
+        return bool(signals.symbols) and signals.symbols[0].startswith(PROSE_MARK)
+
+    def rank_repos(self, signals: Signals, catalog):
+        idx = self.functional if self._is_functional(signals) else self.fault
+        return idx.rank_repos(signals, catalog)
+
+    def retrieve(self, repo: RepoRef, query: str) -> list[str]:
+        return self.functional.retrieve(repo, query)
