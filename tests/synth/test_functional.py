@@ -38,3 +38,16 @@ def test_carplay_case_has_optional_connection_log(tmp_path):
     log = (out / "C1" / ticket["logs"][0]["path"]).read_text() if ticket["logs"] else ""
     assert "connection" in log.lower() or "projection" in log.lower()      # non-crash connection log
     assert "FATAL EXCEPTION" not in log                                    # NOT a crash
+
+
+def test_functional_negatives_are_unanswerable(tmp_path):
+    from groundloop.synth.functional import build_functional_negatives
+    out = tmp_path / "neg"
+    ids = build_functional_negatives(str(out), n=2)
+    assert len(ids) == 2
+    for cid in ids:
+        oracle = json.loads((out / cid / "_oracle" / "oracle.json").read_text())
+        ticket = json.loads((out / cid / "ticket.json").read_text())
+        assert oracle["is_answerable"] is False and oracle["bug_kind"] == "functional"
+        assert oracle["negative_class"] == "not_a_defect"
+        assert oracle["owning_repo"] == "__NOT_A_DEFECT__" and ticket["logs"] == []
