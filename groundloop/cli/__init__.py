@@ -391,6 +391,16 @@ def _run_label_bugkind(args) -> int:
     return 0
 
 
+def _run_combine_oracle(args) -> int:
+    from groundloop.eval.combine_oracle import combine_oracles
+    r = combine_oracles(args.sources, args.out, label=not args.no_label)
+    print(f"combine-oracle: {r['cases']} cases from {len(r['per_source'])} sources -> {args.out} "
+          f"({r['repos']} repos, {r['labeled']} bug_kind-labeled)")
+    for src, n in r["per_source"].items():
+        print(f"  {n:5} <- {src}")
+    return 0
+
+
 def _run_faulteval(args) -> int:
     import json
     from pathlib import Path
@@ -1047,6 +1057,11 @@ def build_parser() -> argparse.ArgumentParser:
     lb = sub.add_parser("label-bugkind", help="offline: stamp bug_kind (crash|functional) into oracle.json")
     lb.add_argument("--dataset", required=True, help="dataset root (case dirs with _oracle/oracle.json)")
 
+    co = sub.add_parser("combine-oracle", help="assemble a combined crash+functional oracle from datasets")
+    co.add_argument("--sources", nargs="+", required=True, help="source dataset roots to merge")
+    co.add_argument("--out", required=True, help="destination combined dataset root (must be fresh)")
+    co.add_argument("--no-label", action="store_true", help="skip stamping bug_kind (crash|functional)")
+
     fx = sub.add_parser("fixeval", help="run the downstream fix/RCA loop over a dataset -> fix-scorecard")
     fx.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
     fx.add_argument("--catalog", required=True, help="path to catalog.json")
@@ -1216,6 +1231,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_eval(args)
     if args.cmd == "label-bugkind":
         return _run_label_bugkind(args)
+    if args.cmd == "combine-oracle":
+        return _run_combine_oracle(args)
     if args.cmd == "fixeval":
         return _run_fixeval(args)
     if args.cmd == "synth":
