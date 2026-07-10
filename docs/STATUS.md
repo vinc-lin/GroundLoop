@@ -13,6 +13,26 @@ namespaced **GL-M0/GL-M1** (GroundLoop) vs **BFL-M0..M9** vs spec **M1–M5** �
 
 ## Done
 
+### Android Log Match v2 — fault-localization + attribution — MERGED to master (2026-07-09); live A/B ✅
+Isolate the true fault site from a long full-system logcat and attribute it to the owning repo, with
+fault-localization and attribution scored **separately**. Built toward the real ecarx/gkui estate, validated
+on an **unscrubbed OSS proxy** (package namespaces are legitimate owner signal there). Deterministic pipeline
+(no gateway): `logcat_parse` → `frame_norm` → `fault_extract` (anchors + pid/tid scope + confidence →
+`FaultRecord`) → `fault_signals` (tight `Signals`) → Phase-1 `faultslice` (reuse `rank_repos`) / Phase-2
+`FaultRoutingIndex` (production-known prefix/SONAME routing + RRF). New `gloop synth --mode faultlog`
+(clean|hard decoys + fault-locus oracle) and `gloop faulteval` (3-arm A/B + `fault_localization` metric).
+Subagent-driven, **18 commits, 494 passed / ruff clean, `core/` + atlas schema + gated `rank_repos`/
+`owner_tokens.py`/`mine/` zero-diff**, per-task spec+quality review (caught 3 real bugs: timestamp swap,
+`fault_file` basename collision, soname-boundary misclassification) + a final holistic review (READY TO MERGE).
+- **Live A/B (`docs/2026-07-09-android-log-match-v2-findings.md`):** 196-case faultlog over `atlas-9.db`.
+  **Attribution recall@1: flood 0.48 → faultslice 0.86 → routing 0.94** (tight extraction ~doubles it).
+  **Robustness:** under hard decoys the flood baseline **drops 0.48→0.32** while faultslice/routing are
+  **unchanged** (decoy-immune). **Localization:** `frame@1=0.88` / `frame@5=0.95`. Log-quality audit:
+  **0/187 owner-leak** in clean noise (honest), needle at 25–75% depth, 196/196 oracle integrity.
+- Deferred (sanctioned): confidence-weighted RRF, the `no_fault=9` audio-underrun class (non-fatal → the
+  second-problem track), UI-string / ticket-text matching (the deferred **second problem**).
+- Spec/plan: `docs/superpowers/{specs,plans}/2026-07-09-android-log-match-v2*.md`.
+
 ### GL-M0 — walking skeleton
 Deterministic ticket → repo → fix → bind loop over the mock adapters + `TokenIndex` stub + offline
 grader. Hermetic vertical slice green.

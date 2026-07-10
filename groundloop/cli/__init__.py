@@ -324,34 +324,59 @@ def _run_fixeval(args) -> int:
 
 
 def _run_synth(args) -> int:
-    """Synthesize AAOS failure-log tickets from a mined dataset (wraps build_synth_dataset)."""
+    """Synthesize failure-log tickets from a mined dataset. --mode failurelog (default, the SP2 short synth)
+    or faultlog (v2 long unscrubbed logcat + fault-locus oracle)."""
     import json
     import os
     from pathlib import Path
     from groundloop.config.settings import Settings
-    from groundloop.synth.dataset import build_synth_dataset
 
     atlas_db = args.atlas_db or Settings.load().atlas_db
     if not atlas_db:
         print("gloop synth: --atlas-db is required (or set KLOOP_ATLAS_DB)")
         return 2
-
-    # --catalog names a catalog.json path (default: the one alongside the mined dataset).
     catalog_path = args.catalog or os.path.join(args.src, "catalog.json")
     catalog_names = [c["name"] for c in json.loads(Path(catalog_path).read_text())]
 
-    made = build_synth_dataset(args.src, atlas_db, args.out, catalog_names)
+    if getattr(args, "mode", "failurelog") == "faultlog":
+        from groundloop.synth.faultlog import build_faultlog_dataset
+        made = build_faultlog_dataset(args.src, atlas_db, args.out, catalog_names,
+                                      difficulty=args.difficulty, noise_lines=args.noise_lines)
+        fams: dict[str, int] = {}
+        for cid in made:
+            o = json.loads((Path(args.out) / cid / "_oracle" / "oracle.json").read_text())
+            fams[o.get("fault_family", "?")] = fams.get(o.get("fault_family", "?"), 0) + 1
+        print(f"faultlog synth ({args.difficulty}): {len(made)} cases -> {args.out}")
+        for k in sorted(fams):
+            print(f"  {k}: {fams[k]}")
+        return 0
 
-    # Tally the synth-log kind (native | logcat) per written case for a coverage summary.
+    from groundloop.synth.dataset import build_synth_dataset
+    made = build_synth_dataset(args.src, atlas_db, args.out, catalog_names)
     kinds: dict[str, int] = {}
     for cid in made:
         oracle = json.loads((Path(args.out) / cid / "_oracle" / "oracle.json").read_text())
         k = oracle.get("synth_log", "?")
         kinds[k] = kinds.get(k, 0) + 1
-
     print(f"synth: {len(made)} cases -> {args.out}")
     for k in sorted(kinds):
         print(f"  {k}: {kinds[k]}")
+    return 0
+
+
+def _run_faulteval(args) -> int:
+    import json
+    from pathlib import Path
+    from groundloop.faulteval.runner import run_faulteval
+    card = run_faulteval(args.dataset, args.index_db, arms=tuple(args.arms.split(",")))
+    Path(args.out).write_text(json.dumps(card, indent=2))
+    loc = card["localization"]
+    print(f"localization: frame@1={loc['frame@1']['value']:.2f} "
+          f"frame@5={loc['frame@5']['value']:.2f} file@1={loc['file@1']['value']:.2f} "
+          f"no_fault={loc['no_fault_found']}/{loc['n']}")
+    for arm, a in card["attribution"]["arms"].items():
+        print(f"  {arm}: attribution_recall@1={a['forced']['recall@1']['value']:.2f} "
+              f"recall@3={a['forced']['recall@3']['value']:.2f} coverage={a['selective']['coverage']:.2f}")
     return 0
 
 
@@ -960,6 +985,19 @@ def build_parser() -> argparse.ArgumentParser:
     sy.add_argument("--out", required=True, help="destination synth dataset root")
     sy.add_argument("--catalog", default="",
                     help="path to catalog.json (default: <src>/catalog.json)")
+    sy.add_argument("--mode", choices=["failurelog", "faultlog"], default="failurelog",
+                    help="failurelog (SP2 short synth) | faultlog (v2 long unscrubbed logcat + fault oracle)")
+    sy.add_argument("--difficulty", choices=["clean", "hard"], default="clean",
+                    help="faultlog only: clean (owner tokens only in fault block) | hard (with decoys)")
+    sy.add_argument("--noise-lines", dest="noise_lines", type=int, default=3000,
+                    help="faultlog only: framework-noise line count (default 3000)")
+
+    fe = sub.add_parser("faulteval", help="fault-localization + attribution eval over a faultlog dataset")
+    fe.add_argument("--dataset", required=True, help="faultlog dataset root (case dirs + catalog.json)")
+    fe.add_argument("--index-db", required=True, help="path to atlas.db")
+    fe.add_argument("--out", required=True, help="scorecard.json output path")
+    fe.add_argument("--arms", default="flood,faultslice,routing",
+                    help="comma list of arms: flood,faultslice,routing (routing needs Phase 2)")
 
     kab = sub.add_parser("kb-ab",
                          help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
@@ -1059,6 +1097,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_fixeval(args)
     if args.cmd == "synth":
         return _run_synth(args)
+    if args.cmd == "faulteval":
+        return _run_faulteval(args)
     if args.cmd == "kb-ab":
         return _run_kb_ab(args)
     if args.cmd == "kb-promote":
