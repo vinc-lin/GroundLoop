@@ -41,6 +41,7 @@ class EvalOracle:
     owning_repo: str
     is_answerable: bool = True
     negative_class: str | None = None
+    bug_kind: str | None = None                 # 'crash' | 'functional' | None (offline-only split)
     expected_files: tuple[str, ...] = ()
     required_apis: tuple[str, ...] = ()
 
@@ -54,6 +55,7 @@ def load_eval_oracle(case: CaseRef) -> EvalOracle:
         owning_repo=raw["owning_repo"],
         is_answerable=bool(raw.get("is_answerable", True)),
         negative_class=raw.get("negative_class"),
+        bug_kind=raw.get("bug_kind"),
         expected_files=tuple(raw.get("expected_files", [])),
         required_apis=tuple(raw.get("required_apis", [])),
     )

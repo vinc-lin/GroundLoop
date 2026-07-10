@@ -49,3 +49,23 @@ def test_load_cases_does_not_read_oracle(tmp_path, monkeypatch):
     monkeypatch.setattr(pathlib.Path, "read_text", spy)
     load_cases(str(tmp_path))
     assert not any("_oracle" in r for r in reads), f"load_cases read the oracle: {reads}"
+
+
+def test_eval_oracle_reads_bug_kind(tmp_path):
+    import json
+    from groundloop.eval.dataset import CaseRef, load_eval_oracle
+    d = tmp_path / "c1"
+    (d / "_oracle").mkdir(parents=True)
+    (d / "_oracle" / "oracle.json").write_text(json.dumps(
+        {"owning_repo": "oboe", "is_answerable": True, "bug_kind": "functional"}))
+    o = load_eval_oracle(CaseRef(case_id="c1", case_dir=str(d)))
+    assert o.bug_kind == "functional"
+
+
+def test_eval_oracle_bug_kind_defaults_none(tmp_path):
+    import json
+    from groundloop.eval.dataset import CaseRef, load_eval_oracle
+    d = tmp_path / "c2"
+    (d / "_oracle").mkdir(parents=True)
+    (d / "_oracle" / "oracle.json").write_text(json.dumps({"owning_repo": "oboe"}))
+    assert load_eval_oracle(CaseRef(case_id="c2", case_dir=str(d))).bug_kind is None
