@@ -40,6 +40,14 @@ def test_no_component_is_pure_base():
     assert idx.rank_repos(_sig(""), CAT)[0].repo.name == "Noise"
 
 
+def test_prior_is_scale_invariant_to_base_magnitude():
+    # a size-biased base ranks Noise far above Core by RAW magnitude; the prior must still win
+    base = _Base({"Noise": 100.0, "Core": 1.0})
+    aff = ComponentAffinity({"CarPlay": {"Core": 4, "Integ": 1}})
+    ranked = ComponentPriorIndex(base, aff, weight=1.0).rank_repos(_sig("CarPlay"), CAT)
+    assert ranked[0].repo.name == "Core"        # base magnitude 100 vs 1 does NOT swamp the prior
+
+
 def test_retrieve_delegates():
     idx = ComponentPriorIndex(_Base({}), ComponentAffinity({}), weight=1.0)
     assert idx.retrieve(RepoRef("Core"), "q") == ["f"]
