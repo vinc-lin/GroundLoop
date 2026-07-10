@@ -18,7 +18,8 @@ def render_markdown(card: dict) -> str:
     split = [(arm, bk, sub) for arm, a in card["arms"].items()
              for bk, sub in a.get("by_bug_kind", {}).items()]
     if split:
-        lines += ["", "## by bug_kind", "", "| arm / kind | n | recall@1 | mrr | coverage | sel-acc | Phi_1 |",
+        lines += ["", "## by bug_kind", "",
+                  "| arm / kind | n | recall@1 | mrr | coverage | sel-acc | Phi_1 |",
                   "|---|---|---|---|---|---|---|"]
         for arm, bk, sub in split:
             lines.append(_row(f"{arm} / {bk}", sub))
