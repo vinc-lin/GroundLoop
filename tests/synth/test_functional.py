@@ -51,6 +51,44 @@ def test_audio_log_so_is_owner_derived_not_hardcoded_oboe(tmp_path):
     assert "libCGE.so" in log                             # owner-derived .so (gpuimage native surface)
 
 
+_FLEET = {
+    "organicmaps": "android/app/src/main/java/app/organicmaps/car/CarAppSession.java",
+    "cameraview": "cameraview/src/main/java/com/otaliastudios/cameraview/CameraView.java",
+    "oboe": "src/flowgraph/SourceI16.cpp",
+}
+
+
+def test_ticket_text_never_names_the_owner(tmp_path):
+    db = build_atlas_fixture(str(tmp_path / "a.db"))
+    out = tmp_path / "ds"
+    for i, (owner, path) in enumerate(_FLEET.items()):
+        cid = f"L{i}"
+        src = _src(tmp_path, cid, owner, [path])
+        build_functional_case(src, Store(db), str(out), klass="ui_text")
+        ticket = json.loads((out / cid / "ticket.json").read_text())
+        assert owner not in ticket["summary"].lower()       # symptom prose only — no owner slug
+        assert owner not in ticket["description"].lower()    # (spec §10 invariant #3)
+
+
+def test_carplay_log_channel_extracts_owner_tokens(tmp_path):
+    from dataclasses import replace
+
+    from groundloop.core.types import LogAttachment, Ticket
+    from groundloop.domains.android_ivi.functional_signals import pack_prose
+
+    db = build_atlas_fixture(str(tmp_path / "a.db"))
+    src = _src(tmp_path, "C2", "organicmaps",
+               ["android/app/src/main/java/app/organicmaps/car/CarAppSession.java"])
+    out = tmp_path / "ds"
+    build_functional_case(src, Store(db), str(out), klass="carplay")
+    ticket = json.loads((out / "C2" / "ticket.json").read_text())
+    log_text = (out / "C2" / ticket["logs"][0]["path"]).read_text()
+    log = LogAttachment(path="logs/000.txt", kind="logcat", content=log_text)
+    sig = pack_prose(Ticket(id="C2", summary=ticket["summary"], description=ticket["description"]), (log,))
+    assert sig.classes                                        # log names the owner's real class
+    assert replace(sig, symbols=()).tokens()                 # -> the optional log-RRF channel will fire
+
+
 def test_functional_negatives_are_unanswerable(tmp_path):
     from groundloop.synth.functional import build_functional_negatives
     out = tmp_path / "neg"

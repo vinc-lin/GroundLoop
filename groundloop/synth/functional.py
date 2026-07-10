@@ -17,19 +17,34 @@ def _dump(path, obj):
         json.dump(obj, fh, indent=2, ensure_ascii=False)
 
 
+# Slug-free domain prose per fleet repo — a functional ticket is SYMPTOM prose and must NOT name the
+# owner (no slug, no package, no FQ class), else the flood baseline recovers the owner from the ticket
+# (spec §10 invariant #3). The owner's real code tells belong only in the optional LOG (like a crash log).
+_DOMAIN = {
+    "android-gpuimage-plus": "real-time photo filter and GPU effect",
+    "cameraview": "camera preview and capture",
+    "dlt-daemon": "diagnostic trace logging",
+    "antennapod": "podcast subscription and episode download",
+    "newpipe": "video streaming and playback feed",
+    "oboe": "low-latency audio playback",
+    "osmand": "offline map and turn-by-turn navigation",
+    "media3": "media player and video track selection",
+    "organicmaps": "offline map and place navigation",
+}
 _TEMPLATES = {
-    "ui_text": ("Wrong label shown in {cls} screen",
-                "The UI text under {cls}.{method} is incorrect / not localized. No crash occurs; "
-                "the wrong string is simply displayed."),
-    "audio": ("Audio stutters / drops when using {cls}",
-              "Playback via {cls}.{method} underruns intermittently. No crash — audio just glitches."),
-    "carplay": ("Projection connection drops in {cls}",
-                "The CarPlay/Android-Auto session handled by {cls}.{method} fails to connect / "
+    "ui_text": ("Wrong label shown in the {domain} screen",
+                "A string in the {domain} UI is incorrect / not localized. No crash — the wrong "
+                "text is simply displayed."),
+    "audio": ("Audio stutters in {domain}",
+              "Playback in the {domain} feature underruns intermittently. No crash — audio glitches."),
+    "carplay": ("Projection connection drops in {domain}",
+                "The CarPlay / Android-Auto session for the {domain} feature fails to connect or "
                 "disconnects. No crash is logged; the screen just goes blank."),
 }
 _AUDIO_LOG_T = "W AAudio  : {so} onAudioReady buffer underrun (count=37)\n"
-_CARPLAY_LOG = ("I CarConnection: projection connection state=CONNECTING\n"
-                "W CarConnection: connection timeout after 5000ms; session not established\n")
+_CARPLAY_LOG_T = ("I CarConnection: projection connection state=CONNECTING\n"
+                  "W CarConnection: connection timeout after 5000ms; session not established\n"
+                  "W CarConnection: last active handler at {fq}.{method}({file})\n")
 
 
 def build_functional_case(src_case_dir: str, store, dest_root: str, *,
@@ -45,10 +60,10 @@ def build_functional_case(src_case_dir: str, store, dest_root: str, *,
     if not frames:
         return None
     top = frames[0]
-    fq = f"{top.package}.{top.cls}" if top.package else top.cls
+    domain = _DOMAIN.get(owner, "the affected module")
     summary_t, desc_t = _TEMPLATES.get(klass, _TEMPLATES["ui_text"])
-    summary = summary_t.format(cls=fq, method=top.method)
-    description = desc_t.format(cls=fq, method=top.method)
+    summary = summary_t.format(domain=domain)
+    description = desc_t.format(domain=domain)
 
     dest = os.path.join(dest_root, cid)
     logs_field: list[dict] = []
@@ -58,7 +73,8 @@ def build_functional_case(src_case_dir: str, store, dest_root: str, *,
             so = _NATIVE_SO.get(owner, f"lib{owner.split('-')[0]}.so")
             text = _AUDIO_LOG_T.format(so=so)
         else:
-            text = _CARPLAY_LOG
+            fq = f"{top.package}.{top.cls}" if top.package else top.cls
+            text = _CARPLAY_LOG_T.format(fq=fq, method=top.method, file=top.filename)
         with open(os.path.join(dest, "logs", "000.txt"), "w", encoding="utf-8") as fh:
             fh.write(text)
         logs_field = [{"path": "logs/000.txt", "kind": "logcat"}]
