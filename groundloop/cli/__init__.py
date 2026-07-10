@@ -351,6 +351,19 @@ def _run_synth(args) -> int:
             print(f"  {k}: {fams[k]}")
         return 0
 
+    if getattr(args, "mode", "failurelog") == "functional":
+        from groundloop.synth.functional import build_functional_dataset
+        made = build_functional_dataset(args.src, atlas_db, args.out, catalog_names)
+        kinds: dict[str, int] = {}
+        for cid in made:
+            o = json.loads((Path(args.out) / cid / "_oracle" / "oracle.json").read_text())
+            k = o.get("functional_class", "?")
+            kinds[k] = kinds.get(k, 0) + 1
+        print(f"functional synth: {len(made)} cases -> {args.out}")
+        for k in sorted(kinds):
+            print(f"  {k}: {kinds[k]}")
+        return 0
+
     from groundloop.synth.dataset import build_synth_dataset
     made = build_synth_dataset(args.src, atlas_db, args.out, catalog_names)
     kinds: dict[str, int] = {}
@@ -1046,8 +1059,8 @@ def build_parser() -> argparse.ArgumentParser:
     sy.add_argument("--out", required=True, help="destination synth dataset root")
     sy.add_argument("--catalog", default="",
                     help="path to catalog.json (default: <src>/catalog.json)")
-    sy.add_argument("--mode", choices=["failurelog", "faultlog"], default="failurelog",
-                    help="failurelog (SP2 short synth) | faultlog (v2 long unscrubbed logcat + fault oracle)")
+    sy.add_argument("--mode", choices=["failurelog", "faultlog", "functional"], default="failurelog",
+                    help="failurelog | faultlog | functional (no-crash prose + optional log)")
     sy.add_argument("--difficulty", choices=["clean", "hard"], default="clean",
                     help="faultlog only: clean (owner tokens only in fault block) | hard (with decoys)")
     sy.add_argument("--noise-lines", dest="noise_lines", type=int, default=3000,

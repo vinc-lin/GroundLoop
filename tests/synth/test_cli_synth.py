@@ -81,3 +81,20 @@ def test_synth_help_lists_flags():
                          capture_output=True, text=True)
     for flag in ("--src", "--atlas-db", "--out", "--catalog"):
         assert flag in out.stdout
+
+
+def test_cli_synth_functional_mode(tmp_path):
+    src = tmp_path / "src" / "U1"
+    (src / "_oracle").mkdir(parents=True)
+    (src / "ticket.json").write_text(json.dumps({"id": "U1", "summary": "s", "description": "d"}))
+    (src / "_oracle" / "oracle.json").write_text(json.dumps(
+        {"owning_repo": "android-gpuimage-plus",
+         "expected_files": ["library/src/main/java/org/wysaid/view/ImageGLSurfaceView.java"]}))
+    (tmp_path / "src" / "catalog.json").write_text(json.dumps([{"name": "android-gpuimage-plus"}]))
+    db = build_atlas_fixture(str(tmp_path / "a.db"))
+    out = tmp_path / "ds"
+    rc = cli.main(["synth", "--mode", "functional", "--src", str(tmp_path / "src"),
+                   "--atlas-db", db, "--out", str(out)])
+    assert rc == 0
+    oracle = json.loads((out / "U1" / "_oracle" / "oracle.json").read_text())
+    assert oracle["bug_kind"] == "functional"
