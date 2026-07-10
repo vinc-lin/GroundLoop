@@ -8,7 +8,7 @@ import glob
 import json
 import os
 
-from groundloop.synth.logs import _rng, crash_frames
+from groundloop.synth.logs import _NATIVE_SO, _rng, crash_frames
 
 
 def _dump(path, obj):
@@ -27,7 +27,7 @@ _TEMPLATES = {
                 "The CarPlay/Android-Auto session handled by {cls}.{method} fails to connect / "
                 "disconnects. No crash is logged; the screen just goes blank."),
 }
-_AUDIO_LOG = "W AAudio  : liboboe.so onAudioReady buffer underrun (count=37)\n"
+_AUDIO_LOG_T = "W AAudio  : {so} onAudioReady buffer underrun (count=37)\n"
 _CARPLAY_LOG = ("I CarConnection: projection connection state=CONNECTING\n"
                 "W CarConnection: connection timeout after 5000ms; session not established\n")
 
@@ -54,7 +54,11 @@ def build_functional_case(src_case_dir: str, store, dest_root: str, *,
     logs_field: list[dict] = []
     if klass in ("audio", "carplay"):
         os.makedirs(os.path.join(dest, "logs"), exist_ok=True)
-        text = _AUDIO_LOG if klass == "audio" else _CARPLAY_LOG
+        if klass == "audio":
+            so = _NATIVE_SO.get(owner, f"lib{owner.split('-')[0]}.so")
+            text = _AUDIO_LOG_T.format(so=so)
+        else:
+            text = _CARPLAY_LOG
         with open(os.path.join(dest, "logs", "000.txt"), "w", encoding="utf-8") as fh:
             fh.write(text)
         logs_field = [{"path": "logs/000.txt", "kind": "logcat"}]

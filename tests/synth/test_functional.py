@@ -40,6 +40,17 @@ def test_carplay_case_has_optional_connection_log(tmp_path):
     assert "FATAL EXCEPTION" not in log                                    # NOT a crash
 
 
+def test_audio_log_so_is_owner_derived_not_hardcoded_oboe(tmp_path):
+    db = build_atlas_fixture(str(tmp_path / "a.db"))
+    src = _src(tmp_path, "A1", "android-gpuimage-plus",
+               ["library/src/main/java/org/wysaid/view/ImageGLSurfaceView.java"])
+    out = tmp_path / "ds"
+    build_functional_case(src, Store(db), str(out), klass="audio")
+    log = (out / "A1" / "logs" / "000.txt").read_text()
+    assert "liboboe.so" not in log                       # no false oboe signal for a gpuimage case
+    assert "libCGE.so" in log                             # owner-derived .so (gpuimage native surface)
+
+
 def test_functional_negatives_are_unanswerable(tmp_path):
     from groundloop.synth.functional import build_functional_negatives
     out = tmp_path / "neg"
