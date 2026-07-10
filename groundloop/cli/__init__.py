@@ -164,6 +164,13 @@ def _run_mine(args) -> int:
     return 0
 
 
+def _run_mine_affinity(args) -> int:
+    from groundloop.domains.android_ivi.mine_component_affinity import write_affinity
+    n = write_affinity(args.dataset, args.out)
+    print(f"mine-affinity: {n} (component,owner) pairs -> {args.out}")
+    return 0
+
+
 def _run_eval(args) -> int:
     import json
     from pathlib import Path
@@ -413,8 +420,12 @@ def _run_funceval(args) -> int:
         from groundloop.engines.atlas.embed import GatewayEmbedder
         st = Settings.load()
         emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+    arms = tuple(args.arms.split(","))
+    if "component" in arms and not args.affinity:
+        print("gloop funceval: the 'component' arm requires --affinity")
+        return 2
     card = run_funceval(args.dataset, args.profile_db, args.index_db, embedder=emb,
-                        arms=tuple(args.arms.split(",")))
+                        arms=arms, affinity_path=(args.affinity or None), loo=args.loo)
     Path(args.out).write_text(json.dumps(card, indent=2))
     for arm, a in card["attribution"]["arms"].items():
         line = (f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} "
@@ -968,6 +979,9 @@ def build_parser() -> argparse.ArgumentParser:
                            help="path to token-index JSON (M0 stub)")
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
+    r.add_argument("--match-arm", choices=["flood", "routing", "component"], default="flood",
+                   help="Stage-1 match index: flood (AtlasIndex) | routing (FaultRoutingIndex) | component")
+    r.add_argument("--affinity", default="", help="component_affinity.json (for --match-arm component)")
 
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
@@ -1013,6 +1027,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "(temporal proxy for un-indexed fix)")
     mn.add_argument("--not-a-defect-limit", type=int, default=0,
                     help="cap on label-harvested not_a_defect negatives per repo (0=off)")
+
+    ma = sub.add_parser("mine-affinity", help="offline: build component->repo affinity json from a dataset")
+    ma.add_argument("--dataset", required=True, help="dataset root (ticket.json component + _oracle owner)")
+    ma.add_argument("--out", required=True, help="component_affinity.json output path")
 
     ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
     ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
@@ -1081,6 +1099,8 @@ def build_parser() -> argparse.ArgumentParser:
     fn.add_argument("--arms", default="functional,dispatch,flood,faultslice,routing",
                     help="comma list of arms")
     fn.add_argument("--out", required=True, help="scorecard.json output path")
+    fn.add_argument("--affinity", default="", help="component_affinity.json for the 'component' arm")
+    fn.add_argument("--loo", action="store_true", help="leave-one-out affinity (no train/test leak)")
 
     kab = sub.add_parser("kb-ab",
                          help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
@@ -1153,12 +1173,26 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "run":
+        extractor = AndroidSignalExtractor()
         if args.index_db:
             index = AtlasIndex(args.index_db)
+            if args.match_arm == "routing":
+                from groundloop.adapters.index.fault_routing import FaultRoutingIndex
+                from groundloop.domains.android_ivi.fault_signals import FaultSignalExtractor
+                index, extractor = FaultRoutingIndex(args.index_db), FaultSignalExtractor()
+            elif args.match_arm == "component":
+                from groundloop.adapters.index.component_prior import ComponentPriorIndex
+                from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
+                from groundloop.domains.android_ivi.component_signals import ComponentExtractor
+                if not args.affinity:
+                    print("gloop run --match-arm component: --affinity is required")
+                    return 2
+                index = ComponentPriorIndex(AtlasIndex(args.index_db), ComponentAffinity.load(args.affinity))
+                extractor = ComponentExtractor(AndroidSignalExtractor())
         else:
             index = TokenIndex(args.index)
         issues = MockJira(args.dataset)
-        rec = run_ticket(args.case, issues=issues, extractor=AndroidSignalExtractor(),
+        rec = run_ticket(args.case, issues=issues, extractor=extractor,
                          estate=MockEstate(args.catalog, args.work), index=index,
                          fixer=CannedFixEngine(CannedModel({"default": "patch"})),
                          changes=MockGerrit(args.changes, issues))
@@ -1176,6 +1210,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_build_textprofile(args)
     if args.cmd == "mine":
         return _run_mine(args)
+    if args.cmd == "mine-affinity":
+        return _run_mine_affinity(args)
     if args.cmd == "eval":
         return _run_eval(args)
     if args.cmd == "label-bugkind":
