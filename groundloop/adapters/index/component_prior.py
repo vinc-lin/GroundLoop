@@ -1,8 +1,10 @@
 """ComponentPriorIndex: additive JIRA-component->repo prior on top of any base CodeIndex. Reads the
 component from the reserved Signals marker, strips it before the base (so the component string never
-enters the base FTS/cosine query and can't be double-counted), and boosts base scores by the affinity
-weight. A CodeIndex swapped at the composition root; loop-blind — reads only the component + the
-affinity object it was given (the LOO exclusion lives in an eval-side affinity view, not here)."""
+enters the base FTS/cosine query), then fuses: the base contributes a RANK-based RRF term (1/(K+rank)
+over its nonzero hits) so its raw score MAGNITUDE cannot swamp the prior, and the affinity weight is
+added on top; all catalog repos are seeded (UNION) so a base-missed owner can still surface. Scale-
+invariant to the base's score scale. A CodeIndex swapped at the composition root; loop-blind — reads
+only the component + the affinity object it was given (the LOO exclusion lives in an eval-side view)."""
 from __future__ import annotations
 
 from typing import Sequence
