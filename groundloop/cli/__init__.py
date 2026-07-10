@@ -948,7 +948,8 @@ def _run_build_textprofile(args) -> int:
         from groundloop.config.settings import Settings
         from groundloop.engines.atlas.embed import GatewayEmbedder
         st = Settings.load()
-        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model,
+                              batch=32, timeout=180.0, retries=6)
     build_text_profiles(profiles, args.out, emb)
     print(f"profiles: {len(profiles)} repos -> {args.out}")
     return 0

@@ -34,3 +34,15 @@ def test_gather_repo_texts_prunes_vendor_dirs(tmp_path):
     joined = " ".join(gather_repo_texts(str(repo)))
     assert "VENDORLEAK" not in joined and "GITLEAK" not in joined and "node_modules" not in joined
     assert "audio playback" in joined
+
+
+def test_gather_repo_texts_bounded_and_prioritized(tmp_path):
+    repo = tmp_path / "bigrepo"
+    repo.mkdir(parents=True)
+    (repo / "README.md").write_text("# BigRepo\nDISTINCTIVEWORD lives here in the readme.")
+    for i in range(20):
+        deep = repo / "modules" / f"mod{i}" / "src" / "main" / "java" / "com" / "acme" / f"pkg{i}"
+        deep.mkdir(parents=True)
+    chunks = gather_repo_texts(str(repo), max_chunks=5)
+    assert len(chunks) <= 5
+    assert any("DISTINCTIVEWORD" in c for c in chunks)          # README must survive a tiny cap
