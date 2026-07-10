@@ -421,7 +421,8 @@ def _run_funceval(args) -> int:
         st = Settings.load()
         emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
     card = run_funceval(args.dataset, args.profile_db, args.index_db, embedder=emb,
-                        arms=tuple(args.arms.split(",")))
+                        arms=tuple(args.arms.split(",")),
+                        affinity_path=(args.affinity or None), loo=args.loo)
     Path(args.out).write_text(json.dumps(card, indent=2))
     for arm, a in card["attribution"]["arms"].items():
         line = (f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} "
@@ -1092,6 +1093,8 @@ def build_parser() -> argparse.ArgumentParser:
     fn.add_argument("--arms", default="functional,dispatch,flood,faultslice,routing",
                     help="comma list of arms")
     fn.add_argument("--out", required=True, help="scorecard.json output path")
+    fn.add_argument("--affinity", default="", help="component_affinity.json for the 'component' arm")
+    fn.add_argument("--loo", action="store_true", help="leave-one-out affinity (no train/test leak)")
 
     kab = sub.add_parser("kb-ab",
                          help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
