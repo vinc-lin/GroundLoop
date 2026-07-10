@@ -164,6 +164,13 @@ def _run_mine(args) -> int:
     return 0
 
 
+def _run_mine_affinity(args) -> int:
+    from groundloop.domains.android_ivi.mine_component_affinity import write_affinity
+    n = write_affinity(args.dataset, args.out)
+    print(f"mine-affinity: {n} (component,owner) pairs -> {args.out}")
+    return 0
+
+
 def _run_eval(args) -> int:
     import json
     from pathlib import Path
@@ -1014,6 +1021,10 @@ def build_parser() -> argparse.ArgumentParser:
     mn.add_argument("--not-a-defect-limit", type=int, default=0,
                     help="cap on label-harvested not_a_defect negatives per repo (0=off)")
 
+    ma = sub.add_parser("mine-affinity", help="offline: build component->repo affinity json from a dataset")
+    ma.add_argument("--dataset", required=True, help="dataset root (ticket.json component + _oracle owner)")
+    ma.add_argument("--out", required=True, help="component_affinity.json output path")
+
     ev = sub.add_parser("eval", help="run the Type-2 eval over a mined dataset -> scorecard")
     ev.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
     ev.add_argument("--catalog", required=True, help="path to catalog.json")
@@ -1176,6 +1187,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_build_textprofile(args)
     if args.cmd == "mine":
         return _run_mine(args)
+    if args.cmd == "mine-affinity":
+        return _run_mine_affinity(args)
     if args.cmd == "eval":
         return _run_eval(args)
     if args.cmd == "label-bugkind":
