@@ -10,15 +10,15 @@ import re
 from groundloop.engines.atlas.store import Store, Unit
 
 _NS = re.compile(r'(?:namespace|applicationId)\s*[=(]?\s*["\']([\w.]+)["\']')
+_SKIP_DIRS = {".git", "build", "node_modules"}
 
 
 def gather_repo_texts(repo_root: str) -> list[str]:
     """Assemble profile chunks from README(s) + gradle namespace/applicationId + module identifiers."""
     chunks: list[str] = []
     for base, _dirs, files in os.walk(repo_root):
+        _dirs[:] = [d for d in _dirs if d not in _SKIP_DIRS]     # prune the walk (don't descend)
         rel = os.path.relpath(base, repo_root)
-        if any(p in rel.split(os.sep) for p in (".git", "build", "node_modules")):
-            continue
         seg = rel.replace(os.sep, " ").replace("-", " ").replace("_", " ")
         if seg.strip() and seg != ".":
             chunks.append(seg.strip())                       # module/package path identifiers

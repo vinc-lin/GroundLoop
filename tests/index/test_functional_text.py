@@ -4,6 +4,7 @@ from groundloop.core.types import RepoRef
 from groundloop.domains.android_ivi.functional_signals import FunctionalTextExtractor
 from groundloop.core.types import Ticket
 from groundloop.engines.atlas.embed import StubEmbedder
+from tests.fixtures.atlas_fixture import build_atlas_fixture
 
 CATALOG = [RepoRef("oboe"), RepoRef("newpipe")]
 
@@ -28,6 +29,13 @@ def test_functional_index_empty_query_all_zero(tmp_path):
     assert all(r.score == 0.0 for r in ranked)
 
 
-def test_retrieve_returns_list(tmp_path):
-    idx = FunctionalTextIndex(_profile_db(tmp_path), StubEmbedder(dim=16))
-    assert isinstance(idx.retrieve(RepoRef("oboe"), "audio"), list)
+def test_retrieve_without_atlas_returns_empty(tmp_path):
+    idx = FunctionalTextIndex(_profile_db(tmp_path), StubEmbedder(dim=16))   # no code atlas
+    assert idx.retrieve(RepoRef("oboe"), "audio") == []
+
+
+def test_retrieve_delegates_to_code_atlas(tmp_path):
+    atlas = build_atlas_fixture(str(tmp_path / "atlas.db"))              # has CGEImageHandler symbol
+    idx = FunctionalTextIndex(_profile_db(tmp_path), StubEmbedder(dim=16), atlas_db=atlas)
+    files = idx.retrieve(RepoRef("android-gpuimage-plus"), "CGEImageHandler")
+    assert files and all(isinstance(f, str) for f in files)

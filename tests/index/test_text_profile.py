@@ -21,3 +21,16 @@ def test_gather_repo_texts_reads_readme(tmp_path):
     chunks = gather_repo_texts(str(repo))
     joined = " ".join(chunks).lower()
     assert "audio playback" in joined and "com.acme.audio" in joined
+    assert any("app" in c for c in chunks)                 # real subdir identifier still collected
+
+
+def test_gather_repo_texts_prunes_vendor_dirs(tmp_path):
+    repo = tmp_path / "myrepo"
+    (repo / "node_modules" / "foo").mkdir(parents=True)
+    (repo / ".git").mkdir(parents=True)
+    (repo / "README.md").write_text("real audio playback text")
+    (repo / "node_modules" / "foo" / "README.md").write_text("VENDORLEAK bundled dependency prose")
+    (repo / ".git" / "config").write_text("GITLEAK internal git config")
+    joined = " ".join(gather_repo_texts(str(repo)))
+    assert "VENDORLEAK" not in joined and "GITLEAK" not in joined and "node_modules" not in joined
+    assert "audio playback" in joined

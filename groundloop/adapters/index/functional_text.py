@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
+from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.core.types import RepoRef, RepoScore, Signals
 from groundloop.domains.android_ivi.functional_signals import prose_query
 from groundloop.engines.atlas.store import Store
@@ -14,7 +15,7 @@ class FunctionalTextIndex:
     def __init__(self, profile_db: str, embedder, atlas_db: str | None = None):
         self.profile = Store(profile_db)
         self.embedder = embedder
-        self.atlas_db = atlas_db          # optional log-FTS channel (Phase 3)
+        self._atlas = AtlasIndex(atlas_db) if atlas_db else None   # code atlas: log channel (Phase 3) + retrieve
 
     def rank_repos(self, signals: Signals, catalog: Sequence[RepoRef]) -> list[RepoScore]:
         allowed = {r.name for r in catalog}
@@ -30,9 +31,5 @@ class FunctionalTextIndex:
         return ranked
 
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
-        qvec = self.embedder.embed([query])[0]
-        files: list[str] = []
-        for unit, _ in self.profile.vector_search(qvec, k=20, repos=[repo.name]):
-            if unit.file and unit.file not in files:
-                files.append(unit.file)
-        return files
+        # localization uses the code atlas (the text-profile store has no source files)
+        return self._atlas.retrieve(repo, query) if self._atlas else []
