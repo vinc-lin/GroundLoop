@@ -39,3 +39,19 @@ def test_retrieve_delegates_to_code_atlas(tmp_path):
     idx = FunctionalTextIndex(_profile_db(tmp_path), StubEmbedder(dim=16), atlas_db=atlas)
     files = idx.retrieve(RepoRef("android-gpuimage-plus"), "CGEImageHandler")
     assert files and all(isinstance(f, str) for f in files)
+
+
+def test_log_channel_injects_repo_missed_by_prose(tmp_path):
+    from groundloop.core.types import Signals
+    from groundloop.domains.android_ivi.functional_signals import PROSE_MARK
+    prof = build_text_profiles({"organicmaps": ["maps navigation"], "android-gpuimage-plus": ["image filter"]},
+                               str(tmp_path / "profiles.db"), StubEmbedder(dim=16))
+    atlas = build_atlas_fixture(str(tmp_path / "atlas.db"))       # has org.wysaid... for gpuimage
+    idx = FunctionalTextIndex(prof, StubEmbedder(dim=16), atlas_db=atlas)
+    cat = [RepoRef("organicmaps"), RepoRef("android-gpuimage-plus")]
+    # prose about maps (favors organicmaps) BUT a log token pointing at gpuimage's CGE symbol
+    sig = Signals(symbols=(PROSE_MARK + "screen goes black on map view",),
+                  classes=("org.wysaid.nativePort.CGEImageHandler",))
+    ranked = idx.rank_repos(sig, cat)
+    names = [r.repo.name for r in ranked if r.score > 0]
+    assert "android-gpuimage-plus" in names           # union: log FTS injected the CGE owner
