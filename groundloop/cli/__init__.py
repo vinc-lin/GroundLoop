@@ -364,6 +364,13 @@ def _run_synth(args) -> int:
     return 0
 
 
+def _run_label_bugkind(args) -> int:
+    from groundloop.eval.label_bug_kind import stamp_bug_kind
+    n = stamp_bug_kind(args.dataset)
+    print(f"label-bugkind: stamped {n} cases -> {args.dataset}")
+    return 0
+
+
 def _run_faulteval(args) -> int:
     import json
     from pathlib import Path
@@ -954,6 +961,9 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--judge", action="store_true",
                     help="add the LLM-judge arms (reranks membership top-k via KLOOP_PRODUCE_* model)")
 
+    lb = sub.add_parser("label-bugkind", help="offline: stamp bug_kind (crash|functional) into oracle.json")
+    lb.add_argument("--dataset", required=True, help="dataset root (case dirs with _oracle/oracle.json)")
+
     fx = sub.add_parser("fixeval", help="run the downstream fix/RCA loop over a dataset -> fix-scorecard")
     fx.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
     fx.add_argument("--catalog", required=True, help="path to catalog.json")
@@ -1093,6 +1103,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_mine(args)
     if args.cmd == "eval":
         return _run_eval(args)
+    if args.cmd == "label-bugkind":
+        return _run_label_bugkind(args)
     if args.cmd == "fixeval":
         return _run_fixeval(args)
     if args.cmd == "synth":
