@@ -976,6 +976,9 @@ def build_parser() -> argparse.ArgumentParser:
                            help="path to token-index JSON (M0 stub)")
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
+    r.add_argument("--match-arm", choices=["flood", "routing", "component"], default="flood",
+                   help="Stage-1 match index: flood (AtlasIndex) | routing (FaultRoutingIndex) | component")
+    r.add_argument("--affinity", default="", help="component_affinity.json (for --match-arm component)")
 
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
@@ -1167,12 +1170,26 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "run":
+        extractor = AndroidSignalExtractor()
         if args.index_db:
             index = AtlasIndex(args.index_db)
+            if args.match_arm == "routing":
+                from groundloop.adapters.index.fault_routing import FaultRoutingIndex
+                from groundloop.domains.android_ivi.fault_signals import FaultSignalExtractor
+                index, extractor = FaultRoutingIndex(args.index_db), FaultSignalExtractor()
+            elif args.match_arm == "component":
+                from groundloop.adapters.index.component_prior import ComponentPriorIndex
+                from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
+                from groundloop.domains.android_ivi.component_signals import ComponentExtractor
+                if not args.affinity:
+                    print("gloop run --match-arm component: --affinity is required")
+                    return 2
+                index = ComponentPriorIndex(AtlasIndex(args.index_db), ComponentAffinity.load(args.affinity))
+                extractor = ComponentExtractor(AndroidSignalExtractor())
         else:
             index = TokenIndex(args.index)
         issues = MockJira(args.dataset)
-        rec = run_ticket(args.case, issues=issues, extractor=AndroidSignalExtractor(),
+        rec = run_ticket(args.case, issues=issues, extractor=extractor,
                          estate=MockEstate(args.catalog, args.work), index=index,
                          fixer=CannedFixEngine(CannedModel({"default": "patch"})),
                          changes=MockGerrit(args.changes, issues))

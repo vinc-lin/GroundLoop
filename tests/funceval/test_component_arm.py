@@ -49,3 +49,18 @@ def test_loo_is_load_bearing(tmp_path):
     r_full = full["attribution"]["arms"]["component"]["forced"]["recall@1"]["value"]
     r_loo = loo["attribution"]["arms"]["component"]["forced"]["recall@1"]["value"]
     assert r_loo < r_full                                  # LOO removes the memorized sole-contributor win
+
+
+def test_cli_run_match_arm_component(tmp_path):
+    import groundloop.cli as cli
+    ds = tmp_path / "ds"
+    _case(ds, "c1", "MapUI", "organicmaps")
+    (ds / "catalog.json").write_text(json.dumps([{"name": "organicmaps"}, {"name": "cameraview"}]))
+    aff = tmp_path / "aff.json"
+    aff.write_text(json.dumps({"MapUI": {"organicmaps": 3}}))
+    atlas = build_atlas_fixture(str(tmp_path / "a.db"))
+    rc = cli.main(["run", "--case", "c1", "--dataset", str(ds), "--catalog", str(ds / "catalog.json"),
+                   "--index-db", atlas, "--work", str(tmp_path / "work"),
+                   "--changes", str(tmp_path / "ch.jsonl"),
+                   "--match-arm", "component", "--affinity", str(aff)])
+    assert rc == 0
