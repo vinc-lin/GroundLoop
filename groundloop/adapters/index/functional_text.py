@@ -18,7 +18,7 @@ class FunctionalTextIndex:
     def __init__(self, profile_db: str, embedder, atlas_db: str | None = None):
         self.profile = Store(profile_db)
         self.embedder = embedder
-        self._atlas = AtlasIndex(atlas_db) if atlas_db else None   # code atlas: log channel (Phase 3) + retrieve
+        self._atlas = AtlasIndex(atlas_db) if atlas_db else None   # code atlas: log channel + retrieve
 
     def rank_repos(self, signals: Signals, catalog: Sequence[RepoRef]) -> list[RepoScore]:
         allowed = {r.name for r in catalog}

@@ -44,8 +44,9 @@ def test_retrieve_delegates_to_code_atlas(tmp_path):
 def test_log_channel_injects_repo_missed_by_prose(tmp_path):
     from groundloop.core.types import Signals
     from groundloop.domains.android_ivi.functional_signals import PROSE_MARK
-    prof = build_text_profiles({"organicmaps": ["maps navigation"], "android-gpuimage-plus": ["image filter"]},
-                               str(tmp_path / "profiles.db"), StubEmbedder(dim=16))
+    prof = build_text_profiles(
+        {"organicmaps": ["maps navigation"], "android-gpuimage-plus": ["image filter"]},
+        str(tmp_path / "profiles.db"), StubEmbedder(dim=16))
     atlas = build_atlas_fixture(str(tmp_path / "atlas.db"))       # has org.wysaid... for gpuimage
     idx = FunctionalTextIndex(prof, StubEmbedder(dim=16), atlas_db=atlas)
     cat = [RepoRef("organicmaps"), RepoRef("android-gpuimage-plus")]
