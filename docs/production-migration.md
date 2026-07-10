@@ -43,27 +43,28 @@ coverage, Φ_c. **Target:** the `component` arm reproduces the 10-case spot chec
 0.90) on the functional subset, generalized under honest LOO. `--loo` is mandatory for a trustworthy number.
 (`--profile-db` is unused by `flood`/`component`; pass any existing path.)
 
-## 4. ⚠ CRITICAL calibration — `_COMPONENT_WEIGHT` (do this first, or the number lies)
+## 4. Weight calibration — RESOLVED by the scale-robust hardening (no per-deployment tuning needed)
 
-`ComponentPriorIndex` combines scores **additively**: `final = base_score + weight · affinity(component)[repo]`.
-The base (`AtlasIndex`) score is an **integer distinct-token count**, and the affinity weight is in `[0, 1]`, so
-the combination is **scale-sensitive**. On the proxy the base scores are low (functional tickets have few code
-tokens), so the shipped seed `_COMPONENT_WEIGHT = 1.0` (`groundloop/adapters/index/component_prior.py`) was
-enough for the prior to dominate. **On the size-biased production base this is almost certainly too small** — a
-noise repo (Telecomm/NetworkStack) can match 8–10 common tokens while the true owner matches 2, so a `weight·1.0`
-boost cannot overturn it and the `component` arm would falsely regress toward `flood`'s 0.10. Your own
-experiment showed the prior *should* dominate (recall@3 = 0.90), so:
+`ComponentPriorIndex` is now **scale-invariant** (shipped 2026-07-10): the base (`AtlasIndex`) contributes a
+**rank-based RRF term** `1/(K + rank)` (≤ 1/60 ≈ 0.017), NOT its raw score, so a size-biased base's raw
+magnitude **cannot swamp the prior**. The affinity prior dominates the coarse ranking; the base rank only
+tie-breaks. The seed `_COMPONENT_WEIGHT = 1.0` (`groundloop/adapters/index/component_prior.py`) is now robust
+for essentially any weight ≳ 0.05 — **no per-deployment recalibration is required.** (This replaces the earlier
+additive-on-raw-score form, where a noise repo matching 8–10 common tokens could swamp a `weight·1.0` affinity
+boost.)
 
-**Calibrate the weight on a held-out split before trusting the 406 number.** Two options:
-- **Quick:** raise `_COMPONENT_WEIGHT` until the prior dominates the size-biased base (likely ~10–50 on the raw
-  token-count scale), tuned on a calib split, then frozen.
-- **Robust (recommended, small code change):** normalize the base score to `[0, 1]` (or RRF-fuse the base rank
-  with the affinity rank, à la `FaultRoutingIndex`) so the prior dominates **regardless** of base scale and
-  `weight ≈ 1` just works. This removes the magic-number fragility entirely. (Offered as a pre-production
-  hardening — see the handoff note.)
+The proxy A/B after the hardening lands on **flood 0.32 → component recall@1 0.49 / recall@3 0.92** — the same
+*shape* as your measured production `comp+fusion` (recall@1 ~0.50 / recall@3 ~0.90): the prior narrows to the
+top-3, and within-component disambiguation is the remaining gap.
 
-Sanity check: if `component` recall@1 ≈ `flood` recall@1 on production, the weight is too small (the prior isn't
-firing), NOT evidence that the prior doesn't work.
+**One real follow-up (not a blocker for the recall number):** the arm's **abstention/`tau` is not yet
+calibrated** for this RRF+affinity score scale — it currently over-answers the component's majority owner
+confidently (proxy Φ₁ ≈ 0). If you need the selective/abstention metrics (not just recall@1/@3), recalibrate the
+component arm's `(tau_margin, tau_score)` on a calib split. The recall@1/@3 numbers (the primary target) do not
+depend on this.
+
+Sanity check: `component` recall@3 should be well above `flood` recall@3 (the prior narrows the field); if it
+isn't, the affinity table or the `Ticket.component` field is empty/mis-joined, not a weight problem.
 
 ## 5. Leak-safety (already enforced in code)
 

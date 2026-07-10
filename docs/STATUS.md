@@ -21,14 +21,17 @@ call below** — that was true for *naive* skills lookup (repo-name keys vs func
 0/10); an **empirically-derived** affinity map (learned from the JIRA↔Gerrit oracle) bridges the vocabulary.
 Built loop-blind + frozen-safe: `ComponentAffinity` (raw counts + leave-one-out), `gloop mine-affinity`
 (offline miner), `ComponentExtractor`/`ComponentPriorIndex` (carry the component through the `Signals` seam,
-**strip before the base**, additive boost), `gloop funceval --affinity/--loo` + `gloop run --match-arm
+**strip before the base**, **RRF-rank-fused** so it's scale-invariant to the base's score magnitude),
+`gloop funceval --affinity/--loo` + `gloop run --match-arm
 {flood,routing,component}`. **Leak-honest:** runtime reads only `Ticket.component` (loop-blind); the eval avoids
 train/test leak via **leave-one-out** (grader-side, subtract the case's own contribution). Subagent-driven,
 **11 commits, 547 passed / ruff clean, `core/`+atlas-schema+`rank_repos`+`owner_tokens.py`+`repo_routing.py`+
 `mine/` zero-diff**, two-stage review per batch + final holistic review (READY TO MERGE; caught 3 plan-fixture
 slips). **Proxy mechanism check** (`docs/2026-07-10-component-routing-findings.md`): the prior lifts the FTS
-base **flood 0.32 → component 0.58** recall@1 (cov 0.30 → 0.70); LOO is unit-proven load-bearing on rare pairs
-and correctly-negligible on well-populated ones. **Real efficacy = production** (run the real affinity build +
+base to **component recall@1 0.49 / recall@3 0.92** (flood 0.32/0.58) — the same SHAPE as the measured
+production `comp+fusion` (~0.50/0.90): the prior narrows to top-3, within-component disambiguation is the gap.
+LOO is unit-proven load-bearing on rare pairs and correctly-negligible on well-populated ones. **Real efficacy
+= production** (run the real affinity build +
 406-case LOO eval on the GEI corpus; then the gated Step-3 `XCUSBMediaService` index + Step-4 CarPlay).
 - Spec/plan: `docs/superpowers/{specs,plans}/2026-07-10-component-routing-match*.md`.
 
