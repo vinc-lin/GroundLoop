@@ -895,6 +895,27 @@ def _run_build_atlas(args) -> int:
     return 0
 
 
+def _run_build_textprofile(args) -> int:
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.adapters.index.text_profile import build_text_profiles, gather_repo_texts
+    names = [c["name"] for c in json.loads(Path(args.catalog).read_text())]
+    profiles = {n: gather_repo_texts(os.path.join(args.corpus, n))
+                for n in names if os.path.isdir(os.path.join(args.corpus, n))}
+    if os.environ.get("KLOOP_TEXTPROFILE_STUB") == "1":
+        from groundloop.engines.atlas.embed import StubEmbedder
+        emb = StubEmbedder()
+    else:
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+    build_text_profiles(profiles, args.out, emb)
+    print(f"profiles: {len(profiles)} repos -> {args.out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -932,6 +953,11 @@ def build_parser() -> argparse.ArgumentParser:
     ba.add_argument("--corpus", default="",
                     help="path to corpus.toml (repo url+sha for cloning); "
                          "defaults to a corpus.toml sibling of the registry")
+
+    bp = sub.add_parser("build-textprofile", help="build the lightweight bge-m3 repo-text profile db")
+    bp.add_argument("--corpus", required=True, help="dir with one subdir per repo (README/manifest/ids)")
+    bp.add_argument("--catalog", required=True, help="catalog.json listing repo names to profile")
+    bp.add_argument("--out", required=True, help="destination profile atlas.db path")
 
     mn = sub.add_parser("mine", help="harvest issue->fix cases for a fleet repo (online, gh)")
     mn.add_argument("--slug", required=True, help="owner/name GitHub slug, e.g. TeamNewPipe/NewPipe")
@@ -1099,6 +1125,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_produce(args)
     if args.cmd == "build-atlas":
         return _run_build_atlas(args)
+    if args.cmd == "build-textprofile":
+        return _run_build_textprofile(args)
     if args.cmd == "mine":
         return _run_mine(args)
     if args.cmd == "eval":
