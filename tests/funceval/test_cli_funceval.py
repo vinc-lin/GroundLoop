@@ -11,7 +11,8 @@ def test_cli_funceval(tmp_path, monkeypatch, capsys):
     ds = tmp_path / "ds"
     d = ds / "f1"
     (d / "_oracle").mkdir(parents=True)
-    (d / "ticket.json").write_text(json.dumps({"id": "f1", "summary": "offline maps route", "description": "x"}))
+    (d / "ticket.json").write_text(json.dumps(
+        {"id": "f1", "summary": "offline maps route", "description": "x"}))
     (d / "_oracle" / "oracle.json").write_text(json.dumps(
         {"owning_repo": "organicmaps", "is_answerable": True, "bug_kind": "functional"}))
     (ds / "catalog.json").write_text(json.dumps([{"name": "organicmaps"}, {"name": "android-gpuimage-plus"}]))

@@ -404,7 +404,8 @@ def _run_funceval(args) -> int:
                         arms=tuple(args.arms.split(",")))
     Path(args.out).write_text(json.dumps(card, indent=2))
     for arm, a in card["attribution"]["arms"].items():
-        line = f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} coverage={a['selective']['coverage']:.2f}"
+        line = (f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} "
+                f"coverage={a['selective']['coverage']:.2f}")
         for bk, sub in a.get("by_bug_kind", {}).items():
             line += f" | {bk} recall@1={sub['forced']['recall@1']['value']:.2f}"
         print(line)
