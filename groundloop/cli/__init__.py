@@ -351,6 +351,19 @@ def _run_synth(args) -> int:
             print(f"  {k}: {fams[k]}")
         return 0
 
+    if getattr(args, "mode", "failurelog") == "functional":
+        from groundloop.synth.functional import build_functional_dataset
+        made = build_functional_dataset(args.src, atlas_db, args.out, catalog_names)
+        kinds: dict[str, int] = {}
+        for cid in made:
+            o = json.loads((Path(args.out) / cid / "_oracle" / "oracle.json").read_text())
+            k = o.get("functional_class", "?")
+            kinds[k] = kinds.get(k, 0) + 1
+        print(f"functional synth: {len(made)} cases -> {args.out}")
+        for k in sorted(kinds):
+            print(f"  {k}: {kinds[k]}")
+        return 0
+
     from groundloop.synth.dataset import build_synth_dataset
     made = build_synth_dataset(args.src, atlas_db, args.out, catalog_names)
     kinds: dict[str, int] = {}
@@ -361,6 +374,13 @@ def _run_synth(args) -> int:
     print(f"synth: {len(made)} cases -> {args.out}")
     for k in sorted(kinds):
         print(f"  {k}: {kinds[k]}")
+    return 0
+
+
+def _run_label_bugkind(args) -> int:
+    from groundloop.eval.label_bug_kind import stamp_bug_kind
+    n = stamp_bug_kind(args.dataset)
+    print(f"label-bugkind: stamped {n} cases -> {args.dataset}")
     return 0
 
 
@@ -377,6 +397,31 @@ def _run_faulteval(args) -> int:
     for arm, a in card["attribution"]["arms"].items():
         print(f"  {arm}: attribution_recall@1={a['forced']['recall@1']['value']:.2f} "
               f"recall@3={a['forced']['recall@3']['value']:.2f} coverage={a['selective']['coverage']:.2f}")
+    return 0
+
+
+def _run_funceval(args) -> int:
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.funceval.runner import run_funceval
+    if os.environ.get("KLOOP_TEXTPROFILE_STUB") == "1":
+        from groundloop.engines.atlas.embed import StubEmbedder
+        emb = StubEmbedder()
+    else:
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+    card = run_funceval(args.dataset, args.profile_db, args.index_db, embedder=emb,
+                        arms=tuple(args.arms.split(",")))
+    Path(args.out).write_text(json.dumps(card, indent=2))
+    for arm, a in card["attribution"]["arms"].items():
+        line = (f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} "
+                f"coverage={a['selective']['coverage']:.2f}")
+        for bk, sub in a.get("by_bug_kind", {}).items():
+            line += f" | {bk} recall@1={sub['forced']['recall@1']['value']:.2f}"
+        print(line)
     return 0
 
 
@@ -888,6 +933,28 @@ def _run_build_atlas(args) -> int:
     return 0
 
 
+def _run_build_textprofile(args) -> int:
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.adapters.index.text_profile import build_text_profiles, gather_repo_texts
+    names = [c["name"] for c in json.loads(Path(args.catalog).read_text())]
+    profiles = {n: gather_repo_texts(os.path.join(args.corpus, n))
+                for n in names if os.path.isdir(os.path.join(args.corpus, n))}
+    if os.environ.get("KLOOP_TEXTPROFILE_STUB") == "1":
+        from groundloop.engines.atlas.embed import StubEmbedder
+        emb = StubEmbedder()
+    else:
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model,
+                              batch=32, timeout=180.0, retries=6)
+    build_text_profiles(profiles, args.out, emb)
+    print(f"profiles: {len(profiles)} repos -> {args.out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -926,6 +993,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="path to corpus.toml (repo url+sha for cloning); "
                          "defaults to a corpus.toml sibling of the registry")
 
+    bp = sub.add_parser("build-textprofile", help="build the lightweight bge-m3 repo-text profile db")
+    bp.add_argument("--corpus", required=True, help="dir with one subdir per repo (README/manifest/ids)")
+    bp.add_argument("--catalog", required=True, help="catalog.json listing repo names to profile")
+    bp.add_argument("--out", required=True, help="destination profile atlas.db path")
+
     mn = sub.add_parser("mine", help="harvest issue->fix cases for a fleet repo (online, gh)")
     mn.add_argument("--slug", required=True, help="owner/name GitHub slug, e.g. TeamNewPipe/NewPipe")
     mn.add_argument("--repo-name", required=True, help="short fleet/catalog name, e.g. newpipe")
@@ -953,6 +1025,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="add the bge-m3 semantic arms (needs KLOOP_EMBED_* live gateway)")
     ev.add_argument("--judge", action="store_true",
                     help="add the LLM-judge arms (reranks membership top-k via KLOOP_PRODUCE_* model)")
+
+    lb = sub.add_parser("label-bugkind", help="offline: stamp bug_kind (crash|functional) into oracle.json")
+    lb.add_argument("--dataset", required=True, help="dataset root (case dirs with _oracle/oracle.json)")
 
     fx = sub.add_parser("fixeval", help="run the downstream fix/RCA loop over a dataset -> fix-scorecard")
     fx.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
@@ -985,8 +1060,8 @@ def build_parser() -> argparse.ArgumentParser:
     sy.add_argument("--out", required=True, help="destination synth dataset root")
     sy.add_argument("--catalog", default="",
                     help="path to catalog.json (default: <src>/catalog.json)")
-    sy.add_argument("--mode", choices=["failurelog", "faultlog"], default="failurelog",
-                    help="failurelog (SP2 short synth) | faultlog (v2 long unscrubbed logcat + fault oracle)")
+    sy.add_argument("--mode", choices=["failurelog", "faultlog", "functional"], default="failurelog",
+                    help="failurelog | faultlog | functional (no-crash prose + optional log)")
     sy.add_argument("--difficulty", choices=["clean", "hard"], default="clean",
                     help="faultlog only: clean (owner tokens only in fault block) | hard (with decoys)")
     sy.add_argument("--noise-lines", dest="noise_lines", type=int, default=3000,
@@ -998,6 +1073,14 @@ def build_parser() -> argparse.ArgumentParser:
     fe.add_argument("--out", required=True, help="scorecard.json output path")
     fe.add_argument("--arms", default="flood,faultslice,routing",
                     help="comma list of arms: flood,faultslice,routing (routing needs Phase 2)")
+
+    fn = sub.add_parser("funceval", help="functional-bug matching eval (text-primary + optional logs)")
+    fn.add_argument("--dataset", required=True, help="labeled dataset root (bug_kind in oracle.json)")
+    fn.add_argument("--profile-db", required=True, help="repo-text profile db (gloop build-textprofile)")
+    fn.add_argument("--index-db", required=True, help="atlas.db for the optional log-FTS channel + ablations")
+    fn.add_argument("--arms", default="functional,dispatch,flood,faultslice,routing",
+                    help="comma list of arms")
+    fn.add_argument("--out", required=True, help="scorecard.json output path")
 
     kab = sub.add_parser("kb-ab",
                          help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
@@ -1089,16 +1172,22 @@ def main(argv: list[str] | None = None) -> int:
         return _run_produce(args)
     if args.cmd == "build-atlas":
         return _run_build_atlas(args)
+    if args.cmd == "build-textprofile":
+        return _run_build_textprofile(args)
     if args.cmd == "mine":
         return _run_mine(args)
     if args.cmd == "eval":
         return _run_eval(args)
+    if args.cmd == "label-bugkind":
+        return _run_label_bugkind(args)
     if args.cmd == "fixeval":
         return _run_fixeval(args)
     if args.cmd == "synth":
         return _run_synth(args)
     if args.cmd == "faulteval":
         return _run_faulteval(args)
+    if args.cmd == "funceval":
+        return _run_funceval(args)
     if args.cmd == "kb-ab":
         return _run_kb_ab(args)
     if args.cmd == "kb-promote":

@@ -77,3 +77,31 @@ def test_per_case_rows_join_prediction_and_grade():
     abst = by_id["cam-1"]
     assert abst["predicted"] is None and abst["answered"] is False
     assert abst["ranked_top1"] == "osmand"     # forced top-1 recorded even when abstained
+
+
+def test_score_match_surfaces_bug_kind():
+    from groundloop.eval.scorecard import score_match
+    from groundloop.eval.runner import MatchRecord
+    from groundloop.eval.dataset import EvalOracle
+    rec = MatchRecord(case_id="c", arm="a", ranked_names=["oboe"], scores=[1.0],
+                      predicted="oboe", margin=1.0, top1_score=1.0)
+    m = score_match(rec, EvalOracle("oboe", bug_kind="functional"))
+    assert m["bug_kind"] == "functional"
+
+
+def test_grade_all_splits_by_bug_kind():
+    from groundloop.eval.scorecard import grade_all
+    from groundloop.eval.runner import MatchRecord
+    from groundloop.eval.dataset import EvalOracle
+    recs = [
+        MatchRecord("c1", "a", ["oboe", "newpipe"], [2.0, 1.0], "oboe", 1.0, 2.0),     # functional hit
+        MatchRecord("c2", "a", ["newpipe", "oboe"], [2.0, 1.0], "newpipe", 1.0, 2.0),  # crash hit
+    ]
+    oracles = {"c1": EvalOracle("oboe", bug_kind="functional"),
+               "c2": EvalOracle("newpipe", bug_kind="crash")}
+    card = grade_all(recs, oracle_by_case=oracles, ks=(1,), c_values=(1.0,))
+    bbk = card["arms"]["a"]["by_bug_kind"]
+    assert set(bbk) == {"functional", "crash"}
+    assert bbk["functional"]["forced"]["recall@1"]["value"] == 1.0
+    assert bbk["functional"]["n"] == 1
+    assert bbk["crash"]["selective"]["coverage"] == 1.0
