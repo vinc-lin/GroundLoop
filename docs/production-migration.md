@@ -5,6 +5,39 @@ GEI production environment. The **code is on `master`** (merges `7012ee4` compon
 combine-oracle); production deploys that. This runbook consolidates the production-side steps that were built on
 the proxy but must be *measured* on production (the GEI corpus is production-only).
 
+## Production run checklist
+
+Ordered, copy-pasteable. Section numbers in brackets point to the detail below. Set `$ATLAS`, `$FULL_ORACLE`,
+`$CRASH_DS`, `$FUNCTIONAL_DS` first.
+
+**Pre-flight**
+- [ ] On `master` at `bdd8fab` or later (component-routing + the scale-invariant RRF hardening); `.venv/bin/python -m pytest -q` green. `[§0]`
+- [ ] `export KLOOP_ATLAS_DB=$ATLAS` (the real 19-repo atlas); `gloop doctor --atlas-db $ATLAS` → `readiness: READY`. `[§0]`
+- [ ] Spot-check 3–5 real cases: `ticket.json.component` is populated (functional-area name), `_oracle/oracle.json.owning_repo` set. `[§0]`
+- [ ] No embed/LLM gateway needed — the `component` arm is FTS-only. `[§0]`
+
+**Build the inputs (offline, zero-cost)**
+- [ ] `gloop mine-affinity --dataset $FULL_ORACLE --out component_affinity.json` `[§1]`
+- [ ] Sanity-check `component_affinity.json`: components map to a handful of repos each; not empty; no single component that is a 1:1 alias of exactly one owner unless real. `[§1]`
+- [ ] `gloop combine-oracle --sources $CRASH_DS $FUNCTIONAL_DS --out combined-406` `[§2]`
+- [ ] Confirm the print: `~406 cases`, both sources counted, `bug_kind`-labeled, N repos unioned. `[§2]`
+
+**Run the eval (the real number)**
+- [ ] `gloop funceval --dataset combined-406 --profile-db <ANY_PATH> --index-db $ATLAS --arms flood,component --affinity component_affinity.json --loo --out card-406.json` `[§3]`
+- [ ] Read `card-406.json → attribution.arms.component.by_bug_kind.{crash,functional}` (recall@1/@3, coverage, Φ_c). `[§3]`
+
+**Acceptance gates**
+- [ ] `component` **recall@3 ≫ flood recall@3** (the prior narrows the field). If NOT → the affinity table is empty or `Ticket.component` is mis-joined — a data problem, not a weight problem. `[§4]`
+- [ ] `component` **functional recall@1 / recall@3 ≈ 0.50 / 0.90** (the 10-case spot check, generalized under honest LOO). `[§4]`
+- [ ] Re-run WITHOUT `--loo` and compare — a small drop under `--loo` is the memorization the guard removes (expected on real long-tail components). `[§5]`
+- [ ] `--loo` was used for the reported number (never report the 406 without it). `[§5]`
+
+**Gated follow-ups (only if the 406 says so)**
+- [ ] Selective/abstention metrics needed? Recalibrate the `component` arm `(tau_margin, tau_score)` for the RRF+affinity margin scale (it currently over-answers; recall@1/@3 are unaffected). `[§4]`
+- [ ] Within-component recall@1 is the ceiling? Swap the base to the bge-m3 functional text arm (non-size-biased). `[§6 / plan Step 4]`
+- [ ] Unlock the crash track: index `XCUSBMediaService` (+ other missing repos) → build the crash dataset → score the `routing` crash arm on real crashes. `[§6 / plan Step 3]`
+- [ ] CarPlay Core-vs-Integration disambiguation — ONLY if the 406 shows CarPlay ambiguity is a broad problem. `[§6 / plan Step 4]`
+
 ## 0. Environment assumptions
 
 - The real **19-repo atlas** is built and reachable (`KLOOP_ATLAS_DB`).
