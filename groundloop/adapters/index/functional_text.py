@@ -49,18 +49,28 @@ class FunctionalTextIndex:
 
 class DispatchIndex:
     """Per-case composite: prose-marked Signals -> functional index; else -> fault index. The
-    Signals-only discriminator (symbols[0] PROSE_MARK) mirrors DispatchExtractor's routing."""
+    Signals-only discriminator (symbols[0] PROSE_MARK) mirrors DispatchExtractor's routing.
 
-    def __init__(self, fault_index, functional_index):
+    The two branches live on different score scales (functional = bge-m3 cosine; fault = RRF fused
+    margins ~0.017-0.05), but the runner applies ONE (tau_margin, tau_score). `fault_scale` linearly
+    rescales the fault branch so a single cosine-scale tau reproduces the RRF-scale decision — a
+    monotonic transform, so ranking order (recall@k) is preserved. Set at the composition root."""
+
+    def __init__(self, fault_index, functional_index, fault_scale: float = 1.0):
         self.fault = fault_index
         self.functional = functional_index
+        self.fault_scale = fault_scale
 
     def _is_functional(self, signals: Signals) -> bool:
         return bool(signals.symbols) and signals.symbols[0].startswith(PROSE_MARK)
 
     def rank_repos(self, signals: Signals, catalog):
-        idx = self.functional if self._is_functional(signals) else self.fault
-        return idx.rank_repos(signals, catalog)
+        if self._is_functional(signals):
+            return self.functional.rank_repos(signals, catalog)
+        ranked = self.fault.rank_repos(signals, catalog)
+        if self.fault_scale != 1.0:
+            ranked = [RepoScore(r.repo, r.score * self.fault_scale, r.evidence) for r in ranked]
+        return ranked
 
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         return self.functional.retrieve(repo, query)
