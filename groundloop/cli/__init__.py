@@ -387,6 +387,30 @@ def _run_faulteval(args) -> int:
     return 0
 
 
+def _run_funceval(args) -> int:
+    import json
+    import os
+    from pathlib import Path
+    from groundloop.funceval.runner import run_funceval
+    if os.environ.get("KLOOP_TEXTPROFILE_STUB") == "1":
+        from groundloop.engines.atlas.embed import StubEmbedder
+        emb = StubEmbedder()
+    else:
+        from groundloop.config.settings import Settings
+        from groundloop.engines.atlas.embed import GatewayEmbedder
+        st = Settings.load()
+        emb = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+    card = run_funceval(args.dataset, args.profile_db, args.index_db, embedder=emb,
+                        arms=tuple(args.arms.split(",")))
+    Path(args.out).write_text(json.dumps(card, indent=2))
+    for arm, a in card["attribution"]["arms"].items():
+        line = f"{arm}: recall@1={a['forced']['recall@1']['value']:.2f} coverage={a['selective']['coverage']:.2f}"
+        for bk, sub in a.get("by_bug_kind", {}).items():
+            line += f" | {bk} recall@1={sub['forced']['recall@1']['value']:.2f}"
+        print(line)
+    return 0
+
+
 def _run_kb_ab(args) -> int:
     """A/B the dev-experience KB {none, kb, placebo} then a strengthened two-sided accept verdict.
 
@@ -1035,6 +1059,14 @@ def build_parser() -> argparse.ArgumentParser:
     fe.add_argument("--arms", default="flood,faultslice,routing",
                     help="comma list of arms: flood,faultslice,routing (routing needs Phase 2)")
 
+    fn = sub.add_parser("funceval", help="functional-bug matching eval (text-primary + optional logs)")
+    fn.add_argument("--dataset", required=True, help="labeled dataset root (bug_kind in oracle.json)")
+    fn.add_argument("--profile-db", required=True, help="repo-text profile db (gloop build-textprofile)")
+    fn.add_argument("--index-db", required=True, help="atlas.db for the optional log-FTS channel + ablations")
+    fn.add_argument("--arms", default="functional,dispatch,flood,faultslice,routing",
+                    help="comma list of arms")
+    fn.add_argument("--out", required=True, help="scorecard.json output path")
+
     kab = sub.add_parser("kb-ab",
                          help="A/B the dev-experience KB {none,kb,placebo} -> scorecards + accept verdict")
     kab.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
@@ -1139,6 +1171,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_synth(args)
     if args.cmd == "faulteval":
         return _run_faulteval(args)
+    if args.cmd == "funceval":
+        return _run_funceval(args)
     if args.cmd == "kb-ab":
         return _run_kb_ab(args)
     if args.cmd == "kb-promote":
