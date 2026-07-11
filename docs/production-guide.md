@@ -85,8 +85,10 @@ gloop run   --dataset <ds> --catalog <cat> --index-db $KLOOP_ATLAS_DB --match-ar
 gloop grade-run --runs run-N --dataset <ds> --index-db $KLOOP_ATLAS_DB --out card-N.json
 ```
 **Acceptance gates `[production]`:** `component` recall@3 ≫ `flood` recall@3 (else the affinity table or
-`Ticket.component` is empty/mis-joined — a data problem, not a weight problem); functional recall@1/@3 ≈
-**0.50 / 0.90** (the 10-case spot check, generalized under honest `--loo`); `--loo` always used.
+`Ticket.component` is empty/mis-joined — a data problem, not a weight problem); and functional recall@1/@3
+lands near the production 406 `comp+fusion` target (**≈ 0.50 / 0.90 `[production]`**, under honest `--loo`);
+`--loo` always used. *(The first 10-case run scored match recall@1 7/10 `[production]` — see
+[`results-log.md`](results-log.md).)*
 Per test case, `grade-run` records input/predicted/oracle/pass-fail/stage automatically (the canonical record).
 Preserve failed cases (§11).
 
