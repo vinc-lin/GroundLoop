@@ -12,6 +12,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-07 | plan-format fix stage (Phase 3) | `[proxy]` | plan emits grounded plan recall@1 0.48/@5 0.68; raw KB **hurts** (Δ−0.14); fabrication 0.0 |
 | 2026-07-07 | claim-centric KB (Phase D) | `[proxy]` | retain-loop validated **0/60** claims; no-injection 0.51 > placebo 0.37 > raw Skills 0.22 |
 | 2026-07-06 | first cross-stage evaluation | `[proxy]` | match recall@1 **0.60** synth / 0.02–0.23 real; localize 0.85@1 (oracle repo); fix/KB gated |
+| 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
 
@@ -79,3 +80,37 @@ First grounded whole-loop eval on the 9-repo fleet (`atlas-9.db`, 475k units) ov
 - Localize strong but unscored by the harness: **file_recall 0.85@1 / 0.94@5 `[proxy]`** given the oracle repo; e2e drops to **0.53@1 `[proxy]`** almost entirely from match error (cascade).
 - Fix engine real + wired (loop completes, change bound) but quality **GATED** (proxy `resolved_rate`, no test exec); KB fires on 55% with valid placebo but lift **GATED**; honest-refusal built but 0 negatives in the eval sets. Submit/bind are mocks.
 - detail: `docs/2026-07-06-first-evaluation.md`
+
+## 2026-07-05 · first atlas build + synth-log real testing · `[proxy]`
+
+First real `gloop eval` over the full 9-repo live atlas — first on the mined GitHub-issue dataset (6-repo
+preview, 187 cases), then on a synthesized logcat/native-backtrace dataset that gave the first meaningful
+scorecard. Build-substrate gotchas from the same effort live in `docs/build-setup.md`.
+
+- **Mined-issue dataset is signal-sparse.** Only **14% (27/187) `[proxy]`** of mined GitHub issues carry
+  code signal (stack/FQ class/`.so`); 86% are user prose the `AndroidSignalExtractor` finds nothing in. →
+  the mine should filter for stack/log-bearing issues.
+- **Forced recall@1 = 0.03 `[proxy]` is a tie-break artifact** (empty signals → `rank_repos` ties →
+  alphabetical tie-break picks gpuimage for all 160 tied cases → below random). On the 27 signal-bearing
+  cases: recall@1 **0.22**, recall@3 **0.81 `[proxy]`** — the owning repo IS retrieved (top-3), but a
+  size/density bias costs rank@1 for small repos; it worsens as the fleet grows (at 8 repos, signal-bearing
+  recall@1 fell 0.22→0.17). The loop should **abstain** on empty signals, not force-pick.
+- **A naive IDF "size-normalization" fix was tried and REFUTED — reverted (grounding over narrative):**
+  `log(N/df)` drove signal-bearing recall@1 **0.17 → 0.00 `[proxy]`** because `store._fts_query`
+  OR-expands camelCase into generic sub-words (`PlayerService` → `Player`,`Service`) → high df → idf ≈ 0 →
+  all repos tie. The size-fix must account for sub-word expansion (candidates: bm25-rank aggregation,
+  exact/qualified-name df, mild `count/log(repo_units)` penalty). `rank_repos` is an SP1b dep — coordinate.
+- All four arms key off the same sparse tokens (semantic arm embeds tokens, not raw prose — doesn't rescue
+  sparse cases); prose-aware matching needs a new raw-text extractor. Perf: `Store.vector_search` is a
+  brute-force full scan (fine small, slow over 200k+ units; only signal-bearing cases trigger it).
+- **Real testing achieved — synthesized failure-log dataset.** `groundloop/synth/` synthesizes
+  AAOS-realistic logcat / native-backtrace tickets from each mined case's fix-commit changed files, naming
+  the owner's REAL crash-site symbols pulled from the atlas (matched via the atlas, never the repo name;
+  test files excluded). 212 cases from 261. **First meaningful scorecard:** `membership+logs` recall@1
+  **0.60 `[proxy]`**, mrr 0.73, coverage 0.79, Φ₁ **+0.31**, recall@3 **0.80** — vs `membership+text`
+  **0.02 `[proxy]`** (proving logs, not the prose description, are the signal).
+- **Size-bias quantified precisely:** native repos with unique `.so` win outright (dlt-daemon 26/26, oboe
+  42/45); small Java repos have the answer but lose rank@1 to giants (newpipe 6/47 @1 but 25/47 top-3;
+  cameraview 1/11 @1 but 8/11 top-3). The recall@1→recall@3 gap (0.60→0.80) IS the size tax — unblocks the
+  size-fix eval-driven (lift small-repo rank@1 without hurting native/big repos).
+- detail: `docs/type2-atlas-build-findings.md` (git history)
