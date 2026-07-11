@@ -14,6 +14,28 @@ so this doc doubles as a gap list. All production numbers are `[production]` by 
 
 ---
 
+## 0. Pulling updates on production
+
+GroundLoop ships **additively** (behavior swaps at the composition root; `core/` and the SQLite schema are
+frozen), so a `git pull` is low-risk and **does not require an atlas rebuild** — the existing `atlas.db` +
+`component_affinity.json` stay valid (the reuse contract holds). After pulling:
+
+1. **Refresh** `[in place]` — `git pull` → `uv sync --extra dev` (picks up new `gloop` subcommands + modules;
+   no new deps this release) → `set -a; . ./.env; set +a`. **No re-index / re-mine / rebuild.**
+2. **Verify** `[in place]` — `.venv/bin/python -m pytest -q` green (hermetic, no gateway); `gloop doctor
+   --atlas-db $KLOOP_ATLAS_DB` → READY; gateway `200`; a 1–2-case smoke `gloop run --out … → gloop grade-run`
+   (§4).
+3. **Adopt what changed** — skim the change summary / [`results-log.md`](results-log.md); run any new
+   stage/arm per §6. The current headline capability is **self-scoring** (`gloop run --repos … --fixer model`
+   → `gloop grade-run`, §6): it replaces hand-tallying with an auto-generated per-stage scorecard.
+4. **Re-baseline** `[production]` — re-run the acceptance evals (§6) under `--loo`, compare against the last
+   release (§17/§18, no regression), and route new failures through the feedback loop (§11–§14).
+
+Doc pointers can move between releases (e.g. this guide absorbed the old `production-migration.md`); if a script
+references a renamed/removed doc, repoint via `CLAUDE.md`'s doc list or git history.
+
+---
+
 ## Part A — Deploy & operate
 
 ### 1. Deployment requirements `[in place]` (infra) / `[to build]` (formal preflight)
