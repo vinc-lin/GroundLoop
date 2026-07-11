@@ -13,6 +13,22 @@ namespaced **GL-M0/GL-M1** (GroundLoop) vs **BFL-M0..M9** vs spec **M1–M5** �
 
 ## Done
 
+### First end-to-end production run — 10 functional GEI cases (2026-07-11) ✅ first efficacy read
+The **first full 8-stage `gloop run`** on real production GEI data (10 functional cases, `component` match arm,
+`component_affinity.json` mined from **1,169 JIRA↔Gerrit oracle pairs**, real **19-repo / 126,919-unit** atlas,
+bge-m3 (TEI) retrieve + **qwen3p6-27b** rerank). This is the production scoreboard the component-routing pivot
+was built for. **Match recall@1 7/10** by the per-case table (⚠ the run summary reported 8/10 — a
+count-reconciliation flag: 2 root causes but **3** missed cases `13363`/`14905`/`8185`; confirm against the raw
+scorecard). **Localize 7/10 file@5, 1/10 file@1** — a **measurement correction**: an earlier "localize 0/10"
+was misreading the fix stage's *fabricated* file; measured on `AtlasIndex.retrieve` the hybrid retrieve + qwen
+rerank works. **Fix 0/10 but ungraded** — an **empty-worktree** artifact (only `XCIPadMediaService` checked out
+under `$GL_DATA/repos/`), not a fix-stage failure. Root causes: match misses = label≠owner (`13363`
+Bluetooth→cluster) + CarPlay Core-vs-Integration near-tie (0.005 gap < base RRF ≤0.017); localize misses =
+coverage gap (`8185` `CpAccessibilityManager.kt` not indexed) + pool recall (`14905`/`4240`). **Highest-value
+unblock = check out the 4 owner repos** so fix becomes gradeable (production-side). Detail:
+`docs/2026-07-11-functional-10case-e2e-findings.md`. Dev-box follow-ups (gated on the 406): CarPlay semantic
+tiebreak, a `component`-override text signal for label≠owner, per-file localize aggregation.
+
 ### Component-routing match arm — MERGED to master (2026-07-10); proxy mechanism check ✅
 Production feedback on the real 19-repo GEI atlas redirected the functional-bug track: ticket-text matching is
 size-biased (recall@1 **0.10**), and an empirical **JIRA component→repo affinity prior** is the dominant Stage-1
