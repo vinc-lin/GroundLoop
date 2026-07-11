@@ -3,6 +3,11 @@ fixeval. Emits match / localize(as-run + isolated) / fix(or honest-abstain) with
 by_bug_kind split. Never re-runs the loop; the only re-execution is the isolated-localize diagnostic."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+from groundloop.adapters.index.atlas import AtlasIndex
+from groundloop.core.types import RepoRef
 from groundloop.eval.dataset import load_cases, load_eval_oracle
 from groundloop.eval.metrics import recall_at_k, repo_rank
 from groundloop.fixeval.patch import norm_path
@@ -30,6 +35,34 @@ def _localize_as_run(rows):
         return sum(recall_at_k([norm_path(x) for x in r["locations"]],
                                {norm_path(e) for e in r["expected"]}, k) for r in loc) / n
     return {f"file@{k}": fk(k) for k in _KS}
+
+
+def _localize_isolated(rows):
+    """Match-independent localize ceiling: `retrieved` was re-run on the ORACLE repo in the grade pass
+    (the sole re-execution), so this isolates localize from match contamination — the '7/10 not 0/10'
+    correction. Populated only when the caller precomputed `row['retrieved']` (i.e. an index was given)."""
+    loc = [r for r in rows if r["expected"]]
+    n = len(loc)
+
+    def fk(k):
+        if not n:
+            return None
+        return sum(recall_at_k([norm_path(x) for x in r["retrieved"]],
+                               {norm_path(e) for e in r["expected"]}, k) for r in loc) / n
+    return {f"file@{k}": fk(k) for k in _KS}
+
+
+def _case_row(row):
+    exp = {norm_path(e) for e in row["expected"]}
+    as_run1 = recall_at_k([norm_path(x) for x in row["locations"]], exp, 1) if exp else None
+    iso1 = None
+    if "retrieved" in row and exp:
+        iso1 = recall_at_k([norm_path(x) for x in row["retrieved"]], exp, 1)
+    present = row["doc"].materialize.present
+    fix = "ungradeable(no_source)" if not present else (
+        "applies" if row["doc"].patch_applies else "unappliable")
+    return {"case_id": row["case_id"], "rank": row["rank"], "as_run@1": as_run1,
+            "isolated@1": iso1, "fix": fix}
 
 
 def _fix_record(row):
@@ -63,12 +96,13 @@ def _fix_block(rows, oracle_by_case):
             "fabrication_rate": arm["fabrication_rate"], "patch_apply_rate": arm["patch_apply_rate"]}
 
 
-def _grade_subset(rows, oracle_by_case):
+def _grade_subset(rows, oracle_by_case, with_isolated):
     mb = _match_block(rows)
     return {
         "match": {"n": mb["n"], **{f"recall@{k}": mb[f"recall@{k}"] for k in _KS},
                   "recall_rank_avg": (sum(r["rank"] for r in rows) / len(rows)) if rows else 0.0},
-        "localize": {"as_run": _localize_as_run(rows), "isolated": None},   # isolated filled in Task 6
+        "localize": {"as_run": _localize_as_run(rows),
+                     "isolated": _localize_isolated(rows) if with_isolated else None},
         "fix": _fix_block(rows, oracle_by_case),
         "counts": {"n": mb["n"], "match_hits@1": round(mb["_hits1"])},
     }
@@ -80,13 +114,25 @@ def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None) -> di
     for c in cases:
         doc = RunRecordIO.read(f"{runs_dir}/runs/{c.case_id}.json")
         o = load_eval_oracle(c)                                        # the ONLY oracle read
+        query = json.loads((Path(c.case_dir) / "ticket.json").read_text()).get("summary", "")
         rows.append({
             "case_id": c.case_id, "case": c, "doc": doc, "owner": o.owning_repo, "oracle": o,
-            "bug_kind": o.bug_kind, "expected": list(o.expected_files),
+            "bug_kind": o.bug_kind, "expected": list(o.expected_files), "query": query,
             "ranked_names": [x["repo"] for x in doc.ranked],
             "rank": repo_rank([x["repo"] for x in doc.ranked], o.owning_repo),
             "locations": list(doc.locations),
         })
+    # The isolated-localize diagnostic: re-run retrieve on the ORACLE repo (grade-only, never the loop).
+    if index_db:
+        idx = AtlasIndex(index_db)
+        for r in rows:
+            if r["expected"]:
+                r["retrieved"] = idx.retrieve(RepoRef(r["owner"]), r["query"])
+    with_isolated = bool(index_db)
     oracle_by_case = {r["case_id"]: r["oracle"] for r in rows}
-    card = {"n_cases": len(rows), "overall": _grade_subset(rows, oracle_by_case)}
+    card = {"n_cases": len(rows), "overall": _grade_subset(rows, oracle_by_case, with_isolated)}
+    kinds = sorted({r["bug_kind"] for r in rows if r["bug_kind"]})
+    card["by_bug_kind"] = {bk: _grade_subset([r for r in rows if r["bug_kind"] == bk],
+                                             oracle_by_case, with_isolated) for bk in kinds}
+    card["cases"] = [_case_row(r) for r in rows]
     return card
