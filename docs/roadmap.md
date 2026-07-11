@@ -4,7 +4,7 @@ Forward plan for Stage-1 (ticket→repo matching) and the data substrate beneath
 repo-matching integration design and the fix-loop precedent, re-skinned to GroundLoop conventions.
 For the live state read [STATUS.md](STATUS.md) first; for the frozen contracts see
 [charter.md](charter.md), [architecture.md](architecture.md), [engines.md](engines.md), and
-[downstream-fix-loop.md](downstream-fix-loop.md).
+[fix-loop.md](fix-loop.md).
 
 Source designs (reference, not copied): the integration spec
 [`../../loop-agent/docs/superpowers/specs/2026-07-04-knowledgeloop-repo-matching-integration-design.md`](../../loop-agent/docs/superpowers/specs/2026-07-04-knowledgeloop-repo-matching-integration-design.md)
@@ -18,7 +18,7 @@ The deterministic `run_ticket` control plane (intake → extract → match → m
 submit → bind) runs green over the hermetic substrate; the `match` stage now ranks over a real
 FTS5-backed atlas.db via the `CodeIndex` port (`AtlasIndex.rank_repos`), discriminating the owning repo
 from hard negatives on a hand-built fixture db. Reuse contract honored: `bge-m3` pinned at index +
-query time, store schema unchanged. Full build/consume detail: [m1-index-build.md](m1-index-build.md).
+query time, store schema unchanged. Full build/consume detail: [build-setup.md](build-setup.md).
 
 Live state, blockers, and next steps live in [STATUS.md](STATUS.md) (authoritative over this section);
 the dev-box-vs-production split and the `[proxy]`/`[production]` result tags are in [environments.md](environments.md).
@@ -31,11 +31,11 @@ scores far below a real match. The layers (distinct concerns, not a contradictio
 - **Target** — 130+ AAOS in-vehicle repos (the production goal).
 - **Charter pilot** — ~11 OSS Android-IVI repos spanning the IVI function map (see [charter.md](charter.md)).
   The **finalized Type-2 eval fleet (9 repos)** — after a feasibility sweep dropping ExoPlayer + car-samples
-  — is defined in [type2-evaluation.md](type2-evaluation.md) §3.1.
+  — is defined in [evaluation.md](evaluation.md) §3.1.
 - **Built corpora** — 3 repos at pinned SHAs in `corpora/corpus.toml`: `android-gpuimage-plus`,
   `libxcam`, `ndk-samples`.
 - **Hermetic GL-M1 fixture** — 4 repos in the Type-1 substrate (see
-  [groundloop-testing-strategy.md](groundloop-testing-strategy.md)).
+  [evaluation.md](evaluation.md)).
 
 Proposed pilot (verified live 2026-07-04; final membership confirmable), chosen for lexically distinct
 namespaces so repo selection is genuinely hard:
@@ -160,9 +160,9 @@ Stage-1 feeds the existing localize → propose-fix pipeline; the stages after `
   (today `MockEstate`).
 - **Real `AgentFixEngine`** — the `fix` stage is currently a `CannedFixEngine` stub; the real agentic
   fix engine is the largest downstream item. Design provenance and the localize/fix/grade contracts live
-  in [downstream-fix-loop.md](downstream-fix-loop.md).
+  in [fix-loop.md](fix-loop.md).
 - **Eval-env harness** — the Type-2 live-eval surface (real models + a real atlas.db) over the grown
-  fleet; runbook in [type2-eval-setup.md](type2-eval-setup.md). Follow-ons: ANN vector index, PR/JIRA
+  fleet; runbook in [build-setup.md](build-setup.md). Follow-ons: ANN vector index, PR/JIRA
   binding scaffold (Stage-4), and Tier-3 build/test grading.
 
 Immediate gating item (from [STATUS.md](STATUS.md)): the pinned `bge-m3` host must return healthy before
@@ -184,11 +184,11 @@ Three **separate** milestone tracks share vocabulary but must never be conflated
 - **spec M1–M5** is the integration design's internal numbering: M1 shared substrate (largely realized
   by GL-M1's shared atlas.db + registry), M2 mining, **M3 the matcher** (first-stage membership +
   semantic rerank), **M4 the matching benchmark** (specified in
-  [type2-evaluation.md](type2-evaluation.md) — its eval-harness build stages E1–E3 are distinct from
+  [evaluation.md](evaluation.md) — its eval-harness build stages E1–E3 are distinct from
   these milestone tracks), M5 downstream reuse. Its "M3" is the matcher, unrelated to
   any GroundLoop or bfl M3.
 - **BFL-M0…M9** belong to the loop-agent fix-loop track and are done there; GroundLoop reuses its lessons
-  (§6) and its localize→fix machinery ([downstream-fix-loop.md](downstream-fix-loop.md)), not its
+  (§6) and its localize→fix machinery ([fix-loop.md](fix-loop.md)), not its
   milestone numbers.
 
 See [charter.md](charter.md) for the mission and FR/NFR catalog, [architecture.md](architecture.md) for

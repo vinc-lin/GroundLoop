@@ -152,7 +152,7 @@ recipe is the design target for a real materializer. The leakage boundary is enf
 runner exposes only the work-tree + `ticket.json` (+ read-only siblings) and never copies `_oracle/`
 into the loop's reachable filesystem; provider-specific hooks are defense-in-depth, not the primary
 guarantee. This mirrors the Type-1 hermetic anti-leak invariants already asserted in the suite (see
-[groundloop-testing-strategy.md](groundloop-testing-strategy.md)).
+[evaluation.md](evaluation.md)).
 
 ---
 
@@ -359,4 +359,4 @@ sequencing/state/invariants and never reasons; the model plane (behind the `Mode
 - **bfl MVP plan** — [`../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md`](../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md)
 - **bfl roadmap** (first-A/B, deferred tiers) — [`../../loop-agent/docs/roadmap.md`](../../loop-agent/docs/roadmap.md)
 - **Migration-source engines + eval stack** (cost card, diff-ref extractor, frontier eval machinery — to be ported, not yet resident under `groundloop/`) — [`../../knowledgeLoop/docs/`](../../knowledgeLoop/docs/)
-- **GroundLoop siblings** — [charter.md](charter.md) · [architecture.md](architecture.md) · engines.md (planned) · roadmap.md (planned) · [groundloop-testing-strategy.md](groundloop-testing-strategy.md) · [m1-index-build.md](m1-index-build.md) · [../CLAUDE.md](../CLAUDE.md)
+- **GroundLoop siblings** — [environments.md](environments.md) · [charter.md](charter.md) · [architecture.md](architecture.md) · [engines.md](engines.md) · [roadmap.md](roadmap.md) · [evaluation.md](evaluation.md) · [build-setup.md](build-setup.md) · [../CLAUDE.md](../CLAUDE.md)

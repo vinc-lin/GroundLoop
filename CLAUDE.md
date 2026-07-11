@@ -46,26 +46,28 @@ Milestones **GL-M0** (walking skeleton) + **GL-M1** (real `AtlasIndex` + `gloop 
 — GroundLoop's own track, distinct from the `bfl` **BFL-M0..M9** and the repo-matching spec **M1–M5**
 tracks (never write a bare "M1"; see `docs/roadmap.md`).
 The Type-2 (Test 2) track has since shipped end-to-end: SP1 (honest-refusal negatives) → SP2 (fix-loop
-eval) → SP3 (dev-experience KB arm), plus the KB feedstock corpus. First cross-stage evaluation:
-`docs/2026-07-06-first-evaluation.md` (Stage-1 match recall@1 0.60 synth / 0.02–0.23 real; localize
-strong-but-unscored; fix + KB lift gated on the live env).
+eval) → SP3 (dev-experience KB arm), plus the KB feedstock corpus. All eval results (incl. the first
+cross-stage evaluation and the first production run) live in `docs/results-log.md`, `[proxy]`/`[production]`-tagged.
 
 ## Docs — single source of truth
 **GroundLoop `docs/` is the single source of truth** (consolidated 2026-07-04 from `../loop-agent` +
-`../knowledgeLoop`; those repos carry "canonical → GroundLoop" banners atop the absorbed docs):
-- `docs/charter.md` — mission, FR-1..8 / NFR-1..8, the four stages, metrics, fleet layers, glossary.
-- `docs/application-guide.md` — how GroundLoop is applied: the pipeline + benchmark uses and scenarios.
-- `docs/architecture.md` — hexagonal ports & adapters, the deterministic control plane, migration.
+`../knowledgeLoop`; re-consolidated 2026-07-11 from 23 → 12 top-level docs — see the design/plan under
+`docs/superpowers/{specs,plans}/2026-07-11-docs-optimization*.md`):
+- `docs/environments.md` — **the canonical dev-box ↔ production split + the `[proxy]`/`[production]` result
+  tag convention.** Read this first; every other doc links here instead of restating it.
+- `docs/charter.md` — mission, FR-1..8 / NFR-1..8, the four stages, metrics, glossary, non-goals.
+- `docs/architecture.md` — hexagonal ports & adapters, the deterministic control plane, atlas internals, migration.
+- `docs/guide.md` — how GroundLoop is deployed, run, and migrated (the single how-to; adapter swap map, checklist).
+- `docs/evaluation.md` — **canonical for the evaluation**: Type-2 effectiveness (fleet, dataset, arms,
+  metrics/scorecard, harness) **+ the Type-1 hermetic test surface (§14)**.
+- `docs/build-setup.md` — atlas build + env-var reference + the reuse contract + gated-live setup + the
+  portable atlas-build gotchas (CBM timeout, one-index-at-a-time, `pgrep -fa` not `ps -C`, run eval off ext4).
+- `docs/fix-loop.md` — localize → fix → grade design provenance + the dev-experience KB (a measured fix arm).
 - `docs/engines.md` — produce / lore / CBM / atlas engine operations (migrated from knowledgeLoop).
+- `docs/production-guide.md` — production deploy / validate / feedback SOP (the production side of `environments.md`).
 - `docs/roadmap.md` — mining, the two-stage matcher, milestone tracks, downstream phasing.
-- `docs/downstream-fix-loop.md` — design provenance for localize → fix → grade (fix stage is a stub).
-- `docs/type2-evaluation.md` — **canonical for the Type-2 (Test 2) evaluation**: fleet, dataset, arms,
-  metrics/scorecard, and the eval harness (supersedes the detail in `groundloop-testing-strategy.md` §3).
-- `docs/m1-index-build.md` · `docs/type2-eval-setup.md` · `docs/groundloop-testing-strategy.md`.
-- `docs/type2-atlas-build-findings.md` — portable atlas-build gotchas (CBM timeout, one-index-at-a-time,
-  `pgrep -fa` not `ps -C`, exclude test/3party, run eval off ext4) + the first real-testing results.
-- `docs/skill-kb-migration.md` — SP3 dev-experience KB migration guide + parity self-test protocol.
-- `docs/2026-07-06-first-evaluation.md` — first cross-stage evaluation snapshot (match/localize/fix/KB).
+- `docs/results-log.md` — chronological, `[proxy]`/`[production]`-tagged log of every eval result.
+- `docs/STATUS.md` — current state, blockers, next steps (read first when resuming).
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
@@ -75,13 +77,13 @@ GL-M1 plan (for provenance):
 - Setup: `uv sync --extra dev` (base deps + `pytest`/`ruff`; plain `uv sync` omits the test tooling).
 - Tests: `.venv/bin/python -m pytest -q`  ·  Lint: `.venv/bin/ruff check groundloop tests` (line 110).
   Single test: `.venv/bin/python -m pytest tests/test_atlas_index.py -q` (or `-k <pattern>`).
-  Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/type2-eval-setup.md`.
-- CLI: `.venv/bin/gloop {run,index,produce,doctor,build-atlas,mine,eval,fixeval,compare}`.
-- **Two test surfaces** (`docs/groundloop-testing-strategy.md`): **Type-1 (Test 1)** hermetic
+  Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/build-setup.md`.
+- CLI: `.venv/bin/gloop {run,grade-run,index,produce,doctor,build-atlas,mine,mine-affinity,eval,fixeval,funceval,faulteval,synth,combine-oracle,compare}`.
+- **Two test surfaces** (`docs/evaluation.md` §14 + `docs/environments.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in
   `tests/conftest.py`, anti-leak invariants in `tests/test_invariants.py`) and **Type-2 (Test 2)** live
   eval / evaluation environment (real models + a real atlas.db; `skipif`-gated). Live-eval setup +
-  build steps: `docs/type2-eval-setup.md`.
+  build steps: `docs/build-setup.md`.
 
 ## Conventions & guardrails
 - **Never modify `groundloop/core/`.** Never alter the SQLite schema in `engines/atlas/store.py` (there

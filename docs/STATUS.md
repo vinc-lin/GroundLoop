@@ -3,13 +3,13 @@
 **As of 2026-07-04** (blocker re-checked & cleared 2026-07-05). Read this first when resuming; see
 `CLAUDE.md` for durable project context.
 
-**Docs are now the single source of truth** (consolidated 2026-07-04 from `../loop-agent` +
-`../knowledgeLoop`, which now carry "canonical → GroundLoop" banners): [`charter.md`](charter.md)
-(mission + FR/NFR), [`application-guide.md`](application-guide.md) (how it's applied + scenarios),
-[`architecture.md`](architecture.md) (7-port hexagonal), [`engines.md`](engines.md)
-(produce/lore/CBM/atlas ops), [`roadmap.md`](roadmap.md) (mining + two-stage matcher),
-[`downstream-fix-loop.md`](downstream-fix-loop.md) (fix-stage design provenance), and
-[`environments.md`](environments.md) — dev-box vs production + the **`[proxy]`**/**`[production]`** result tags.
+**Docs are the single source of truth** (re-consolidated 2026-07-11 → 12 top-level docs; full map in
+`CLAUDE.md`). Read [`environments.md`](environments.md) first — the canonical dev-box ↔ production split +
+the **`[proxy]`**/**`[production]`** result-tag convention used throughout this file. Core set:
+[`charter.md`](charter.md) · [`architecture.md`](architecture.md) · [`guide.md`](guide.md) ·
+[`evaluation.md`](evaluation.md) · [`build-setup.md`](build-setup.md) · [`fix-loop.md`](fix-loop.md) ·
+[`engines.md`](engines.md) · [`production-guide.md`](production-guide.md) · [`roadmap.md`](roadmap.md) ·
+[`results-log.md`](results-log.md).
 
 ## Done
 
@@ -24,7 +24,7 @@ split, and a generated per-case markdown table. **Zero `core/` edits** (the froz
 `recall_at_k`, `FixRecord`, `grade_fix_all`, `patch_applies`). New units: `groundloop/run/{record,batch,grade_run,
 report}.py` + additive `RecordingEstate`/`CheckoutEstate`. Leak-honest (red-tested invariants 7–8: run-record
 oracle-free, `grade_run` sole oracle reader). 8 tasks, **566 passed / 7 skipped, ruff clean**. Spec/plan:
-`docs/superpowers/{specs,plans}/2026-07-11-self-scoring-pipeline*.md`; runbook `docs/production-migration.md` §8.
+`docs/superpowers/{specs,plans}/2026-07-11-self-scoring-pipeline*.md`; runbook `docs/production-guide.md` §8.
 *Process note:* Tasks 1–3 ran subagent-driven with 2-stage review; Task 4's implementer subagent emitted an
 anomalous (self-generated, non-injected — verified via its transcript) jailbreak-pattern output and did nothing,
 so Tasks 4–8 were completed in the main context. No compromise; config/repo clean.
@@ -42,7 +42,7 @@ under `$GL_DATA/repos/`), not a fix-stage failure. Root causes: match misses = l
 Bluetooth→cluster) + CarPlay Core-vs-Integration near-tie (0.005 gap < base RRF ≤0.017); localize misses =
 coverage gap (`8185` `CpAccessibilityManager.kt` not indexed) + pool recall (`14905`/`4240`). **Highest-value
 unblock = check out the 4 owner repos** so fix becomes gradeable (production-side). Detail:
-`docs/2026-07-11-functional-10case-e2e-findings.md`. Dev-box follow-ups (gated on the 406): CarPlay semantic
+`docs/results-log.md`. Dev-box follow-ups (gated on the 406): CarPlay semantic
 tiebreak, a `component`-override text signal for label≠owner, per-file localize aggregation.
 
 ### Component-routing match arm — MERGED to master (2026-07-10); proxy mechanism check ✅
@@ -59,7 +59,7 @@ Built loop-blind + frozen-safe: `ComponentAffinity` (raw counts + leave-one-out)
 train/test leak via **leave-one-out** (grader-side, subtract the case's own contribution). Subagent-driven,
 **11 commits, 547 passed / ruff clean, `core/`+atlas-schema+`rank_repos`+`owner_tokens.py`+`repo_routing.py`+
 `mine/` zero-diff**, two-stage review per batch + final holistic review (READY TO MERGE; caught 3 plan-fixture
-slips). **Proxy mechanism check** (`docs/2026-07-10-component-routing-findings.md`): the prior lifts the FTS
+slips). **Proxy mechanism check** (`docs/results-log.md`): the prior lifts the FTS
 base to **component recall@1 0.49 / recall@3 0.92** (flood 0.32/0.58) `[proxy]` — the same SHAPE as the measured
 production `comp+fusion` (~0.50/0.90) `[production]`: the prior narrows to top-3, within-component disambiguation is the gap.
 LOO is unit-proven load-bearing on rare pairs and correctly-negligible on well-populated ones. **Real efficacy
@@ -82,7 +82,7 @@ prose-only→functional (Signals-only discriminator; `fault_scale` bridges the t
 + atlas schema + gated `rank_repos`/`owner_tokens.py`/`repo_routing.py`/`mine/` zero-diff**, per-task spec+quality
 review + final holistic review — caught **6 real defects** (retrieve no-op, walk-prune, dispatch tau-scale over-abstain,
 audio-`.so` false signal, and the **ticket-text owner-slug leak** that would have let `flood` cheat).
-- **Live A/B (`docs/2026-07-10-functional-bug-match-findings.md`):** 212 functional + 196 crash over `atlas-9.db`.
+- **Live A/B (`docs/results-log.md`):** 212 functional + 196 crash over `atlas-9.db`.
   **Functional recall@1: flood 0.32 → functional/dispatch 0.68 `[proxy]`** (~2.1×; Φ₁ +0.30 → +0.39); the v2 crash arms
   (`faultslice`/`routing`) correctly **abstain** on no-crash tickets (0.01, coverage 0.00 `[proxy]`) — reproducing + fixing the
   GEI `8/10 no_fault` `[production]` failure mode. **Crash: `dispatch` 0.94 == `routing` 0.94 `[proxy]`, no regression.** One `dispatch` arm =
@@ -103,7 +103,7 @@ on an **unscrubbed OSS proxy** (package namespaces are legitimate owner signal t
 Subagent-driven, **18 commits, 494 passed / ruff clean, `core/` + atlas schema + gated `rank_repos`/
 `owner_tokens.py`/`mine/` zero-diff**, per-task spec+quality review (caught 3 real bugs: timestamp swap,
 `fault_file` basename collision, soname-boundary misclassification) + a final holistic review (READY TO MERGE).
-- **Live A/B (`docs/2026-07-09-android-log-match-v2-findings.md`):** 196-case faultlog over `atlas-9.db`.
+- **Live A/B (`docs/results-log.md`):** 196-case faultlog over `atlas-9.db`.
   **Attribution recall@1: flood 0.48 → faultslice 0.86 → routing 0.94 `[proxy]`** (tight extraction ~doubles it).
   **Robustness:** under hard decoys the flood baseline **drops 0.48→0.32 `[proxy]`** while faultslice/routing are
   **unchanged** (decoy-immune). **Localization:** `frame@1=0.88` / `frame@5=0.95` `[proxy]`. Log-quality audit:
@@ -130,7 +130,7 @@ Migrated the full index engine from knowledgeLoop behind the ports:
 - Reuse contract honored: `embed_model` pinned `bge-m3`; store schema migrated unchanged.
 - CBM packaging: **Level-1 default hard dep** (`mcp` + `codebase-memory-mcp==0.8.1` + produce stack in
   base `[project.dependencies]`; launched as the installed binary, not `uvx`).
-- Detail: `docs/m1-index-build.md`.
+- Detail: `docs/build-setup.md`.
 
 ### Type-2 track — SP1 → SP3 (honest-refusal negatives + fix-loop eval + dev-experience KB)  ·  COMPLETE
 The four-sub-project Type-2 extension (design: `docs/superpowers/specs/2026-07-05-type2-negatives-fixloop-kb-design.md`),
@@ -144,8 +144,8 @@ all shipped to master, `core/` untouched, hermetic + gated surfaces:
 - **SP3** — the dev-experience **KB as a measured arm** (`groundloop/skills/` + `MockSkillRegistry`,
   real-data seed): `gloop fixeval --skills {none,mock}` injects `render_skills()` playbooks post-match on
   `ModelPatchEngine`; graded by the two-sided `accept` gate (Δfile_recall POS + Δfabrication_rate honesty);
-  declarative-compiled predicates; migration guide + non-vacuous parity self-test (`docs/skill-kb-migration.md`).
-- Detail: `docs/type2-evaluation.md` (§6.4 fix-stage arm), `docs/downstream-fix-loop.md`.
+  declarative-compiled predicates; migration guide + non-vacuous parity self-test (`docs/fix-loop.md`).
+- Detail: `docs/evaluation.md` (§6.4 fix-stage arm), `docs/fix-loop.md`.
 
 ### Plan-format fix stage — MERGED to master + pushed (2026-07-07); live A/B RUN ✅
 Turns the fix stage into a grounded **plan-then-act** loop: a two-phase `PlanningFixEngine`
@@ -165,7 +165,7 @@ ruff clean, `core/` + atlas schema **zero-diff**, per-phase spec+quality review 
   `docs/superpowers/plans/2026-07-07-plan-format-fix-stage.md`.
 - **Merged + a follow-on FTS5 fix** (`_fts_query` now quotes leaf tokens so a KB Localize hint containing
   `NOT` no longer crashes matching/localize — this had crashed the earlier kb-ab live run).
-- **Live A/B RUN (Phase 3, `docs/2026-07-07-plan-format-phase3-findings.md`):** 56-case correct-match
+- **Live A/B RUN (Phase 3, `docs/results-log.md`):** 56-case correct-match
   slice (oboe 25 + dlt-daemon 19 positives + 12 neg), ext4-staged (Finding 10), 4 arms + 2 compares.
   **Q1 engine (direct vs plan):** a *structural* tie — `file_recall@1` is fixer-invariant (0.189 both `[proxy]`,
   localize precedes fix) and the grounded axis is uncomparable (direct emits no plan → Δ=None). The plan
@@ -184,7 +184,7 @@ claim-centric-distilled-kb*.md`): Skills are feedstock; `kb-extract` (LLM propos
 vs placebo → per-claim promote/retire). Phases A–C shipped subagent-driven — **15 commits, 449 tests, `core/`
 + atlas schema zero-diff**, per-phase spec+quality review + final holistic review (caught + fixed: porous
 grounding, redundant live-eval spend, an uncaught promotion-gate regression, the `--claims-store` gap).
-- **Live preview (2026-07-07, `docs/2026-07-07-claim-kb-preview-findings.md`):** the full path runs on real
+- **Live preview (2026-07-07, `docs/results-log.md`):** the full path runs on real
   infra — `kb-extract` minted **60 grounded candidate claims** from the 12 Skills (ground-check correctly
   dropped ~14 templated/unindexed refs = "LLM proposes, gate disposes" validated). The fix-eval efficacy
   numbers were zero `[proxy]` on a 4–8-case slice, but for **artifacts** (match size-bias mispredicting the slice's
@@ -198,14 +198,14 @@ grounding, redundant live-eval spend, an uncaught promotion-gate regression, the
   60 candidates (all `lofo_delta=0`, none load-bearing; 4 retired) → the empty validated set = no-injection,
   and *no-injection (0.51) beats placebo (0.37) beats the raw 12 Skills (0.22)* on `plan_target_recall@1` `[proxy]` —
   the messy Skills injected wholesale HURT the planner. Empirical vindication of the distill-first /
-  distrust-unverified design. Detail: `docs/2026-07-07-claim-kb-preview-findings.md` §8.
+  distrust-unverified design. Detail: `docs/results-log.md` §8.
 
 ### Testing environment
 - **Type-1 (hermetic)** — `tests/conftest.py` (shared fixtures: `case`, `harness`, `atlas_harness`,
   prebuilt atlas.db, canned model) + `tests/test_invariants.py` (the anti-leak §2.3 red-tests — the
   design already honored them; these lock it in). **Suite: 55 passed / 3 skipped, ruff clean.**
 - **Type-2 (live eval) — prepped + de-risked** (`.env` gitignored / `.env.example` /
-  `/mnt/x/code/corpora/atlas.toml` / `docs/type2-eval-setup.md`):
+  `/mnt/x/code/corpora/atlas.toml` / `docs/build-setup.md`):
   - ✅ **CBM validated live** on android-gpuimage-plus: 31,552 nodes / 41,191 edges, symbols in 3.3s.
   - ✅ **produce validated live** (deepseek-chat) → wiki generated; the pydantic-ai 1.x→2.x compat
     shim WORKS end-to-end (the M1 "latent risk" is now cleared). The `gloop produce` model default is
@@ -224,13 +224,13 @@ The pinned `bge-m3` embedding host is **back UP** — re-checked 2026-07-05: `/e
 returns a valid 1024-dim non-zero vector. The prior `000`/hung state (GPU/Ollama backend down) is
 resolved. **No open blocker.** The full `gloop index` build (produce → CBM → embed → atlas.db) and the
 2 gated live tests (`tests/e2e/`) are now unblocked. `deepseek-chat` (produce LLM) remains up.
-Gate check (prints `200` when healthy): see `docs/type2-eval-setup.md` → "Embedding-host gate".
+Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding-host gate".
 
 ## Next steps
 1. **Now unblocked (bge-m3 up 2026-07-05) — run the GL-M1 live acceptance:** `gloop produce` +
    `gloop index` over `/mnt/x/code/corpora/atlas.toml` → build `~/.groundloop/atlas.db`; `gloop doctor`;
    then run the gated live tests (`tests/e2e/`) with `KLOOP_EMBED_API_KEY` + `KLOOP_CBM_READY=1` +
-   `KLOOP_PRODUCE_READY=1`. Runbook: `docs/type2-eval-setup.md`.
+   `KLOOP_PRODUCE_READY=1`. Runbook: `docs/build-setup.md`.
 2. **Symbol filtering** before scaling the fleet — android-gpuimage-plus yields ~31k symbols because it
    vendors ffmpeg headers; drop vendored `ffmpeg/**` to cut embedding cost + noise. (Small follow-up.)
 3. **Grow the eval fleet** — uncomment `libxcam` / `ndk-samples` in `corpora/atlas.toml`; a meaningful

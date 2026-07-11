@@ -130,7 +130,7 @@ gloop doctor        # repos > 0, units > 0, embed gateway OK, CBM OK
 produce → index → doctor as one fleet build (fail-fast on produce — see gotcha 1).
 
 **Not in GL-M1:** real `AgentFixEngine` (fix stage = `CannedFixEngine` stub, see
-[downstream-fix-loop.md](downstream-fix-loop.md)); full fleet / parallel worker pool; ANN / vector
+[fix-loop.md](fix-loop.md)); full fleet / parallel worker pool; ANN / vector
 rerank (`GatewayEmbedder` scaffolded, hermetic tests use FTS5 membership; gated vector-rerank is the
 next add-on); Tier-3 grading.
 
@@ -138,7 +138,7 @@ next add-on); Tier-3 grading.
 
 Stand up the live evaluation substrate: a real `atlas.db` over the pinned corpora so `AtlasIndex`
 matches over real code and the gated `tests/e2e/` run. Type-1 hermetic tests need none of this (see
-[groundloop-testing-strategy.md](groundloop-testing-strategy.md) for the two-surface split).
+[evaluation.md](evaluation.md) for the two-surface split).
 
 **Prerequisites (verified 2026-07-04):** CBM `codebase-memory-mcp 0.8.1` in `.venv`; produce LLM
 `deepseek-chat` via the LiteLLM gateway (HTTP 200); **bge-m3 embeddings** on the same gateway but

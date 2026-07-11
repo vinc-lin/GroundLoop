@@ -65,11 +65,11 @@ bind.** These map onto four objective stages:
 | 4 — Binding & tracking | commit/PR + ticket | append‑only auditable chain (discovery → logs → repo → localization → fix → PR/commit ↔ ticket) | Later |
 
 **Stage‑1 is the gate** — downstream stages are pursued only against correctly‑matched tickets. Stage 3
-today is a **`CannedFixEngine` stub** (design provenance: [downstream-fix-loop.md](downstream-fix-loop.md)).
+today is a **`CannedFixEngine` stub** (design provenance: [fix-loop.md](fix-loop.md)).
 
 ## 3. Requirements catalog
 
-Numbering is load-bearing — [groundloop-testing-strategy.md](groundloop-testing-strategy.md) cites these
+Numbering is load-bearing — [evaluation.md](evaluation.md) cites these
 by number.
 
 ### 3.1 Functional requirements
@@ -98,7 +98,7 @@ by number.
   Scores` in `groundloop/grade/grader.py` — a function, not a port; the loop never sees it.)*
 - **FR-8 Repo‑fleet management.** Register, index, and keep fresh a fleet of many repos (pilot: an OSS
   IVI proxy fleet; target: the 130+ vehicle repos) to match against. *(Ports: `RepoEstate`; build path:
-  `gloop index`. See [m1-index-build.md](m1-index-build.md).)*
+  `gloop index`. See [build-setup.md](build-setup.md).)*
 
 ### 3.2 Non‑functional requirements
 
@@ -120,7 +120,7 @@ by number.
 - **NFR-7 Security & privacy.** Redact PII/secrets from ingested logs; never commit credentials, tokens,
   LAN IPs, or internal endpoints; respect enterprise data boundaries. (`.env` gitignored; config env‑only.)
 - **NFR-8 Reproducibility.** Pinned repo SHAs; hermetic, no‑network test suite (Type‑1); live tests gated
-  on credentials (Type‑2). See [groundloop-testing-strategy.md](groundloop-testing-strategy.md).
+  on credentials (Type‑2). See [evaluation.md](evaluation.md).
 
 ## 4. Success metrics & integrity
 
@@ -166,7 +166,7 @@ These are **different layers, not a contradiction**; the eval fleet **grows by r
 | Layer | Membership | Purpose |
 |---|---|---|
 | **Target (production goal)** | **130+** AAOS vehicle repos on Gerrit/JIRA | the real estate GroundLoop must scale to (NFR-3) |
-| **Charter pilot** | **~11** OSS IVI repos (androidx/media, google/ExoPlayer, TeamNewPipe/NewPipe, AntennaPod, google/oboe, organicmaps, osmandapp/OsmAnd, natario1/CameraView, wysaid/android-gpuimage-plus, android/car-samples, COVESA/dlt-daemon) | GitHub‑issue‑derived proxy tickets + hard negatives; **finalized eval fleet (9) → [`type2-evaluation.md`](type2-evaluation.md) §3.1** (drops ExoPlayer→absorbed into media3, car-samples→0 linkage) |
+| **Charter pilot** | **~11** OSS IVI repos (androidx/media, google/ExoPlayer, TeamNewPipe/NewPipe, AntennaPod, google/oboe, organicmaps, osmandapp/OsmAnd, natario1/CameraView, wysaid/android-gpuimage-plus, android/car-samples, COVESA/dlt-daemon) | GitHub‑issue‑derived proxy tickets + hard negatives; **finalized eval fleet (9) → [`evaluation.md`](evaluation.md) §3.1** (drops ExoPlayer→absorbed into media3, car-samples→0 linkage) |
 | **Built corpora** | **3** at pinned SHAs — android-gpuimage-plus, libxcam, ndk-samples (`/mnt/x/code/corpora/corpus.toml`, a sibling dir — not in-repo) | real atlas.db substrate for Type‑2 live eval |
 | **Hermetic GL‑M1 fixture** | **4** repos (hand-built fixture atlas.db) | Type‑1 no‑network matcher tests |
 

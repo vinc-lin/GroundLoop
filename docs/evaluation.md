@@ -8,7 +8,7 @@
 > dev-box/production split — see [`environments.md`](environments.md) (the canonical dev↔production
 > statement and the mandated `[proxy]`/`[production]` result-tagging convention). The live-substrate
 > **build runbook** (env, gateway gates, `gloop` commands) lives in
-> [`type2-eval-setup.md`](type2-eval-setup.md); requirements (FR-*/NFR-*) live in
+> [`build-setup.md`](build-setup.md); requirements (FR-*/NFR-*) live in
 > [`charter.md`](charter.md); the ports & control plane in [`architecture.md`](architecture.md).
 >
 > **Terminology.** *Type 2* and *Test 2* are the same thing: the **evaluation environment** that
@@ -76,7 +76,7 @@ require.
   quality meaningless, and bind is trivially always-true (`run_ticket` hardcodes `RunRecord.bound=True`;
   `MockGerrit.bind()` just appends a ledger row and transitions the ticket), so the scorecard carries a
   trivial `bound_rate` sanity column and reserves `fix_applies`/`bound_correct` for the future downstream
-  fix-loop eval ([`downstream-fix-loop.md`](downstream-fix-loop.md)). This matches the roadmap: the fix
+  fix-loop eval ([`fix-loop.md`](fix-loop.md)). This matches the roadmap: the fix
   stage is a stub.
 
 **Grounded-refusal is in scope from E1.** Because the evaluation fleet (§3) yields hundreds of tickets
@@ -278,8 +278,8 @@ sentence-transformers server), selected by env (`KLOOP_EMBED_MODEL=bge-m3`, defa
 `config/settings.py`) — the code never hosts it, and **changing the embed model forces a full re-index**.
 A `manifest.json` stamps repo pins + embed model + atlas content-SHA into the run's provenance. See
 [`environments.md`](environments.md) for the shared-`atlas.db` reuse contract across dev↔production,
-[`type2-eval-setup.md`](type2-eval-setup.md) for the gateway health gates and exact commands, and
-[`m1-index-build.md`](m1-index-build.md) for the reuse contract.
+[`build-setup.md`](build-setup.md) for the gateway health gates and exact commands, and
+[`build-setup.md`](build-setup.md) for the reuse contract.
 
 ---
 
@@ -329,7 +329,7 @@ inject *after* the match/abstain gates, they cannot move Stage-1 `abstention_rec
 honesty metric they can move is `fabrication_rate`, so "help positives without eroding negative-honesty"
 is measured directly. The mock seed is small → the arm validates **plumbing + direction of effect**, not
 the full lift the migrated Skills will show (directional-only). Real Skills drop in via
-[`skill-kb-migration.md`](skill-kb-migration.md); full design in the SP3 spec §3.
+[`fix-loop.md`](fix-loop.md); full design in the SP3 spec §3.
 
 ---
 
@@ -577,13 +577,13 @@ Load-bearing lessons:
   **per-stratum** `n≥200–300` for stable per-slice rankings, toward the charter's 130+ fleet.
 
 **Explicitly deferred (YAGNI / different research question):** Stage-3 fix-correctness grading (needs a
-real `FixEngine` + a blinded judge — the downstream fix-loop eval, [`downstream-fix-loop.md`](downstream-fix-loop.md));
+real `FixEngine` + a blinded judge — the downstream fix-loop eval, [`fix-loop.md`](fix-loop.md));
 the knowledgeLoop agentic A/B surface (`ClaudeRunner`, `aggregate/causal/correlation`, `grounding_scorer`,
 `oracle.store_exists_fn`); an ANN vector index; a trained/learned reranker; a multi-domain plugin
 framework.
 
 **Fix-stage runner arms (forward-looking, BFL provenance).** From the loop-agent fix-loop track
-(BFL-M0..M9; [`downstream-fix-loop.md`](downstream-fix-loop.md)): `single_shot` is the default runner
+(BFL-M0..M9; [`fix-loop.md`](fix-loop.md)): `single_shot` is the default runner
 arm, with an agentic `tool_loop` (investigate-then-submit) as a non-default measured arm; a grep
 retriever ran **~25% cheaper `[proxy]`** than no-retrieval on real-sized repos with **no localization
 loss** (a cost lever, not an accuracy one). Carried caveat: on a *synthetic* seed that benchmark rewards
@@ -605,7 +605,7 @@ stub today, so these arms are forward-looking here.
    is the primary reported *scalar* (AURC vs accuracy@fixed-coverage) and the gate mechanism (margin vs a
    calibrated confidence).
 4. **`jobs × concurrency` default** for `build-atlas` — the safe steady-state against the DeepSeek gateway
-   rate budget (to be measured, then pinned in `type2-eval-setup.md`).
+   rate budget (to be measured, then pinned in `build-setup.md`).
 
 ---
 
