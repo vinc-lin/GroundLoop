@@ -251,8 +251,8 @@ entity_map = "/abs/scratch/android-gpuimage-plus/entity_map.json"  # optional
 
 Per-repo freshness (`repo_freshness`) is `unindexed` / `fresh` / `stale` (indexed head vs current
 HEAD). Re-indexing is per-repo idempotent. The `atlas.db` is large (**~0.8–1.4 GB for 3 mid-size
-repos**) and machine-specific — it is git-ignored (built `*.db` artifacts are excluded). The three
-built corpora at pinned SHAs (android-gpuimage-plus, libxcam, ndk-samples) live in `/mnt/x/code/corpora/corpus.toml` (a sibling of the repo, referenced by absolute path).
+repos**) and machine-specific — git-ignored. The three built corpora at pinned SHAs
+(android-gpuimage-plus, libxcam, ndk-samples) live in `/mnt/x/code/corpora/corpus.toml` (absolute path).
 
 ### The bge-m3 reuse invariant
 
@@ -277,10 +277,10 @@ equal the index-time embedder**, or cosine ranking is silently corrupted (the ve
 ## See also
 
 - [architecture.md](architecture.md) — hexagonal ports & adapters, `run_ticket`, migration strategy.
-- [m1-index-build.md](m1-index-build.md) — the GL-M1 `gloop index` build (consume + build an atlas.db).
-- [type2-eval-setup.md](type2-eval-setup.md) — Type-2 live-eval runbook (real models + a real atlas.db).
-- [groundloop-testing-strategy.md](groundloop-testing-strategy.md) — Type-1 hermetic + Type-2 surfaces.
-- [charter.md](charter.md) · [roadmap.md](roadmap.md) · [../CLAUDE.md](../CLAUDE.md) — mission, forward plan, orientation.
+- [build-setup.md](build-setup.md) — the GL-M1 `gloop index` build (consume + build an atlas.db).
+- [build-setup.md](build-setup.md) — Type-2 live-eval runbook (real models + a real atlas.db).
+- [evaluation.md](evaluation.md) — Type-1 hermetic + Type-2 surfaces.
+- [charter.md](charter.md) · [roadmap.md](roadmap.md) · [environments.md](environments.md) · [../CLAUDE.md](../CLAUDE.md) — mission, forward plan, dev-box vs production, orientation.
 - Source (reference, do not copy): `../../knowledgeLoop/docs/SETUP.md`, `.../applying-to-a-new-repo.md`,
   `.../close-loop-workflow.md`, `.../CODEWIKI.md`, `.../DEVELOPMENT.md`, `.../MVP.md`,
   `.../repo_memory-deploy.md`, `.../findings-and-practices.md`.

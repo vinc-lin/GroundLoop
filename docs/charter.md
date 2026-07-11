@@ -3,15 +3,13 @@
 > **Status:** foundational charter. Defines *why* GroundLoop exists, *what* it must do, and the
 > requirements it is measured against. Implementation-light; the *how* lives in
 > [architecture.md](architecture.md), [engines.md](engines.md), and [roadmap.md](roadmap.md).
-> (`engines.md` and `roadmap.md` are **planned siblings — forthcoming**; those links are forward
-> references that do not resolve yet.) Current state / blockers / next steps: [STATUS.md](STATUS.md).
+> Current state / blockers / next steps: [STATUS.md](STATUS.md).
 > Project orientation: [../CLAUDE.md](../CLAUDE.md).
 >
-> **Name note.** "GroundLoop" is the **integrated system**. Absorbed source charters call it
-> "KnowledgeLoop" — that IS GroundLoop. The `knowledgeLoop` repo is the migration **source engine**
-> (a separate live repo); `bfl` / "Bug-Fixing-Loop" is the loop-agent sibling fix-loop experiment.
-> Absorbed faithfully from
-> [../../loop-agent/docs/knowledgeloop-background-and-requirements.md](../../loop-agent/docs/knowledgeloop-background-and-requirements.md).
+> **Name note.** "GroundLoop" is the **integrated system**; absorbed source charters that say
+> "KnowledgeLoop" mean GroundLoop. The `knowledgeLoop` repo is the migration **source engine** (a
+> separate live repo); `bfl` / "Bug-Fixing-Loop" is the loop-agent sibling fix-loop experiment. Absorbed
+> from [../../loop-agent/docs/knowledgeloop-background-and-requirements.md](../../loop-agent/docs/knowledgeloop-background-and-requirements.md).
 
 ---
 
@@ -26,10 +24,8 @@ When a tester finds a defect they file a **JIRA Bug ticket** with a description,
 most importantly — **failure logs** (logcat, Java/Kotlin stack traces, native `#00 pc …` backtraces,
 ANRs, tombstones). Nearly every ticket carries logs, so **logs are the primary evidence** for the two
 decisions that follow: **ownership** (which repo owns the defect) and **root cause** (which code path).
-
-Today this is manual: a senior engineer reads the ticket + logs and, from experience, decides which of
-the 130+ repos owns it, then hunts for the code. It is slow, experience-dependent, and error-prone
-(mis-routed tickets bounce between teams).
+Today this is manual — a senior engineer reads ticket + logs, guesses which of the 130+ repos owns it,
+then hunts the code: slow, experience-dependent, and prone to mis-routing.
 
 **Mission.** An automated, traceable **closed loop** from a **JIRA defect ticket + failure logs** to a
 **code fix** across the full 130+‑repo estate:
@@ -41,6 +37,12 @@ ticket + logs → MATCH owning repo → localize → fix → bind (JIRA ↔ comm
 The problem is **not** JIRA synchronization. It is building the ticket → repo → code → fix → binding
 loop, with **ticket‑to‑repo matching as the core objective**. Downstream stages have practical value
 only against tickets whose owning repo was identified correctly.
+
+**One system, two uses — bridged by a hidden oracle.** GroundLoop is at once a **pipeline** (a real fix
+attempt on a ticket) and a **benchmark** (the *same* loop instrumented so each stage — above all Stage‑1
+match accuracy and cost — is scored over labeled data as A/B‑able arms). The bridge is the **hidden
+oracle**: the loop never sees ground truth; an offline `grade(record, oracle)` pass reads it *afterward*,
+so one run is both a fix attempt and a scored eval case.
 
 **Load-bearing invariant.** The owning repo is a **predicted output + hidden-oracle field, never a loop
 input.** This supersedes `bfl`'s `repo.json` (which handed the owning repo *in* as an input) — GroundLoop
@@ -62,13 +64,12 @@ bind.** These map onto four objective stages:
 | 3 — Fix assistance | localized repo + ticket | candidate fix (patch) | Later |
 | 4 — Binding & tracking | commit/PR + ticket | append‑only auditable chain (discovery → logs → repo → localization → fix → PR/commit ↔ ticket) | Later |
 
-**Stage‑1 is the gate.** Downstream stages are pursued only against correctly‑matched tickets, so
-repo‑match accuracy is the primary near‑term metric. Stage 3 today is a **`CannedFixEngine` stub**
-(design provenance: [downstream-fix-loop.md](downstream-fix-loop.md)).
+**Stage‑1 is the gate** — downstream stages are pursued only against correctly‑matched tickets. Stage 3
+today is a **`CannedFixEngine` stub** (design provenance: [fix-loop.md](fix-loop.md)).
 
 ## 3. Requirements catalog
 
-Numbering is load-bearing — [groundloop-testing-strategy.md](groundloop-testing-strategy.md) cites these
+Numbering is load-bearing — [evaluation.md](evaluation.md) cites these
 by number.
 
 ### 3.1 Functional requirements
@@ -97,7 +98,7 @@ by number.
   Scores` in `groundloop/grade/grader.py` — a function, not a port; the loop never sees it.)*
 - **FR-8 Repo‑fleet management.** Register, index, and keep fresh a fleet of many repos (pilot: an OSS
   IVI proxy fleet; target: the 130+ vehicle repos) to match against. *(Ports: `RepoEstate`; build path:
-  `gloop index`. See [m1-index-build.md](m1-index-build.md).)*
+  `gloop index`. See [build-setup.md](build-setup.md).)*
 
 ### 3.2 Non‑functional requirements
 
@@ -119,7 +120,7 @@ by number.
 - **NFR-7 Security & privacy.** Redact PII/secrets from ingested logs; never commit credentials, tokens,
   LAN IPs, or internal endpoints; respect enterprise data boundaries. (`.env` gitignored; config env‑only.)
 - **NFR-8 Reproducibility.** Pinned repo SHAs; hermetic, no‑network test suite (Type‑1); live tests gated
-  on credentials (Type‑2). See [groundloop-testing-strategy.md](groundloop-testing-strategy.md).
+  on credentials (Type‑2). See [evaluation.md](evaluation.md).
 
 ## 4. Success metrics & integrity
 
@@ -141,11 +142,12 @@ cases (real premises at the pinned SHA; owning repo hidden). Definitions:
 
 ## 5. Data & test-material strategy
 
-Real enterprise JIRA tickets and AAOS platform code are **not available** in this environment, so the
-pilot uses a **proxy fleet of popular, well‑maintained open‑source Android‑IVI repos** — spanning the
-real IVI function map (media, navigation, camera/graphics, audio, automotive middleware) — with **mock
-JIRA tickets derived from those repos' real GitHub issues**. Verified signal counts (2026‑07‑04, from the
-absorbed charter):
+Real enterprise JIRA tickets and AAOS platform code are **not available** on the dev box, so the pilot
+uses a **proxy fleet of popular, well‑maintained open‑source Android‑IVI repos** — spanning the real IVI
+function map (media, navigation, camera/graphics, audio, automotive middleware) — with **mock JIRA
+tickets derived from those repos' real GitHub issues**. The dev‑box‑proxy vs production split — and why
+proxy numbers flatter the mechanism (tag every efficacy number `[proxy]`/`[production]`) — is canonical
+in [environments.md](environments.md). Verified signal counts (2026‑07‑04, from the absorbed charter):
 
 - **The signal is real.** GitHub issues on these repos carry stack traces whose frames **name the owning
   repo's namespace** — `androidx/media` has **367** issues quoting `at androidx.media3.…`; `organicmaps`
@@ -157,9 +159,6 @@ absorbed charter):
   proxy repos are shallow/archived and need full‑history clones for mining; a handful of repos makes
   matching trivial, so a **diverse multi‑repo fleet + hard negatives** is required (FR-8).
 
-> `gloop mine` (ticket mining from GitHub issues) is **aspirational — not built yet.** The CLI today is
-> `gloop {run, index, produce, doctor}`.
-
 ## 6. Fleet-layer reconciliation
 
 These are **different layers, not a contradiction**; the eval fleet **grows by requirement**.
@@ -167,7 +166,7 @@ These are **different layers, not a contradiction**; the eval fleet **grows by r
 | Layer | Membership | Purpose |
 |---|---|---|
 | **Target (production goal)** | **130+** AAOS vehicle repos on Gerrit/JIRA | the real estate GroundLoop must scale to (NFR-3) |
-| **Charter pilot** | **~11** OSS IVI repos (androidx/media, google/ExoPlayer, TeamNewPipe/NewPipe, AntennaPod, google/oboe, organicmaps, osmandapp/OsmAnd, natario1/CameraView, wysaid/android-gpuimage-plus, android/car-samples, COVESA/dlt-daemon) | GitHub‑issue‑derived proxy tickets + hard negatives; **finalized eval fleet (9) → [`type2-evaluation.md`](type2-evaluation.md) §3.1** (drops ExoPlayer→absorbed into media3, car-samples→0 linkage) |
+| **Charter pilot** | **~11** OSS IVI repos (androidx/media, google/ExoPlayer, TeamNewPipe/NewPipe, AntennaPod, google/oboe, organicmaps, osmandapp/OsmAnd, natario1/CameraView, wysaid/android-gpuimage-plus, android/car-samples, COVESA/dlt-daemon) | GitHub‑issue‑derived proxy tickets + hard negatives; **finalized eval fleet (9) → [`evaluation.md`](evaluation.md) §3.1** (drops ExoPlayer→absorbed into media3, car-samples→0 linkage) |
 | **Built corpora** | **3** at pinned SHAs — android-gpuimage-plus, libxcam, ndk-samples (`/mnt/x/code/corpora/corpus.toml`, a sibling dir — not in-repo) | real atlas.db substrate for Type‑2 live eval |
 | **Hermetic GL‑M1 fixture** | **4** repos (hand-built fixture atlas.db) | Type‑1 no‑network matcher tests |
 
@@ -175,8 +174,8 @@ These are **different layers, not a contradiction**; the eval fleet **grows by r
 
 > Distilled from [../../knowledgeLoop/docs/concept-evaluation.md](../../knowledgeLoop/docs/concept-evaluation.md)
 > and [../../knowledgeLoop/docs/token-cost-demonstration-findings.md](../../knowledgeLoop/docs/token-cost-demonstration-findings.md).
-> These are **directional** results (N≈15, small task families, single-model laps), not settled
-> measurement — read accordingly.
+> All numbers below are **directional, proxy-side** (`[proxy]` — OSS corpora, N≈15, small task families,
+> single-model laps): not settled measurement, not production efficacy. Read accordingly.
 
 The matcher's bet is that **cross-repo grounding surfaces knowledge an agent cannot reach itself.** The
 concept evaluation isolates exactly this, and the split is clean in both directions:
@@ -196,9 +195,9 @@ ticket's local context. The evidence says grounding pays off precisely where Gro
 that the lift should be **roughly capability‑invariant** (no amount of reasoning conjures a repo the model
 has never seen).
 
-**One cost line** (token-cost demonstration, libxcam, N=9 common tasks, directional): injected cross‑repo
-context lifts **every** model off a near‑zero floor — Haiku **0→44%**, Sonnet **22→78%** — so *context is
-the dominant lever, not model tier.* (The per‑`$` figures in that doc used a biased token estimate and are
+**One cost line** (token-cost demonstration, libxcam, N=9 common tasks): injected cross‑repo context
+lifts **every** model off a near‑zero floor — Haiku **0→44%**, Sonnet **22→78%** — so *context is the
+dominant lever, not model tier.* (The per‑`$` figures in that doc used a biased token estimate and are
 **retracted**; only the success figures stand.)
 
 ## 8. Model matrix
@@ -234,6 +233,7 @@ keeps an atlas.db shareable. Engine operations: [engines.md](engines.md).
 ## 10. Non-goals & YAGNI
 
 - Real enterprise JIRA and Gerrit integration (handled elsewhere; only a **mock** JIRA/Gerrit layer here).
+- The **full 130+-repo fleet** — a curated, confusable OSS pilot proves the pipeline before scale (§6).
 - Autonomous agent frameworks that own control flow (**rejected** — code‑driven sequencing owns it,
   NFR-6).
 - Full AOSP build/test execution as the primary grader for the pilot (a deferred sub‑project).

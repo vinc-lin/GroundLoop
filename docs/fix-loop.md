@@ -1,4 +1,4 @@
-# GroundLoop — Downstream Fix Loop (design provenance)
+# GroundLoop — Fix Loop (design provenance)
 
 > **Design-provenance snapshot — as of 2026-07-04.** This doc records the *design* of the post-match
 > stages of GroundLoop's control plane — **localize → fix → grade → bind** — the part that runs *after*
@@ -152,7 +152,7 @@ recipe is the design target for a real materializer. The leakage boundary is enf
 runner exposes only the work-tree + `ticket.json` (+ read-only siblings) and never copies `_oracle/`
 into the loop's reachable filesystem; provider-specific hooks are defense-in-depth, not the primary
 guarantee. This mirrors the Type-1 hermetic anti-leak invariants already asserted in the suite (see
-[groundloop-testing-strategy.md](groundloop-testing-strategy.md)).
+[evaluation.md](evaluation.md)).
 
 ---
 
@@ -198,12 +198,127 @@ arm on the SP2 fix loop: `gloop fixeval --skills {none, mock}` injects retrieved
 preamble on `ModelPatchEngine` **post-match** — the frozen `FixEngine.propose` signature is untouched.
 Value is decided by running the two arms and diffing with `gloop compare` → the two-sided **`accept`**
 gate: a positive lift on `Δfile_recall@1` **and** no honesty regression (`Δfabrication_rate ≤ 0`), cost
-advisory. Real Skills drop in post-migration via `docs/skill-kb-migration.md` (contract + parity
+advisory. Real Skills drop in post-migration via **§5 below** (contract + migration transform + parity
 self-test). See the SP3 spec (`docs/superpowers/specs/2026-07-05-type2-negatives-fixloop-kb-design.md` §3).
 
 ---
 
-## 5. Reconciling bfl's 4-step pipeline with GroundLoop's 8-stage `run_ticket`
+## 5. Dev-experience KB (a measured fix arm)
+
+The dev-experience **KB** — real RCA/ops **Skills** authored by previous developers, living in another
+environment — is wired as a **measured arm** on the fix loop (§4), **never a trusted input**. Today it
+runs on a **`MockSkillRegistry`** seeded with real GroundLoop RCA/ops playbooks
+(`groundloop/adapters/skills/data/aaos_playbooks.toml`) — "mock" is only the *wiring*; the content is
+real. When the previous developers' Skills arrive (in that other environment's format) they migrate into
+`Skill` records **unchanged**, swap in at the composition root, and are proven faithful by the **parity
+self-test** — **no `groundloop/core/` edit, no SQLite schema change.**
+
+**The `Skill` contract** (`groundloop/skills/base.py`):
+
+```python
+@dataclass(frozen=True)
+class Skill:
+    id: str                                 # stable, unique
+    applies_to: Callable[[SkillCtx], bool]  # compiled from declarative data (below) — NOT hand-written code
+    guidance: str                           # playbook text injected into the fix/RCA prompt
+    hint_apis: tuple[str, ...] = ()
+    signals: tuple[str, ...] = ()           # retrieval tags
+    provenance: str = ""                    # source doc/commit — KB traceability
+```
+
+`render_skills(skills)` renders selected Skills under a `# Applicable playbooks` header; an empty list
+⇒ `""` ⇒ a **byte-identical no-op vs the `skills=none` arm**. The `SkillRegistry` Protocol is just
+`select(ctx) -> list[Skill]`; `NullSkillRegistry` is the `none` arm.
+
+**The `SkillCtx` contract + oracle-blindness rule** (`groundloop/skills/ctx.py`):
+
+```python
+@dataclass(frozen=True)
+class SkillCtx:
+    signals: Signals        # the arm's structured, extracted signals
+    repo: Optional[str]     # the PREDICTED owning repo (a loop prediction, never the oracle)
+    text: str               # lowercased haystack: ticket summary + description + all log content
+```
+
+`build_ctx(signals, ticket, repo)` builds it from **loop-visible inputs only**. **Oracle-blindness
+rule: a predicate MUST NOT read the oracle** — no `expected_files`, no `required_apis`, no `_oracle/`
+path (a KB that could read the oracle would smuggle the answer into its selection). Enforced by a
+red-test, `tests/skills/test_invariants.py`. This is §0's load-bearing invariant applied to KB selection.
+
+**The migration transform** (`groundloop/adapters/skills/migrate.py`). The primary source format is
+**markdown + front-matter** (how the real dev-experience/superpowers Skills arrive); the secondary
+`loop-agent/bfl` `Skill` dataclass migrates via `from_bfl_skill` (copies `id`/`guidance`/`hint_apis`,
+carries `applies_to` as-is, **drops `tools`**, sets `signals=()` + `provenance="bfl:<module>"`).
+
+| Front-matter / body | → `Skill` field |
+|---|---|
+| `id` | `id` (unique across the set) |
+| `triggers: a, b` (comma-list) | `applies_to` (via `triggers_to_spec` → `compile_predicate`) + `signals` |
+| `provenance` | `provenance` (defaults to `md:<filename>`) |
+| markdown body (after the `--- … ---` block) | `guidance` |
+
+- `migrate_markdown_skills(dir)` — parse each `*.md`'s front-matter + body → `Skill`; **raises on a
+  duplicate id** (fail loud). (The seed loader `load_skills` does not enforce uniqueness — keep seed ids
+  unique.)
+- `triggers_to_spec(triggers)` — translate the foreign trigger vocabulary → a declarative match spec
+  (union per key, de-duped). **`KeyError` on an undocumented trigger** — extend `_TRIGGER_MAP`.
+- `compile_predicate(spec)` (`groundloop/skills/predicate.py`) — compile the spec into the closure.
+  **Closed match vocabulary** (unknown key → `ValueError`; every `*_regex` compiled eagerly so a bad
+  pattern fails at load, never mid-select): `always` (bool), `repo_in` (over `ctx.repo`),
+  `any_text` / `all_text` / `any_text_regex` (over `ctx.text`), and `any_<family>` / `any_<family>_regex`
+  for `family ∈ {packages, classes, methods, symbols, libraries, errors}` (over `ctx.signals.<family>`).
+  **Semantics:** clauses are **OR'd** (the skill applies if ANY fires); a list within a key is OR'd;
+  `all_text` is the AND escape hatch; an **empty spec never fires**.
+- **No code in data** — predicates are declarative specs compiled to closures, never serialized lambdas /
+  `eval` / `exec`. This is what lets a real Skill set swap in by replacing the *data*, and what makes the
+  data reviewable for secret/leak hygiene. Always carry `provenance` so every injected playbook is
+  traceable to its source.
+
+**Composition-root swap** — the registry is chosen in `groundloop/cli/__init__.py::_run_fixeval` behind
+`--skills {none, mock}`:
+
+```python
+if args.skills == "mock":
+    skills = MockSkillRegistry.load(embedder=embedder)   # <- replace load() with the migrated registry
+runner = FixEvalRunner(..., skills=skills)
+```
+
+To ship the real Skills, build the registry from the migrated records —
+`MockSkillRegistry(migrate_markdown_skills(<dir>))` — at this **one call site**: no `core/` edit, no
+runner change. **Reuse contract:** the optional rerank embedder is pinned **bge-m3** and gated on
+`KLOOP_EMBED_BASE_URL` (query == index); the hermetic default is predicate-only.
+
+**The parity self-test** (`tests/skills/test_migration_parity.py`) proves a migrated registry reproduces
+the native seed's behavior:
+
+1. Provide the SAME logical skills in **two genuinely different shapes** — a native declarative seed
+   (`seed.toml`) and the foreign markdown (`md/*.md`) — **aligned** so the seed's match spec equals what
+   `triggers_to_spec` produces from the markdown triggers (this is the point: it catches a mistranslated
+   trigger).
+2. Author a **discriminating ctx panel** (`build_panel()`): each skill matches a proper, non-empty subset
+   (some ctx selects only A, some only B, some both, some none); a `test_panel_is_discriminating`
+   meta-assert guards against a vacuous all-empty / all-match panel.
+3. Assert **predicate-only** id-set equality across the panel — `select` with **no embedder** (the bge-m3
+   rerank is Type-2 / non-deterministic without a fixed gateway and must NOT be in the parity assertion).
+4. Add a **negative control**: corrupt one migrated predicate and assert parity **fails** on ≥1 ctx —
+   proving the test has teeth.
+
+**Constraints & honesty ceiling.** The registry reads **only its data file + the loop-visible
+`SkillCtx`** — never `_oracle/`; grading (`groundloop/fixeval/scorecard.py`) is the sole offline oracle
+read. The KB is a **measured arm**: its value is decided by the §4 `accept` gate, not assumed. The parity
+test proves the transform **reproduces author intent + regression-guards `triggers_to_spec` + documents
+the contract** — it does **not** prove semantic correctness in general; do not over-read a green run. The
+mock seed is small, so the arm validates **plumbing + direction of effect**, not the full lift real Skills
+will show: a near-zero Δ on the mock seed is a **`[proxy]`** mechanism check (dev box vs production,
+[environments.md](environments.md)) — the real lift is a **`[production]`** number. **Troubleshooting:**
+parity fails ⇒ seed spec and trigger map disagree (diff the per-ctx selections); `ValueError` at load ⇒
+an unknown predicate key or a bad regex; `KeyError` in `triggers_to_spec` ⇒ an undocumented trigger (add
+it to `_TRIGGER_MAP`); a skill firing on everything ⇒ an empty/`always` spec or an over-broad `any_text`
+token.
+
+---
+
+## 6. Reconciling bfl's 4-step pipeline with GroundLoop's 8-stage `run_ticket`
 
 bfl's pipeline is **Intake → Locate → Localize → Propose-fix** (a *fixed* Agentless-style code-driven
 pipeline). GroundLoop's control plane (`groundloop/core/workflow.py`, **FROZEN**) is the fuller
@@ -244,4 +359,4 @@ sequencing/state/invariants and never reasons; the model plane (behind the `Mode
 - **bfl MVP plan** — [`../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md`](../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md)
 - **bfl roadmap** (first-A/B, deferred tiers) — [`../../loop-agent/docs/roadmap.md`](../../loop-agent/docs/roadmap.md)
 - **Migration-source engines + eval stack** (cost card, diff-ref extractor, frontier eval machinery — to be ported, not yet resident under `groundloop/`) — [`../../knowledgeLoop/docs/`](../../knowledgeLoop/docs/)
-- **GroundLoop siblings** — [charter.md](charter.md) · [architecture.md](architecture.md) · engines.md (planned) · roadmap.md (planned) · [groundloop-testing-strategy.md](groundloop-testing-strategy.md) · [m1-index-build.md](m1-index-build.md) · [../CLAUDE.md](../CLAUDE.md)
+- **GroundLoop siblings** — [environments.md](environments.md) · [charter.md](charter.md) · [architecture.md](architecture.md) · [engines.md](engines.md) · [roadmap.md](roadmap.md) · [evaluation.md](evaluation.md) · [build-setup.md](build-setup.md) · [../CLAUDE.md](../CLAUDE.md)

@@ -1,9 +1,14 @@
-# GroundLoop — Deployment & Migration User Guide
+# GroundLoop — Deploy, Run & Migrate Guide
 
-How to set up GroundLoop, build the oracle (the graded ground truth), and deploy each pipeline stage in a
-real-world environment. Every command is copy-paste-ready with **placeholders** for hosts/keys — never
-commit real endpoints or tokens. Where a capability is a **seam not yet built**, it is flagged inline; a
-consolidated list is in [§10](#10-known-seams--limitations).
+The single how-to: set GroundLoop up, build the oracle (the graded ground truth), run the loop, and deploy
+each pipeline stage into a real environment. Every command is copy-paste-ready with **placeholders** for
+hosts/keys — never commit real endpoints or tokens. Where a capability is a **seam not yet built**, it is
+flagged inline; a consolidated list is in [§10](#10-known-seams--limitations).
+
+> **Dev box vs production.** Everything here runs the *same* `atlas.db` shape in both environments, but the
+> two are not interchangeable — the OSS proxy tells you the mechanism *works*, only production tells you it
+> *works well*. That split (and the `[proxy]`/`[production]` labeling convention used below) is canonical in
+> **[environments.md](environments.md)** — read it first, this guide does not restate it.
 
 > **Conventions.** `$GL_DATA` = a directory on **real ext4** (see [§2.3](#23-the-v9fsext4-rule)) that holds
 > `atlas.db` + datasets. Placeholders: `<GATEWAY_HOST>` (LiteLLM chat), `<EMBED_HOST>` (bge-m3), `<API_KEY>`,
@@ -11,25 +16,36 @@ consolidated list is in [§10](#10-known-seams--limitations).
 
 ---
 
-## 1. What you are deploying
+## 1. What you are deploying — the closed loop
 
-GroundLoop runs a deterministic closed loop over a fleet of repos:
+GroundLoop runs a **deterministic closed loop** over a fleet of repos: `groundloop/core/workflow.py::run_ticket`
+fires **8 events** by calling **7 ports** (Protocols). It imports no concrete adapter — behavior is chosen at
+the composition root.
 
 ```
-JIRA ticket + failure logs
-  → intake → extract(signals) → MATCH(ticket→repo) → materialize → LOCALIZE(files) → FIX(patch) → submit → bind(JIRA↔commit)
+   intake       extract        match          materialize     localize       fix         submit       bind
+ IssueSource  SignalExtractor  CodeIndex        RepoEstate     CodeIndex   FixEngine    ChangeSink   ChangeSink
+   .fetch       .extract      .rank_repos    .materialize     .retrieve   .propose      .submit       .bind
+     │             │              │               │               │           │            │            │
+  Ticket ──────► Signals ────► RepoScore[] ──► WorkTree ──► locations[] ──► Patch ──► Change ──► JIRA↔commit
+                              (top-1 = the                                (Model port
+                             predicted owner)                            injected here)
 ```
 
-- **Control plane** (`groundloop/core/`, **FROZEN**): `run_ticket` orchestrates the 8 events above by calling
-  **7 ports** (Protocols). Core imports no concrete adapter.
+- **Control plane** (`groundloop/core/`, **FROZEN**): `run_ticket` orchestrates the 8 events by calling the
+  7 ports. Two ports each span two stages — **`CodeIndex`** does *match* (cross-repo ranking) and *localize*
+  (in-repo retrieval); **`RepoEstate`** does *catalog* (candidate fleet) and *materialize* (work-tree). Core
+  imports no concrete adapter.
 - **Adapters** implement the ports. Each port has a hermetic dev adapter and (mostly) a real one; deployment
   = swapping dev→prod adapters **only at the composition root** (`groundloop/cli/__init__.py`), never in `core/`.
 - **The oracle is never a loop input.** The owning repo + expected files are hidden ground truth used only by
-  an **offline** grading pass.
+  an **offline** grading pass (`grade()` / `gloop grade-run`); the loop runs blind. See
+  [architecture.md](architecture.md) for the port design and oracle-blindness, [evaluation.md](evaluation.md)
+  for how grading works.
 
 The measured headline capability today is **Stage-1 match** (ticket→repo); localize is strong but unscored;
-fix/submit/bind and the dev-experience KB are wired but their live quality is gated. See
-`docs/2026-07-06-first-evaluation.md`.
+fix/submit/bind and the dev-experience KB are wired but their live quality is gated. Results (env-tagged) live
+in [results-log.md](results-log.md).
 
 ---
 
@@ -119,11 +135,12 @@ set -a; . ./.env; set +a
 
 ---
 
-## 4. Building the oracle
+## 4. Build the oracle & atlas
 
 "The oracle" = the graded benchmark: **(a)** an **atlas** (the fleet index the match is scored over) plus
 **(b)** a **dataset** of cases, each with a hidden `_oracle/` (owning repo + expected files) mined from real
-merged fixes, optionally **(c)** synth-log augmented.
+merged fixes, optionally **(c)** synth-log augmented. Full atlas-build runbook, gated-live setup, and the deep
+build gotchas live in **[build-setup.md](build-setup.md)**; the essentials are below.
 
 ### 4.1 Build the atlas (the fleet index)
 
@@ -163,10 +180,22 @@ rsync -a --exclude=test --exclude=tests --exclude=androidTest --exclude='*_tests
 `gloop build-atlas --registry … --corpus … [--jobs 3 --concurrency 4 --force]` orchestrates
 clone→produce→index→doctor but is **fail-fast on the produce stage**; prefer `gloop index`.
 
+**Atlas-build gotchas** (one-liners; full findings in [build-setup.md](build-setup.md)):
+- **CBM timeout = 1800 s** (`KLOOP_CBM_INDEX_TIMEOUT`) — a low value trips a cold graph build, the client
+  restarts a still-indexing subprocess, dead-hangs, and stores **0 units, no error**. Keep it high.
+- **One index at a time** — concurrent `gloop index` jobs each spawn a ~24 GB CBM, contend, and stall.
+- **Process checks: `pgrep -fa 'gloop index'` / `pgrep -fa 'codebase-memory'`, not `ps -C`** (entry-point
+  `comm=gloop`; CBM truncates to `comm=codebase-memory`) — both must be empty before a build.
+- **Never `kill -9` CBM** mid-index (leaves a locked project db); clean rebuild = `rm ~/.cache/codebase-memory-mcp/<slug>.db`.
+- **Run the index detached** (a SIGTERM mid-embed orphans CBM); progress is per-repo durable — small repos first.
+- **Embed 413** — a batch over `BGE_MAX_BATCH` or an input over `BGE_MAX_CHARS` returns HTTP 413 (a 4xx, **not
+  retried** → aborts the index). Defaults `KLOOP_EMBED_BATCH=128`, `KLOOP_EMBED_MAX_CHARS=2000` are safe.
+
 **Reuse contract** — an `atlas.db` is shareable/portable only if these stay pinned (drift corrupts ranking
 **silently**): embed model `bge-m3` at index **and** query time · stable repo `name`s · the indexed `repo_head`
 SHAs (materialize downstream at the same SHA) · one `atlas.db` path · `codebase-memory-mcp==0.8.1` · the SQLite
-schema (no version guard — any change forces a full re-index).
+schema (no version guard — any change forces a full re-index). This is the same contract stated in
+[environments.md](environments.md) that makes a proxy atlas and a production atlas comparable.
 
 ### 4.2 Mine the dataset + oracle
 
@@ -205,7 +234,7 @@ owner namespaces/slugs/`.so`/expected-file tokens), then a deterministic **admit
 `AndroidSignalExtractor` over the sanitized text and rejects any surviving owner-unique token. With `--index-db`,
 a **closed-loop reject** additionally feeds the sanitized ticket through the *real `AtlasIndex` matcher* — if the
 true owner still ranks top-1, the case is dropped. **Without `--index-db` this closed-loop gate is OFF** (the CLI
-warns); ship with it on.
+warns); ship with it on. (Anti-leak integrity detail: [evaluation.md](evaluation.md).)
 
 **Typed honest-refusal negatives** (for the anti-hallucination metric): `insufficient_signal` (prose-only, still
 answerable), `coverage_gap` (merged after `--coverage-cutoff`), `out_of_fleet` (owner held out of the per-case
@@ -216,14 +245,14 @@ Mined tickets are ~87% prose lacking crash signal. `groundloop.synth.dataset.bui
 atlas_db, dest_root, catalog_names)` rewrites each case with a deterministic AAOS failure log naming the owner's
 **real** crash-site symbols pulled from the atlas (native SIGSEGV backtrace for native repos, else a FATAL
 EXCEPTION logcat). This is grounded signal (matched against the atlas, never the repo name) and raised Stage-1
-recall@1 from ~0.02 (real prose logs) to **0.60**. There is **no `gloop synth` subcommand** — call it
-programmatically. It stays decoupled from `groundloop.mine.*` by design.
+recall@1 from ~0.02 to **0.60 `[proxy]`**. There is **no `gloop synth` subcommand** — call it programmatically.
+It stays decoupled from `groundloop.mine.*` by design.
 
 ---
 
 ## 5. Run the pipeline
 
-### 5.1 End-to-end smoke (`gloop run`)
+### 5.1 End-to-end smoke — single case (`gloop run --case`)
 Exercises the whole loop on one case (real match/localize via `AtlasIndex`; **fix here is still the
 `CannedFixEngine` stub** — the real fix engine lives in `gloop fixeval`):
 ```bash
@@ -233,8 +262,28 @@ Exercises the whole loop on one case (real match/localize via `AtlasIndex`; **fi
   --index-db "$KLOOP_ATLAS_DB"           # or --index <token_index.json> for the hermetic M0 stub
 # prints: case=<id> matched=<repo> change=<change-id>
 ```
+`--match-arm {flood,routing,component}` (default `flood` = `AtlasIndex`) selects the Stage-1 match index;
+`--affinity component_affinity.json` is required for `--match-arm component`.
 
-### 5.2 Stage-1 match benchmark (`gloop eval`)
+### 5.2 Batch + offline grade (`gloop run --out` → `gloop grade-run`)
+Omit `--case` and pass `--out` to run the whole `--dataset`, writing one **oracle-free** run-record per case to
+`<out>/runs/<case>.json`. `--repos` = owner-repo snapshots dir (`CheckoutEstate`; empty → `MockEstate` with empty
+worktrees); `--fixer {canned,model}` picks the hermetic stub vs the real `ModelPatchEngine`:
+```bash
+.venv/bin/gloop run \
+  --dataset "$GL_DATA/dataset" --catalog "$GL_DATA/dataset/catalog.json" \
+  --index-db "$KLOOP_ATLAS_DB" --work /var/tmp/gl-work --changes /var/tmp/gl-changes.jsonl \
+  --out "$GL_DATA/runs" --repos "$GL_DATA/repos" --fixer canned
+
+.venv/bin/gloop grade-run \
+  --runs "$GL_DATA/runs" --dataset "$GL_DATA/dataset" \
+  --index-db "$KLOOP_ATLAS_DB" \         # optional: enables the isolated-localize diagnostic
+  --out "$GL_DATA/grade-scorecard.json"  # a .md table is written alongside
+```
+`grade-run` is the **offline** per-stage scorecard over the run-records (match recall@1, localize, …) — the
+oracle is read only here, never by `run`.
+
+### 5.3 Stage-1 match benchmark (`gloop eval`)
 ```bash
 .venv/bin/gloop eval \
   --dataset "$GL_DATA/dataset" --catalog "$GL_DATA/dataset/catalog.json" \
@@ -243,9 +292,10 @@ Exercises the whole loop on one case (real match/localize via `AtlasIndex`; **fi
 ```
 Writes `scorecard.json` + `.md` + `scorecard.predictions.jsonl` (per case×arm: predicted repo, oracle rank,
 recall@1, …). Arms: `membership+{text,logs}` always; `--semantic` adds bge-m3 arms (needs embed gateway);
-`--judge` adds LLM-rerank arms (needs chat gateway). Membership-only eval is **hermetic** (FTS5, no model).
+`--judge` adds LLM-rerank arms (needs chat gateway). Membership-only eval is **hermetic** (FTS5, no model). Full
+arm/metric/scorecard reference: [evaluation.md](evaluation.md).
 
-### 5.3 Fix-loop benchmark (`gloop fixeval`) + `compare`
+### 5.4 Fix-loop benchmark (`gloop fixeval`) + `compare`
 ```bash
 .venv/bin/gloop fixeval \
   --dataset "$GL_DATA/dataset" --catalog "$GL_DATA/dataset/catalog.json" \
@@ -260,10 +310,10 @@ at fix**. `--skills`: `none` baseline · `mock` = SP3 4-playbook seed · `kb` = 
 (`groundloop/kb/data/aaos_kb_seed.toml`) · `placebo` = matched control. Metrics: `file_recall@k`,
 `patch_apply_rate`, `required_api_pass_rate`, `resolved_rate` (proxy — no test execution), `fabrication_rate`
 (Bucket-1 negatives), `phi_c`, cost. `compare` is a hermetic JSON diff → `newly_solved`/`newly_broken` + a
-two-sided `accept` verdict.
+two-sided `accept` verdict. Fix-loop + KB design: [fix-loop.md](fix-loop.md).
 
-> The KB A/B (`groundloop/kb/ab.run_ab` + `accept.strengthened_accept`, which adds a Φ_c-sweep + Wilson lower
-> bound) is **library-only — no `gloop ab` subcommand yet**. Note also `file_recall@1` is **skill-invariant**
+> The KB A/B is exposed as `gloop kb-ab` (+ `kb-promote`/`kb-distill`/`kb-extract`/`kb-attribute`);
+> `strengthened_accept` adds a Φ_c-sweep + Wilson lower bound. Note `file_recall@1` is **skill-invariant**
 > (localize runs before fix), so grade KB lift on `resolved_rate`/`patch`/`fabrication_rate`.
 
 ---
@@ -286,38 +336,53 @@ two-sided `accept` verdict.
 
 **To deploy for real** you must additionally build: a real **`IssueSource`** (JIRA), a real **`ChangeSink`**
 (Gerrit/GitHub PR), and wire a **live fleet estate** into `run`. Match/localize/fix are built; extract is the
-domain adapter.
+domain adapter. Production deploy/validate/feedback SOP: [production-guide.md](production-guide.md).
 
 ---
 
 ## 7. Hermetic vs gated-live (what runs where)
 
+The dev-box ↔ production contract is in [environments.md](environments.md); this is the narrower "which command
+needs which asset" cut:
+
 - **Hermetic** (no LLM/embed network, but still needs a pre-built `atlas.db`): `gloop eval` without
-  `--semantic`/`--judge`; `gloop fixeval --skills none` without `KLOOP_PRODUCE_API_KEY` (abstains at fix);
-  `gloop compare`; `pytest`.
+  `--semantic`/`--judge`; `gloop run`/`gloop grade-run` on membership; `gloop fixeval --skills none` without
+  `KLOOP_PRODUCE_API_KEY` (abstains at fix); `gloop compare`; `pytest`.
 - **Gated-live** (need the gateways + assets): `gloop eval --semantic` (embed) / `--judge` (chat); `gloop
   fixeval` with real patches (`KLOOP_PRODUCE_API_KEY` + `--repos` git checkouts + embed for KB rerank); and
-  **building the atlas itself** (`gloop index` needs CBM + embed).
+  **building the atlas itself** (`gloop index` needs CBM + embed). Gated-live setup: [build-setup.md](build-setup.md).
 
 ---
 
-## 8. Operational gotchas (atlas build)
+## 8. Main scenarios (how GroundLoop is applied)
 
-- **CBM timeout = 1800 s** (`KLOOP_CBM_INDEX_TIMEOUT`). The old 30 s default tripped a cold graph build → the
-  client restarted a still-indexing subprocess and dead-hung, storing **0 units, no error**. Keep it high.
-- **One index at a time.** Concurrent `gloop index` jobs contend (each spawns a ~24 GB CBM) and stall past any
-  timeout. Verify none running first.
-- **Process checks: `pgrep -fa`, not `ps -C`.** The entry point has `comm=gloop`; CBM truncates to
-  `comm=codebase-memory` — `ps -C python`/`ps -C codebase-memory-mcp` never match:
-  ```bash
-  pgrep -fa 'gloop index'; pgrep -fa 'codebase-memory'   # must be empty before a build
-  ```
-- **Never `kill -9` CBM** mid-index (leaves a locked project db). For a clean rebuild:
-  `rm ~/.cache/codebase-memory-mcp/<slug>.db`.
-- **Run the full index detached** (a SIGTERM mid-embed orphans CBM); progress is per-repo durable — small repos first.
-- **Embed 413:** a batch over `BGE_MAX_BATCH` or an input over `BGE_MAX_CHARS` returns HTTP 413 (a 4xx, **not
-  retried** → aborts the index). Defaults `KLOOP_EMBED_BATCH=128`, `KLOOP_EMBED_MAX_CHARS=2000` are safe.
-- **Embedding is the real time cost** (not CBM) once the hang is fixed.
+- **A. Stage-1 matcher evaluation (the primary near-term use).** Run many ticket cases through the loop, then
+  offline-grade per case and aggregate Stage-1 metrics — `repo_recall@1`, `repo_rank` (rank of the correct repo
+  = a triage-effort proxy), forward `recall@k`/MRR, per-repo confusion, and **cost per matched ticket**. Answers:
+  *is the matcher actually picking the owner out of N confusable repos, or just guessing?* (`gloop eval`.)
+- **B. Closed-loop triage & fix on a real ticket (the end-state pipeline).** Drive one ticket + logs all the way
+  to a bound change (`gloop run`). Fully wired through `run_ticket` today with mock JIRA/Gerrit; the `run` fix
+  stage is a `CannedFixEngine` stub — the real `ModelPatchEngine` loop lives in `gloop fixeval` / `--fixer model`.
+- **C. A/B-arm mechanism comparison (measured-mechanism mode).** Add each new mechanism only as a *measured arm*
+  and keep it only if it beats its cost: matching-strategy arms (membership-only baseline → +semantic rerank →
+  +LLM-judge) and signal arms (text-only vs +logs). See [evaluation.md](evaluation.md) for the arm design.
+- **D. Build / refresh the index substrate (`gloop index`).** Register a fleet at pinned SHAs and build the
+  shareable `atlas.db` (FTS5 unit-membership over symbol + optional doc units) that is the matching primitive.
+  Honors the reuse contract so the artifact is portable — build once where CBM runs, ship the `.db` elsewhere
+  ([§4.1](#41-build-the-atlas-the-fleet-index), [build-setup.md](build-setup.md)).
+- **E. Operate the engines (`gloop produce`, `gloop doctor`).** `produce` generates a CodeWiki for a repo;
+  `doctor` resolves and reports CBM/index readiness. Supporting scenarios, not the loop itself
+  ([engines.md](engines.md)).
+- **F. Mine benchmark tickets from real issues (`gloop mine`).** Per-repo history → link `issue ↔ closing PR ↔
+  changed_files` → emit a loop-visible `Ticket` (symptom text + logs, **owner not written in**) plus a hidden
+  `Oracle` (`owning_repo`, `expected_files`). Ground truth is free: an issue in repo R is owned by R; the merged
+  PR's changed files are the localization oracle ([§4.2](#42-mine-the-dataset--oracle)).
+
+**What makes it non-trivial:** matching among *confusable* repos (lexically distinct namespaces, so a `1/N`
+guess scores far below a real match); owner = predicted output + hidden oracle, **never a loop input** (enforced
+*structurally* — `run_ticket` has no oracle parameter); anti-leak benchmark integrity (locked by
+`tests/test_invariants.py`); grounded refusal beats confident guessing; logs are the primary evidence; cost &
+model portability are first-class. Rationale: [charter.md](charter.md).
 
 ---
 
@@ -336,6 +401,7 @@ domain adapter.
 8. **Downstream:** stand up `--repos` git checkouts; `gloop fixeval --skills none|kb`; `gloop compare`.
 9. **For production intake/submit:** implement the real `IssueSource` (JIRA) and `ChangeSink` (Gerrit/PR)
    adapters and wire them at the composition root; wire a live fleet estate into `run`.
+   (Production deploy/validate/feedback SOP: [production-guide.md](production-guide.md).)
 
 ---
 
@@ -345,22 +411,43 @@ Be honest about these when deploying — they are **not yet built**:
 
 - **Real intake/submit adapters** — only `MockJira` / `MockGerrit` exist. A production loop needs a real JIRA
   `IssueSource` and a real Gerrit/GitHub-PR `ChangeSink`.
-- **`gloop run` fix is a stub** (`CannedFixEngine`); the real `ModelPatchEngine` fix loop is only in `gloop fixeval`.
-- **Live full-fleet estate** — `GitFixtureEstate` handles curated checkouts, not a live 130-repo clone inside `run`.
+- **`gloop run` fix is a stub** (`CannedFixEngine`); the real `ModelPatchEngine` fix loop is only in `gloop
+  fixeval` (and `gloop run --fixer model` batch mode).
+- **Live full-fleet estate** — `GitFixtureEstate`/`CheckoutEstate` handle curated checkouts, not a live
+  130-repo clone inside `run`.
 - **Atlas is symbol-only** — `produce`/CodeWiki is impractical at fleet scale (I/O-bound, crashes on giants);
   doc units (only used by the semantic arm) are largely absent.
 - **`Store.vector_search` is brute-force** (full scan over JSON vectors) — a real ANN index (sqlite-vss/faiss) is
   needed for scale.
-- **`rank_repos` size-bias is unfixed** (big repos win rank-1; recall@1 0.60 vs recall@3 0.80). Changing
-  `rank_repos` also affects the miner's closed-loop reject — coordinate.
+- **`rank_repos` size-bias is unfixed** (big repos win rank-1; recall@1 0.60 vs recall@3 0.80 `[proxy]`).
+  Changing `rank_repos` also affects the miner's closed-loop reject — coordinate.
 - **`required_apis` is always `[]`** from the miner; the diff-derived class/method redaction and the
   `expected_files`-exist-at-SHA check are dormant.
 - **SHA pinning** — `corpus.toml` may still carry `PIN_AT_CLONE`; resolve and pin back for a reproducible atlas.
-- **Named calib/eval/holdout splits are not materialized**; the KB A/B (`run_ab`) has no CLI subcommand;
-  honest-refusal negatives are not yet mined into the shipped eval datasets.
+- **Named calib/eval/holdout splits are not materialized**; honest-refusal negatives are not yet mined into the
+  shipped eval datasets (those metrics are fixture-only).
+
+**Where each stage stands:**
+
+| Stage | Adapter (prod) | Maturity |
+|---|---|---|
+| intake | *(JIRA adapter — seam)* | dev-mock only |
+| extract | `AndroidSignalExtractor` | ✅ built (domain adapter = prod) |
+| **match** | `AtlasIndex` / `SemanticAtlasIndex` | ✅ **built + measured** (the headline capability) |
+| materialize | `GitFixtureEstate` / `CheckoutEstate` | ✅ built (fixtures); live full-fleet estate = seam |
+| localize | `AtlasIndex.retrieve` | ✅ built + strong, **not yet scored** by the harness |
+| fix | `ModelPatchEngine` (+ `GatewayModel`) | ⚠️ built; live quality gated (proxy metric) |
+| submit / bind | *(Gerrit/PR adapter — seam)* | dev-mock only |
+
+To take the loop to production you implement the two seam adapters (JIRA `IssueSource`, Gerrit/PR `ChangeSink`)
+and wire a live fleet estate — everything upstream of them (match → localize → fix) is built.
 
 ---
 
-*See also: `docs/architecture.md` (ports & adapters), `docs/type2-evaluation.md` (dataset/scorecard canonical),
-`docs/m1-index-build.md` + `docs/type2-atlas-build-findings.md` (atlas build + gotchas),
-`docs/skill-kb-migration.md` (KB), `docs/2026-07-06-first-evaluation.md` (measured status).*
+*See also: [environments.md](environments.md) (dev↔production), [architecture.md](architecture.md) (ports &
+adapters, oracle-blindness), [evaluation.md](evaluation.md) (dataset/scorecard/arms canonical),
+[build-setup.md](build-setup.md) (atlas build + gated-live setup + gotchas), [fix-loop.md](fix-loop.md) (fix
+loop + KB), [production-guide.md](production-guide.md) (production SOP), [charter.md](charter.md) (mission +
+FR/NFR), [results-log.md](results-log.md) (measured status, env-tagged).*
+</content>
+</invoke>
