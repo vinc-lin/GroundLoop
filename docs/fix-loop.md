@@ -4,11 +4,16 @@
 > stages of GroundLoop's control plane — **localize → fix → grade → bind** — the part that runs *after*
 > Stage-1 ticket→repo matching has picked an owning repo.
 >
-> **State of the code, plainly:** in GroundLoop today the **fix** stage is a `CannedFixEngine` **stub**
-> (`groundloop/adapters/fix/canned.py`), **localize** is a placeholder step in the control plane, and
-> the real **`AgentFixEngine` + tiered grader are FUTURE work** (see [roadmap.md — planned](roadmap.md)).
-> The only grader that exists is the offline function `grade(record, oracle) -> Scores`
-> (`groundloop/grade/grader.py`) — the tier ladder below is its target shape, not its current one.
+> **State of the code, plainly (updated 2026-07-11):** the fix-loop **eval surface has shipped** — `gloop
+> fixeval` / `gloop grade-run` / `gloop compare`, driven by the real **`ModelPatchEngine`**
+> (`groundloop/adapters/fix/model_patch.py`), with **Tier-1 (file-recall) + Tier-1.5 (required-apis)**
+> grading live in `groundloop/fixeval/scorecard.py`. **localize** is real (`AtlasIndex.retrieve`). `gloop
+> run`'s fix stage still **defaults** to the `CannedFixEngine` stub (`groundloop/adapters/fix/canned.py`);
+> the real engine runs via `--fixer model`. Still **design-target** (the tier ladder below is its target
+> shape, not its full current one): the **Tier-2/3 grader** (AST/CST sim + AOSP build/test exec), a real
+> fix engine as the `gloop run` *default*, and the `board`/`frontier` surfaces. The frozen `grade(record,
+> oracle) -> Scores` (`groundloop/grade/grader.py`) is the thin single-case grader; `gloop grade-run` is
+> the per-stage scorecard over the real loop.
 >
 > The actively-evolving experiments for this loop live in the **sibling `loop-agent` repo** (the
 > **bfl** / "Bug-Fixing-Loop" fix-loop experiment, remote `bug-fixing-loop.git`) — a *separate* repo
@@ -18,11 +23,11 @@
 > [bfl architecture](../../loop-agent/docs/architecture.md),
 > [bfl MVP plan](../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md).
 
-`bfl` is a *separate* CLI in a *separate* repo. **GroundLoop's CLI is `gloop {run, index, produce,
-doctor}`** and has **no** fix-loop subcommands yet — every `run / grade / board / compare / frontier`
-surface named below is **aspirational for GroundLoop** (built in bfl, not in `gloop`). See
-[architecture.md](architecture.md) for the hexagonal plane split this loop plugs into and
-[charter.md](charter.md) for Stage 1–4 framing.
+`bfl` is a *separate* CLI in a *separate* repo. GroundLoop has since built its own fix-loop surface —
+**`gloop {fixeval, grade-run, compare}`** (+ the KB arm, §5) — so the eval / `compare` surface below is
+**real in `gloop`**, not aspirational; only bfl's `board` / `frontier` scoreboards remain bfl-only (mapped
+to a future `gloop` track in [roadmap.md](roadmap.md)). See [architecture.md](architecture.md) for the
+hexagonal plane split this loop plugs into and [charter.md](charter.md) for Stage 1–4 framing.
 
 ---
 
@@ -160,9 +165,10 @@ guarantee. This mirrors the Type-1 hermetic anti-leak invariants already asserte
 
 The fix loop is *also* a benchmark: run the pipeline across a dataset subset, grade offline, and diff
 runs so quality-per-dollar can be optimized after every change. **In bfl this is
-`bfl {run, grade, board, compare, frontier}`; there is no `gloop` equivalent yet — treat the whole
-surface as aspirational for GroundLoop** (mapped onto a future `gloop` fix-loop track in
-[roadmap.md — planned](roadmap.md)).
+`bfl {run, grade, board, compare, frontier}`; GroundLoop has built the equivalents as `gloop {fixeval,
+grade-run, compare}`** — bfl's `run`+`grade` → `gloop fixeval` (+ `gloop grade-run` for the per-stage
+scorecard over the real loop), `compare` → `gloop compare`. Only `board` / `frontier` (the scoreboard +
+model×metric grid) remain bfl-only, a future `gloop` track ([roadmap.md](roadmap.md)).
 
 - **run** → produces a `RunRecord` (config + per-bug outcomes); `grade` (the offline pass) is
   auto-invoked.
