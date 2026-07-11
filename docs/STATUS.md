@@ -245,4 +245,8 @@ Gate check (prints `200` when healthy): see `docs/type2-eval-setup.md` → "Embe
   1024-dim) + `mxbai-embed-large` + `qwen3` (GPU/Ollama-backed — `qwen3` DOWN at last check).
 - **Corpora** — `/mnt/x/code/corpora/` at pinned SHAs (`corpus.toml`): android-gpuimage-plus, libxcam,
   ndk-samples. Registry: `corpora/atlas.toml`. Built atlas.db target: `~/.groundloop/atlas.db`.
-- **Git** — HEAD `d7a3b90` at the time of writing; `master` branch; no remote configured yet.
+- **Git** — `master` @ `6be1c2a` (self-scoring pipeline merged), pushed to `origin`
+  (`github.com:vinc-lin/GroundLoop.git`) and in sync. **Local branches pruned 2026-07-11:** the merged
+  feature branches (`self-scoring-pipeline` + the 8 older `feat/*`: claim-centric-kb, plan-format-fix-stage,
+  type2-{eval-e1c,judge-e3,miner-e1b,semantic-e2,substrate-build,symbols-index}) were deleted with `git
+  branch -d` after confirming each was merged; **only `master` remains local.**
