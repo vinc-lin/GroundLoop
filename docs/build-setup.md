@@ -41,8 +41,9 @@ gloop doctor --atlas-db "$KLOOP_ATLAS_DB"
 
 ## Reuse contract
 
-Pin these or cross-run / cross-environment numbers stop being comparable (mirrors the contract in
-[environments.md](environments.md)):
+Pin these or an `atlas.db` stops being shareable and reruns over it stop being reproducible — the same reuse
+contract as [environments.md](environments.md), which keeps the atlas *shape* stable across environments,
+**not** proxy-vs-production *scores* comparable:
 
 | constraint | value | env var |
 |---|---|---|
