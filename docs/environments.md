@@ -74,4 +74,6 @@ shareable:
 - the **SQLite schema unchanged** (there is no schema-version guard — any schema change forces a full
   re-index).
 
-Change any of these and cross-run / cross-environment numbers are no longer comparable.
+Change any of these and the `atlas.db` is no longer reusable — reruns over it stop being reproducible.
+(This is about reuse/reproducibility of the atlas *shape*; it never made a proxy and a production score
+comparable — see the standing lesson above.)
