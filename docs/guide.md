@@ -195,7 +195,8 @@ clone→produce→index→doctor but is **fail-fast on the produce stage**; pref
 **silently**): embed model `bge-m3` at index **and** query time · stable repo `name`s · the indexed `repo_head`
 SHAs (materialize downstream at the same SHA) · one `atlas.db` path · `codebase-memory-mcp==0.8.1` · the SQLite
 schema (no version guard — any change forces a full re-index). This is the same contract stated in
-[environments.md](environments.md) that makes a proxy atlas and a production atlas comparable.
+[environments.md](environments.md) that keeps an `atlas.db` shareable across both environments — a reusable
+index of identical *shape*, not comparable *scores* (per that doc's standing lesson).
 
 ### 4.2 Mine the dataset + oracle
 
@@ -449,5 +450,3 @@ adapters, oracle-blindness), [evaluation.md](evaluation.md) (dataset/scorecard/a
 [build-setup.md](build-setup.md) (atlas build + gated-live setup + gotchas), [fix-loop.md](fix-loop.md) (fix
 loop + KB), [production-guide.md](production-guide.md) (production SOP), [charter.md](charter.md) (mission +
 FR/NFR), [results-log.md](results-log.md) (measured status, env-tagged).*
-</content>
-</invoke>
