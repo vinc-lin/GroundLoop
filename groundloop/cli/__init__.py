@@ -981,8 +981,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run")
-    for flag in ("--case", "--dataset", "--catalog", "--work", "--changes"):
+    for flag in ("--dataset", "--catalog", "--work", "--changes"):
         r.add_argument(flag, required=True)
+    r.add_argument("--case", default=None,
+                   help="single-case mode; omit and pass --out for batch over --dataset")
+    r.add_argument("--out", default=None,
+                   help="batch mode: write oracle-free run-records to <out>/runs/<case>.json")
+    r.add_argument("--repos", default="",
+                   help="batch: owner-repo snapshots dir (CheckoutEstate); empty -> MockEstate (empty worktrees)")
+    r.add_argument("--fixer", choices=["canned", "model"], default="canned",
+                   help="batch: canned (hermetic stub) | model (real ModelPatchEngine)")
     # --index and --index-db are mutually exclusive; at least one must be provided
     idx_group = r.add_mutually_exclusive_group(required=True)
     idx_group.add_argument("--index", default=None,
@@ -992,6 +1000,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--match-arm", choices=["flood", "routing", "component"], default="flood",
                    help="Stage-1 match index: flood (AtlasIndex) | routing (FaultRoutingIndex) | component")
     r.add_argument("--affinity", default="", help="component_affinity.json (for --match-arm component)")
+
+    grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
+    grun.add_argument("--runs", required=True, help="the <out> dir written by gloop run --out")
+    grun.add_argument("--dataset", required=True, help="the dataset the run was over (for the hidden oracle)")
+    grun.add_argument("--index-db", default=None, help="atlas.db — enables the isolated-localize diagnostic")
+    grun.add_argument("--out", required=True, help="scorecard JSON path (a .md table is written alongside)")
 
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
@@ -1185,6 +1199,44 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _build_run_fixer(kind: str):
+    """Compose the fix engine for batch `gloop run` at the composition root (no core edit): canned
+    hermetic stub, or the real ModelPatchEngine (gateway model; degrades to a canned empty model that
+    abstains when KLOOP_PRODUCE_API_KEY is unset), mirroring `gloop fixeval`."""
+    from groundloop.adapters.fix.canned import CannedFixEngine
+    from groundloop.adapters.mock.model import CannedModel
+    if kind == "model":
+        import os
+        from groundloop.adapters.fix.model_patch import ModelPatchEngine
+        if os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
+            from groundloop.adapters.model.gateway import GatewayModel
+            from groundloop.config.settings import Settings
+            s = Settings.load()
+            return ModelPatchEngine(GatewayModel(s.produce_base_url, s.produce_api_key,
+                                                 s.produce_main_model))
+        print("gloop run --fixer model: no KLOOP_PRODUCE_API_KEY — canned empty model (fix abstains).")
+        return ModelPatchEngine(CannedModel({"default": ""}))
+    return CannedFixEngine(CannedModel({"default": "patch"}))
+
+
+def _run_grade_run(args) -> int:
+    import json
+    from pathlib import Path
+    from groundloop.run.grade_run import grade_run
+    from groundloop.run.report import render_run_markdown
+    card = grade_run(args.runs, args.dataset, index_db=args.index_db or None)
+    Path(args.out).write_text(json.dumps(card, indent=2, ensure_ascii=False, default=str))
+    Path(args.out).with_suffix(".md").write_text(render_run_markdown(card))
+    ov = card["overall"]
+    fx = ov["fix"] or {}
+    iso = ov["localize"].get("isolated") or {}
+    print(f"grade-run: {card['n_cases']} cases · match recall@1={ov['match']['recall@1']:.2f} · "
+          f"localize as-run@1={ov['localize']['as_run'].get('file@1')} "
+          f"isolated@1={iso.get('file@1')} · "
+          f"fix gradeable={fx.get('n_gradeable')} ungradeable={fx.get('n_ungradeable_no_source')}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "run":
@@ -1207,12 +1259,29 @@ def main(argv: list[str] | None = None) -> int:
         else:
             index = TokenIndex(args.index)
         issues = MockJira(args.dataset)
-        rec = run_ticket(args.case, issues=issues, extractor=extractor,
-                         estate=MockEstate(args.catalog, args.work), index=index,
-                         fixer=CannedFixEngine(CannedModel({"default": "patch"})),
-                         changes=MockGerrit(args.changes, issues))
-        print(f"case={rec.ticket_id} matched={rec.chosen.name} change={rec.change.change_id}")
-        return 0
+        if args.case:                                              # single-case (back-compat)
+            rec = run_ticket(args.case, issues=issues, extractor=extractor,
+                             estate=MockEstate(args.catalog, args.work), index=index,
+                             fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                             changes=MockGerrit(args.changes, issues))
+            print(f"case={rec.ticket_id} matched={rec.chosen.name} change={rec.change.change_id}")
+            return 0
+        if args.out:                                              # batch -> self-scoring run-records
+            from groundloop.adapters.estate import CheckoutEstate, RecordingEstate
+            from groundloop.run.batch import run_dataset
+            inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
+                     else MockEstate(args.catalog, args.work))
+            n = run_dataset(args.dataset, issues=issues, extractor=extractor,
+                            estate=RecordingEstate(inner), index=index,
+                            fixer=_build_run_fixer(args.fixer),
+                            changes=MockGerrit(args.changes, issues),
+                            match_arm=args.match_arm, out=args.out)
+            print(f"runs written: {n} -> {args.out}/runs")
+            return 0
+        print("gloop run: pass --case <id> (single) or --out <dir> (batch over --dataset)")
+        return 2
+    if args.cmd == "grade-run":
+        return _run_grade_run(args)
     if args.cmd == "index":
         return _run_index(args)
     if args.cmd == "doctor":
