@@ -95,6 +95,57 @@ def test_base_is_fix_parent_with_history_scrubbed():
     history removed and fix-added tests excluded, so the loop cannot see the answer in git history."""
 
 
+# Invariant 7 (self-scoring) — the persisted run-record is oracle-free; a booby-trapped oracle never
+# bleeds into <out>/runs/<case>.json. The batch loop reads only loop-visible fields.
+def test_run_record_has_no_oracle_fields(tmp_path):
+    import json
+
+    from groundloop.adapters.estate import MockEstate, RecordingEstate
+    from groundloop.adapters.fix.canned import CannedFixEngine
+    from groundloop.adapters.mock.gerrit import MockGerrit
+    from groundloop.adapters.mock.jira import MockJira
+    from groundloop.adapters.mock.model import CannedModel
+    from groundloop.core.types import RepoScore
+    from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
+    from groundloop.run.batch import run_dataset
+
+    class _Stub:
+        def rank_repos(self, signals, catalog):
+            return [RepoScore(r, 1.0 - i) for i, r in enumerate(catalog)]
+
+        def retrieve(self, repo, query):
+            return ["Main.kt"]
+
+    (tmp_path / "ds" / "GEI-1").mkdir(parents=True)
+    (tmp_path / "ds" / "GEI-1" / "ticket.json").write_text(json.dumps(
+        {"id": "GEI-1", "summary": "glitch", "description": "d", "component": "Audio", "logs": []}))
+    (tmp_path / "ds" / "GEI-1" / "_oracle").mkdir()
+    (tmp_path / "ds" / "GEI-1" / "_oracle" / "oracle.json").write_text(json.dumps(
+        {"owning_repo": "SECRETOWNER", "expected_files": ["Main.kt"], "required_apis": ["secretApi"]}))
+    (tmp_path / "ds" / "catalog.json").write_text(json.dumps([{"name": "alpha"}, {"name": "beta"}]))
+    issues = MockJira(str(tmp_path / "ds"))
+    run_dataset(str(tmp_path / "ds"), issues=issues, extractor=AndroidSignalExtractor(),
+                estate=RecordingEstate(MockEstate(str(tmp_path / "ds" / "catalog.json"),
+                                                  str(tmp_path / "work"))),
+                index=_Stub(), fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                changes=MockGerrit(str(tmp_path / "out" / "changes.jsonl"), issues),
+                match_arm="flood", out=str(tmp_path / "out"))
+    blob = (tmp_path / "out" / "runs" / "GEI-1.json").read_text()
+    for leaked in ("SECRETOWNER", "secretApi", "owning_repo", "expected_files", "required_apis"):
+        assert leaked not in blob, f"oracle field {leaked!r} leaked into the run-record"
+
+
+# Invariant 8 (self-scoring) — the batch run loop is oracle-blind; grade_run is the SOLE oracle reader.
+def test_selfscore_grader_is_sole_oracle_reader():
+    import groundloop
+    root = pathlib.Path(groundloop.__file__).parent
+    batch = (root / "run" / "batch.py").read_text()
+    assert "load_eval_oracle" not in batch and "load_oracle" not in batch, \
+        "the batch run loop must be oracle-blind (no oracle-read API)"
+    grade = (root / "run" / "grade_run.py").read_text()
+    assert "load_eval_oracle" in grade, "grade_run must be the sole oracle reader"
+
+
 # Bridge to Type-2 — the invariants hold over the REAL FTS5 matcher too, and it beats the 1/N guess
 # baseline (fleet-integrity backstop, §3.4): a matcher that guessed would not rank the owner first.
 def test_atlas_matcher_honors_invariants(atlas_harness):

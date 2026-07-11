@@ -13,6 +13,38 @@ namespaced **GL-M0/GL-M1** (GroundLoop) vs **BFL-M0..M9** vs spec **M1–M5** �
 
 ## Done
 
+### Self-scoring pipeline — `gloop run` batch + `gloop grade-run` (2026-07-11) ✅ merged-ready
+Fixes the *measurement* failures the first e2e run exposed (localize misread as 0/10; an 8-vs-7 hand-tally).
+`gloop run` now persists the `RunRecord` it used to discard (batch mode over a dataset, oracle-blind) + `--repos`
+(CheckoutEstate) / `--fixer {canned,model}` knobs; `gloop grade-run` is an offline per-stage scorecard — match
+`recall@1/@3/@5`, localize **as-run** (on chosen) + **isolated** (on oracle repo = the "7/10 not 0/10"
+auto-correction), fix `resolved_strict`/`fabrication` **or** honest `UNGRADEABLE(no_source)`, a `by_bug_kind`
+split, and a generated per-case markdown table. **Zero `core/` edits** (the frozen `RunRecord` already carried
+`ranked`/`locations`/`patch`); reuses `eval`/`fixeval` machinery (`load_cases`, `load_eval_oracle`,
+`recall_at_k`, `FixRecord`, `grade_fix_all`, `patch_applies`). New units: `groundloop/run/{record,batch,grade_run,
+report}.py` + additive `RecordingEstate`/`CheckoutEstate`. Leak-honest (red-tested invariants 7–8: run-record
+oracle-free, `grade_run` sole oracle reader). 8 tasks, **566 passed / 7 skipped, ruff clean**. Spec/plan:
+`docs/superpowers/{specs,plans}/2026-07-11-self-scoring-pipeline*.md`; runbook `docs/production-migration.md` §8.
+*Process note:* Tasks 1–3 ran subagent-driven with 2-stage review; Task 4's implementer subagent emitted an
+anomalous (self-generated, non-injected — verified via its transcript) jailbreak-pattern output and did nothing,
+so Tasks 4–8 were completed in the main context. No compromise; config/repo clean.
+
+### First end-to-end production run — 10 functional GEI cases (2026-07-11) ✅ first efficacy read
+The **first full 8-stage `gloop run`** on real production GEI data (10 functional cases, `component` match arm,
+`component_affinity.json` mined from **1,169 JIRA↔Gerrit oracle pairs**, real **19-repo / 126,919-unit** atlas,
+bge-m3 (TEI) retrieve + **qwen3p6-27b** rerank). This is the production scoreboard the component-routing pivot
+was built for. **Match recall@1 7/10** by the per-case table (⚠ the run summary reported 8/10 — a
+count-reconciliation flag: 2 root causes but **3** missed cases `13363`/`14905`/`8185`; confirm against the raw
+scorecard). **Localize 7/10 file@5, 1/10 file@1** — a **measurement correction**: an earlier "localize 0/10"
+was misreading the fix stage's *fabricated* file; measured on `AtlasIndex.retrieve` the hybrid retrieve + qwen
+rerank works. **Fix 0/10 but ungraded** — an **empty-worktree** artifact (only `XCIPadMediaService` checked out
+under `$GL_DATA/repos/`), not a fix-stage failure. Root causes: match misses = label≠owner (`13363`
+Bluetooth→cluster) + CarPlay Core-vs-Integration near-tie (0.005 gap < base RRF ≤0.017); localize misses =
+coverage gap (`8185` `CpAccessibilityManager.kt` not indexed) + pool recall (`14905`/`4240`). **Highest-value
+unblock = check out the 4 owner repos** so fix becomes gradeable (production-side). Detail:
+`docs/2026-07-11-functional-10case-e2e-findings.md`. Dev-box follow-ups (gated on the 406): CarPlay semantic
+tiebreak, a `component`-override text signal for label≠owner, per-file localize aggregation.
+
 ### Component-routing match arm — MERGED to master (2026-07-10); proxy mechanism check ✅
 Production feedback on the real 19-repo GEI atlas redirected the functional-bug track: ticket-text matching is
 size-biased (recall@1 **0.10**), and an empirical **JIRA component→repo affinity prior** is the dominant Stage-1

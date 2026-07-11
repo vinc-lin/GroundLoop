@@ -122,3 +122,34 @@ Every proxy number in `docs/2026-07-10-*-findings.md` is a **mechanism/regressio
 proxy validated: the pipelines run end-to-end, the re-ranker lifts the base, LOO is load-bearing, no crash
 regression, frozen surfaces untouched. **Production is the only efficacy scoreboard** — and my functional-text
 proxy 0.68 vs the real 0.10 is the standing reminder to trust production, not the proxy.
+
+## 8. Self-scoring the run — an auto-generated per-stage scorecard (2026-07-11)
+
+The first end-to-end run (`docs/2026-07-11-functional-10case-e2e-findings.md`) was hand-tallied — which
+produced an 8-vs-7 match miscount and misread localize as 0/10 (it read the fix stage's *fabricated* file).
+`gloop run` is now **self-scoring**: it persists an oracle-free run-record per case, and `gloop grade-run`
+turns those + the hidden oracle into a per-stage scorecard offline. No hand-tallying.
+
+```bash
+# 1) batch the real loop -> one oracle-free run-record per case (the loop stays oracle-blind)
+gloop run --dataset <10case-or-406> --catalog <catalog.json> --index-db $KLOOP_ATLAS_DB \
+  --match-arm component --affinity component_affinity.json \
+  --repos <19-repo-mirror-at-pinned-SHAs> --fixer model \
+  --work <work> --changes <changes.jsonl> --out run-10
+
+# 2) offline per-stage scorecard (match / localize as-run + isolated / fix or honest-abstain)
+gloop grade-run --runs run-10 --dataset <10case-or-406> --index-db $KLOOP_ATLAS_DB --out card-10.json
+```
+Read `card-10.json` (+ the generated `card-10.md` per-case table). What it fixes vs the hand-tally:
+- **Match** counts are automatic — the 8-vs-7 miscount cannot recur.
+- **Localize** is reported twice: **as-run** (retrieve on the *chosen* repo — the honest end-to-end number)
+  and **isolated** (retrieve on the *oracle* repo — the match-independent ceiling, the "7/10 not 0/10"
+  correction, produced automatically). `--index-db` enables the isolated diagnostic.
+- **Fix** is graded only where the owner was actually checked out (`--repos` at the real mirror); an empty
+  worktree is reported `UNGRADEABLE(no_source)`, never misread as a localization. `--fixer model` runs the
+  real `ModelPatchEngine`; without owner checkouts fix honestly abstains.
+- `by_bug_kind` splits crash vs functional.
+
+Loop-blind + grade-offline is preserved and red-tested (`tests/test_invariants.py` invariants 7–8: the
+run-record is oracle-free; `grade_run` is the sole oracle reader). Spec/plan:
+`docs/superpowers/{specs,plans}/2026-07-11-self-scoring-pipeline*.md`.

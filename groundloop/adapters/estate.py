@@ -3,7 +3,11 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 from groundloop.core.types import RepoRef, WorkTree
+
+if TYPE_CHECKING:  # avoid a runtime package import cycle; the real import is lazy in materialize()
+    from groundloop.run.record import MaterializeOutcome
 
 
 class MockEstate:
@@ -47,4 +51,57 @@ class GitFixtureEstate:
                          ["config", "user.name", "fixeval"], ["add", "-A"],
                          ["commit", "-q", "-m", "base"]):
                 subprocess.run(["git", "-C", str(dst), *args], check=True)
+        return WorkTree(repo=repo, path=str(dst))
+
+
+class RecordingEstate:
+    """A RepoEstate decorator: delegates catalog()/materialize() to an inner estate and records a
+    MaterializeOutcome (present, n_files) per materialize so the offline grader can judge fix
+    gradeability without re-reading disk. Pure adapter — no core edit."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self._outcomes: dict[str, "MaterializeOutcome"] = {}
+
+    def catalog(self):
+        return self.inner.catalog()
+
+    def materialize(self, repo: RepoRef) -> WorkTree:
+        from groundloop.run.record import MaterializeOutcome
+        wt = self.inner.materialize(repo)
+        d = Path(wt.path)
+        n = 0
+        if d.is_dir():
+            for _ in d.rglob("*"):                 # capped: we only need present vs empty + a small count
+                n += 1
+                if n >= 2:                          # >=1 real entry beyond an empty dir is enough signal
+                    break
+        self._outcomes[repo.name] = MaterializeOutcome(repo=repo.name, path=str(d),
+                                                       present=n > 0, n_files=n)
+        return wt
+
+    def outcome_for(self, name: str):
+        return self._outcomes.get(name)
+
+
+class CheckoutEstate(MockEstate):
+    """Catalog from catalog.json (MockEstate) + a materialize() that checks out a plain-file repo
+    snapshot from <fixtures_root>/<repo> into a fresh work-tree and git-inits it (the GitFixtureEstate
+    recipe). No snapshot -> empty dir (honest localize/apply abstain). For `gloop run --repos`."""
+
+    def __init__(self, catalog_path: str, fixtures_root: str, work_root: str):
+        super().__init__(catalog_path, work_root)
+        self.fixtures_root = Path(fixtures_root)
+
+    def materialize(self, repo: RepoRef) -> WorkTree:
+        dst = self.work_root / repo.name
+        if dst.exists():
+            shutil.rmtree(dst)
+        dst.mkdir(parents=True)
+        src = self.fixtures_root / repo.name
+        if src.is_dir():
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+            for a in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "run"],
+                      ["add", "-A"], ["commit", "-q", "-m", "base"]):
+                subprocess.run(["git", "-C", str(dst), *a], check=True)
         return WorkTree(repo=repo, path=str(dst))
