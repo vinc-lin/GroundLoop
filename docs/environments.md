@@ -62,8 +62,10 @@ survives only once production confirms it; never report a proxy number as an out
 
 ## Reuse contract — one `atlas.db` shape across both environments
 
-Both environments consume an `atlas.db` built the same way, so a proxy atlas and a production atlas are
-directly comparable and an index is reusable across runs. The contract that keeps `atlas.db` shareable:
+Both environments consume an `atlas.db` built the same way, so the two are **structurally identical** and an
+index is reusable across runs. (This is about the atlas *shape*, not the scores — per the standing lesson
+above, `[proxy]` and `[production]` numbers are **not** interchangeable.) The contract that keeps `atlas.db`
+shareable:
 
 - **embed model pinned `bge-m3`** at *both* index time and query time (a mismatch silently corrupts
   cosine ranking — the `SemanticAtlasIndex` dimension guard fails loud instead);
