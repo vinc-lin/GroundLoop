@@ -20,8 +20,8 @@ FTS5-backed atlas.db via the `CodeIndex` port (`AtlasIndex.rank_repos`), discrim
 from hard negatives on a hand-built fixture db. Reuse contract honored: `bge-m3` pinned at index +
 query time, store schema unchanged. Full build/consume detail: [m1-index-build.md](m1-index-build.md).
 
-Live state, the current blocker (the pinned `bge-m3` embedding host is down), and the immediate next
-steps are tracked in [STATUS.md](STATUS.md) — that file is authoritative over this section.
+Live state, blockers, and next steps live in [STATUS.md](STATUS.md) (authoritative over this section);
+the dev-box-vs-production split and the `[proxy]`/`[production]` result tags are in [environments.md](environments.md).
 
 ## 2. Pilot fleet & log-richness
 
@@ -47,9 +47,8 @@ namespaces so repo selection is genuinely hard:
 | Camera / graphics | `natario1/CameraView`, `wysaid/android-gpuimage-plus` |
 | Automotive authenticity | `android/car-samples`, `COVESA/dlt-daemon` |
 
-Distinct namespaces (`androidx.media3.*`, `org.schabi.newpipe.*`, `app.organicmaps.*`, `net.osmand.*`,
-`com.otaliastudios.cameraview.*`, `org.wysaid.*`, `androidx.car.app.*`, …) yield clean positive /
-hard-negative pairs. Distractor slots are reserved for scaling toward 130+.
+Distinct namespaces (`androidx.media3.*`, `net.osmand.*`, `org.wysaid.*`, `androidx.car.app.*`, …) yield
+clean positive / hard-negative pairs. Distractor slots are reserved for scaling toward 130+.
 
 **Log-richness (confirmed):** `androidx/media` has **367 stack-trace issues**; `organicmaps` has **57
 native-backtrace issues**. `NewPipe`, `OsmAnd`, and `CameraView` are to be sampled before final
