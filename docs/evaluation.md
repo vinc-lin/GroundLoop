@@ -17,6 +17,15 @@
 > spec's **M4** ("the matching benchmark"); its build is sequenced in **eval-harness stages E1–E3** (§2)
 > — a build order **distinct from** the `GL-M*` / `BFL-M*` / spec `M1–M5` milestone tracks (see
 > [`roadmap.md`](roadmap.md) §8) and from the doc-revision "vN" of the status line above.
+>
+> **Build status (updated 2026-07-11).** This is the canonical *design*; most of it has since **shipped**.
+> The **E1–E3 harness + all 6 arms + the miner + the 9-repo atlas** are built (`gloop {eval, mine,
+> build-atlas}`, `SemanticAtlasIndex`, `LLMJudgeIndex`, the `groundloop/eval/` package). Matcher arms that
+> landed **after** this design — **component-routing, functional-bug, and fault-routing** (`gloop funceval` /
+> `gloop faulteval`; `gloop run --match-arm {flood, routing, component}`) — extend the Stage-1 frontier beyond
+> the original 6-arm matrix. **Measured results (env-tagged) live in [`results-log.md`](results-log.md); the
+> current CLI is in `CLAUDE.md`.** Read §2 / §8 / §12's staging + effort estimates below as the original build
+> order, now largely complete.
 
 ---
 
@@ -93,13 +102,12 @@ pilot is a curated **Android-IVI–representative** fleet spanning four function
 lexically distinct namespaces so that *cross-family* matching is easy but *within-family* matching is the
 real test.
 
-**Registry status — proposed, not yet pinned.** The shared registry (`corpora/corpus.toml` /
-`corpora/atlas.toml`) today holds only the **3 GL-M1 built-corpora repos** — `ndk-samples`, `libxcam`,
-`android-gpuimage-plus` (charter §6 "Built corpora"). This fleet is a **proposed expansion** of that
-layer from 3→9: `android-gpuimage-plus` stays; `ndk-samples` and `libxcam` are **not
-IVI-representative** (they were the M1 index-build corpus) and are dropped from the eval fleet (optionally
-retained as extra cross-domain distractors). The 9 repos below become the pinned eval fleet once produced
-+ indexed (§5).
+**Registry status — BUILT (updated 2026-07-11).** This 9-repo eval fleet was produced + indexed into
+`atlas-9.db` (~475k units); the first real evals ran over it (see [`results-log.md`](results-log.md)). It
+expanded the original GL-M1 built-corpora layer 3→9 (`ndk-samples`, `libxcam`, `android-gpuimage-plus`,
+charter §6): `android-gpuimage-plus` stays; `ndk-samples` and `libxcam` are **not IVI-representative** (they
+were the M1 index-build corpus) and are dropped from the eval fleet (optionally retained as cross-domain
+distractors). The 9 repos below (§5) are the pinned eval fleet.
 
 ### 3.1 Locked pilot fleet (feasibility-verified 2026-07-05 via `gh`)
 
@@ -562,6 +570,11 @@ Load-bearing lessons:
 ---
 
 ## 12. Roadmap alignment, effort & deferrals
+
+> **Since shipped (2026-07-11):** E1–E3 below are **built** (`gloop eval --semantic --judge`, the
+> `groundloop/eval/` package, `SemanticAtlasIndex` / `LLMJudgeIndex`, `gloop mine` / `build-atlas`). The
+> effort estimates are the original plan, kept for provenance; measured results are in
+> [`results-log.md`](results-log.md).
 
 **Staging maps to build order** (each stage independently shippable):
 
