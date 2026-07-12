@@ -991,9 +991,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--repos", default="",
                    help="batch: owner-repo snapshots dir (CheckoutEstate). REQUIRED with --fixer model; "
                         "empty -> MockEstate (empty worktrees, hermetic only)")
-    r.add_argument("--fixer", choices=["canned", "model"], default="model",
-                   help="batch fix engine: model (real ModelPatchEngine — the production default) | "
-                        "canned (hermetic stub; select explicitly for Type-1 runs)")
+    r.add_argument("--fixer", choices=["canned", "model", "plan"], default="plan",
+                   help="batch fix engine: plan (grounded plan→gate→abstain PlanningFixEngine — the "
+                        "production default; abstains rather than fabricate) | model (single-shot "
+                        "ModelPatchEngine opt-out) | canned (dev-only hermetic stub)")
+    r.add_argument("--max-replan", type=int, default=1,
+                   help="plan fixer: max re-plan attempts before abstaining (default 1)")
     # --index and --index-db are mutually exclusive; at least one must be provided
     idx_group = r.add_mutually_exclusive_group(required=True)
     idx_group.add_argument("--index", default=None,
@@ -1208,20 +1211,23 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _build_run_fixer(kind: str):
-    """Compose the fix engine for batch `gloop run` at the composition root (no core edit): the real
-    ModelPatchEngine over the gateway model (the production default), or the hermetic canned stub. `main`
-    fail-closes on a missing gateway key BEFORE calling this for kind="model", so there is deliberately no
-    silent degrade-to-stub here — a stub fixer on the production path was an enforcement gap (docs/capabilities.md)."""
+def _build_run_fixer(kind: str, max_replan: int = 1):
+    """Returns (FixEngine, cost_model|None). cost_model is the GatewayModel whose .cost_usd the batch
+    driver snapshots per case; None for the canned stub. `main` fail-closes on a missing key BEFORE this
+    for kind in {model, plan}, so no silent degrade-to-stub here."""
     from groundloop.adapters.fix.canned import CannedFixEngine
     from groundloop.adapters.mock.model import CannedModel
-    if kind == "model":
-        from groundloop.adapters.fix.model_patch import ModelPatchEngine
+    if kind in ("model", "plan"):
         from groundloop.adapters.model.gateway import GatewayModel
         from groundloop.config.settings import Settings
         s = Settings.load()
-        return ModelPatchEngine(GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model))
-    return CannedFixEngine(CannedModel({"default": "patch"}))
+        gm = GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model)
+        if kind == "plan":
+            from groundloop.adapters.fix.planning import PlanningFixEngine
+            return PlanningFixEngine(gm, max_replan=max_replan), gm
+        from groundloop.adapters.fix.model_patch import ModelPatchEngine
+        return ModelPatchEngine(gm), gm
+    return CannedFixEngine(CannedModel({"default": "patch"})), None
 
 
 def _run_grade_run(args) -> int:
@@ -1287,21 +1293,23 @@ def main(argv: list[str] | None = None) -> int:
             # Fail-closed on the production path (--fixer model): a real fixer with no model or no checked-out
             # sources silently fabricates (the 2026-07-11 fix 0/10 lesson). Only the explicit hermetic
             # `--fixer canned` may run over empty MockEstate worktrees.
-            if args.fixer == "model":
+            if args.fixer in ("model", "plan"):
                 if not os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
-                    print("gloop run --fixer model: KLOOP_PRODUCE_API_KEY unset — refusing to run a real "
-                          "fixer with no model (it would fabricate patches). Configure gateway creds, or "
-                          "pass --fixer canned for a hermetic run.")
+                    print("gloop run --fixer model/plan: KLOOP_PRODUCE_API_KEY unset — refusing to run a "
+                          "real fixer with no model (it would fabricate patches). Configure gateway creds, "
+                          "or pass --fixer canned for a hermetic run.")
                     return 2
                 if not args.repos:
-                    print("gloop run --fixer model: --repos is required — a real fixer over empty worktrees "
-                          "fabricates file paths. Pass --repos <owner-snapshots-dir>, or --fixer canned.")
+                    print("gloop run --fixer model/plan: --repos is required — a real fixer over empty "
+                          "worktrees fabricates file paths. Pass --repos <owner-snapshots-dir>, or "
+                          "--fixer canned.")
                     return 2
             inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
                      else MockEstate(args.catalog, args.work))
+            fixer, _cost_model = _build_run_fixer(args.fixer, args.max_replan)
             n = run_dataset(args.dataset, issues=issues, extractor=extractor,
                             estate=RecordingEstate(inner), index=index,
-                            fixer=_build_run_fixer(args.fixer),
+                            fixer=fixer,
                             changes=MockGerrit(args.changes, issues),
                             match_arm=match_arm, out=args.out)
             print(f"runs written: {n} -> {args.out}/runs")
