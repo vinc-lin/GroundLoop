@@ -1289,7 +1289,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.out:                                              # batch -> self-scoring run-records
             from groundloop.adapters.estate import CheckoutEstate, RecordingEstate
+            from groundloop.adapters.extractor_recording import RecordingExtractor
             from groundloop.run.batch import run_dataset
+            # Record the signals the loop computes so the run-record can carry them (batch path only; the
+            # single-case demo above stays unwrapped). Wraps the FINAL extractor (post component/routing swap).
+            extractor = RecordingExtractor(extractor)
             # Fail-closed on the production path (--fixer model): a real fixer with no model or no checked-out
             # sources silently fabricates (the 2026-07-11 fix 0/10 lesson). Only the explicit hermetic
             # `--fixer canned` may run over empty MockEstate worktrees.
@@ -1306,12 +1310,13 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
             inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
                      else MockEstate(args.catalog, args.work))
-            fixer, _cost_model = _build_run_fixer(args.fixer, args.max_replan)
+            fixer, cost_model = _build_run_fixer(args.fixer, args.max_replan)
             n = run_dataset(args.dataset, issues=issues, extractor=extractor,
                             estate=RecordingEstate(inner), index=index,
                             fixer=fixer,
                             changes=MockGerrit(args.changes, issues),
-                            match_arm=match_arm, out=args.out)
+                            match_arm=match_arm, out=args.out,
+                            extractor_rec=extractor, cost_model=cost_model, fixer_kind=args.fixer)
             print(f"runs written: {n} -> {args.out}/runs")
             return 0
         print("gloop run: pass --case <id> (single) or --out <dir> (batch over --dataset)")
