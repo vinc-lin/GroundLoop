@@ -21,7 +21,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 First full 8-stage `gloop run` over the 10 functional GEI cases (19-repo atlas, 126,919 units; affinity from
 1,169 JIRA↔Gerrit pairs). All 10 ran every stage to a bound change, 0 crashes.
 - Match recall@1 **7/10 `[production]`** (per-case table; run summary read 8/10 — reconcile against raw scorecard).
-- Localize **7/10 file@5 `[production]`**, **1/10 file@1 `[production]`** (measured on oracle repo; hybrid retrieve + qwen rerank works).
+- Localize **7/10 file@5 `[production]`**, **1/10 file@1 `[production]`** (measured on the oracle repo via `AtlasIndex.retrieve` = **plain FTS5 keyword search**; the bge-m3 vector / qwen-rerank paths are eval-only, not wired into `run_ticket`).
 - Fix **0/10 `[production]`** — **ungraded, not a fix failure**: empty worktree (no corpus checkout for any owner), so `ModelPatchEngine` fabricates paths.
 - Takeaway: the mined affinity prior generalizes to unseen tickets; misses are label≠owner (13363) + CarPlay Core-vs-Integration near-tie, both needing signal beyond the `component` field. Highest-value unblock = check out the 4 owner repos so fix is gradeable.
 - detail: `docs/2026-07-11-functional-10case-e2e-findings.md`

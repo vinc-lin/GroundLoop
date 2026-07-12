@@ -106,6 +106,11 @@ gloop run   --dataset <ds> --catalog <cat> --index-db $KLOOP_ATLAS_DB --match-ar
             --affinity component_affinity.json --repos <19-repo-mirror> --fixer model --out run-N
 gloop grade-run --runs run-N --dataset <ds> --index-db $KLOOP_ATLAS_DB --out card-N.json
 ```
+**Defaults (2026-07-12 re-point):** `--match-arm component` and `--fixer model` are now the *defaults*
+(set `KLOOP_AFFINITY=component_affinity.json` and the prior auto-engages; no affinity ⇒ a loud fall back to
+the `flood` baseline). The run **fail-closes** when `--fixer model` has no gateway creds or no `--repos`
+(a real fixer over empty worktrees fabricates paths — the 2026-07-11 fix-0/10 lesson), so the explicit flags
+above double as the fail-closed contract. Governance + the full capability registry: [`capabilities.md`](capabilities.md) §4.
 **Acceptance gates `[production]`:** `component` recall@3 ≫ `flood` recall@3 (else the affinity table or
 `Ticket.component` is empty/mis-joined — a data problem, not a weight problem); and functional recall@1/@3
 lands near the production 406 `comp+fusion` target (**≈ 0.50 / 0.90 `[production]`**, under honest `--loo`);

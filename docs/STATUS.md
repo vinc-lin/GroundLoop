@@ -3,15 +3,30 @@
 **As of 2026-07-04** (blocker re-checked & cleared 2026-07-05). Read this first when resuming; see
 `CLAUDE.md` for durable project context.
 
-**Docs are the single source of truth** (re-consolidated 2026-07-11 → 12 top-level docs; full map in
-`CLAUDE.md`). Read [`environments.md`](environments.md) first — the canonical dev-box ↔ production split +
+**Docs are the single source of truth** (re-consolidated 2026-07-11 → 12 top-level docs, + `capabilities.md`
+2026-07-12; full map in `CLAUDE.md`). Read [`environments.md`](environments.md) first — the canonical dev-box ↔ production split +
 the **`[proxy]`**/**`[production]`** result-tag convention used throughout this file. Core set:
 [`charter.md`](charter.md) · [`architecture.md`](architecture.md) · [`guide.md`](guide.md) ·
 [`evaluation.md`](evaluation.md) · [`build-setup.md`](build-setup.md) · [`fix-loop.md`](fix-loop.md) ·
 [`engines.md`](engines.md) · [`production-guide.md`](production-guide.md) · [`roadmap.md`](roadmap.md) ·
-[`results-log.md`](results-log.md).
+[`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md).
 
 ## Done
+
+### Production-Core / Dev-Labs governance + `gloop run` default re-point (2026-07-12) ✅
+Adopted the **Production Core + Dev Labs** model and applied it. New [`capabilities.md`](capabilities.md):
+every capability classified **Core / Candidate / Dev-Labs-Infra / Fixture / Archived** with evidence
+(seeded by an evidence-graded, adversarially-verified sweep of the whole tree). Headline: the real
+Production Core is ~a dozen pieces; the alternative matchers + fix engines are `[proxy]`-only **Candidate**;
+the whole KB track is **Archived** on a measured null (0/60 claims; raw Skills Δ−0.14). Biggest finding —
+the default `gloop run` was a **hermetic toy end-to-end** (canned fixer + empty `MockEstate` + mock
+JIRA/Gerrit + `flood`). **Re-pointed the composition-root defaults** (`cli/__init__.py`, no `core/` edit):
+match `flood`→`component` (auto-affinity via `--affinity`/`KLOOP_AFFINITY`, loud flood fallback), fixer
+`canned`→`model`, **fail-closed** when `--fixer model` lacks creds or `--repos` (no more silent `CannedModel`
+degrade). Hermetic Type-1 runs now select `--fixer canned` explicitly. Also corrected a doc mislabel: the
+`[production]` localize (7/10 file@5) ran **plain FTS5 `AtlasIndex.retrieve`**, not bge-m3+qwen (eval-only).
+**566 passed / 7 skipped, ruff clean.** Remaining Core gaps (net-new builds): live JIRA `IssueSource` +
+live Gerrit `ChangeSink` — the traceable JIRA↔commit chain is still mocked at the ends.
 
 ### Self-scoring pipeline — `gloop run` batch + `gloop grade-run` (2026-07-11) ✅ MERGED to master
 Fixes the *measurement* failures the first e2e run exposed (localize misread as 0/10; an 8-vs-7 hand-tally).
@@ -31,13 +46,14 @@ so Tasks 4–8 were completed in the main context. No compromise; config/repo cl
 
 ### First end-to-end production run — 10 functional GEI cases (2026-07-11) ✅ first efficacy read
 The **first full 8-stage `gloop run`** on real production GEI data (10 functional cases, `component` match arm,
-`component_affinity.json` mined from **1,169 JIRA↔Gerrit oracle pairs**, real **19-repo / 126,919-unit** atlas,
-bge-m3 (TEI) retrieve + **qwen3p6-27b** rerank). This is the production scoreboard the component-routing pivot
-was built for. **Match recall@1 7/10 `[production]`** by the per-case table (⚠ the run summary reported 8/10 — a
+`component_affinity.json` mined from **1,169 JIRA↔Gerrit oracle pairs**, real **19-repo / 126,919-unit** atlas
+built with the **bge-m3** embedder + **qwen3p6-27b** CodeWiki producer — both *index-build-time*, not query-time).
+This is the production scoreboard the component-routing pivot was built for. **Match recall@1 7/10 `[production]`** by the per-case table (⚠ the run summary reported 8/10 — a
 count-reconciliation flag: 2 root causes but **3** missed cases `13363`/`14905`/`8185`; confirm against the raw
 scorecard). **Localize 7/10 file@5, 1/10 file@1 `[production]`** — a **measurement correction**: an earlier "localize 0/10"
-was misreading the fix stage's *fabricated* file; measured on `AtlasIndex.retrieve` the hybrid retrieve + qwen
-rerank works. **Fix 0/10 but ungraded `[production]`** — an **empty-worktree** artifact (only `XCIPadMediaService` checked out
+was misreading the fix stage's *fabricated* file. Localize runs `AtlasIndex.retrieve` = **plain FTS5 keyword
+search** over symbol units (the bge-m3 vector / qwen-rerank paths are eval-only arms, never wired into
+`run_ticket`) — so *keyword localize alone* already gets 7/10 file@5 on production. **Fix 0/10 but ungraded `[production]`** — an **empty-worktree** artifact (only `XCIPadMediaService` checked out
 under `$GL_DATA/repos/`), not a fix-stage failure. Root causes: match misses = label≠owner (`13363`
 Bluetooth→cluster) + CarPlay Core-vs-Integration near-tie (0.005 gap < base RRF ≤0.017); localize misses =
 coverage gap (`8185` `CpAccessibilityManager.kt` not indexed) + pool recall (`14905`/`4240`). **Highest-value

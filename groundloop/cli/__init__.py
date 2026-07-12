@@ -988,18 +988,23 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--out", default=None,
                    help="batch mode: write oracle-free run-records to <out>/runs/<case>.json")
     r.add_argument("--repos", default="",
-                   help="batch: owner-repo snapshots dir (CheckoutEstate); empty -> MockEstate (empty worktrees)")
-    r.add_argument("--fixer", choices=["canned", "model"], default="canned",
-                   help="batch: canned (hermetic stub) | model (real ModelPatchEngine)")
+                   help="batch: owner-repo snapshots dir (CheckoutEstate). REQUIRED with --fixer model; "
+                        "empty -> MockEstate (empty worktrees, hermetic only)")
+    r.add_argument("--fixer", choices=["canned", "model"], default="model",
+                   help="batch fix engine: model (real ModelPatchEngine — the production default) | "
+                        "canned (hermetic stub; select explicitly for Type-1 runs)")
     # --index and --index-db are mutually exclusive; at least one must be provided
     idx_group = r.add_mutually_exclusive_group(required=True)
     idx_group.add_argument("--index", default=None,
                            help="path to token-index JSON (M0 stub)")
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
-    r.add_argument("--match-arm", choices=["flood", "routing", "component"], default="flood",
-                   help="Stage-1 match index: flood (AtlasIndex) | routing (FaultRoutingIndex) | component")
-    r.add_argument("--affinity", default="", help="component_affinity.json (for --match-arm component)")
+    r.add_argument("--match-arm", choices=["flood", "routing", "component"], default="component",
+                   help="Stage-1 match index: component (production default — affinity prior via "
+                        "--affinity/KLOOP_AFFINITY, RRF-fused onto AtlasIndex; falls back to flood if no "
+                        "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex)")
+    r.add_argument("--affinity", default="",
+                   help="component_affinity.json for --match-arm component (else KLOOP_AFFINITY)")
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
     grun.add_argument("--runs", required=True, help="the <out> dir written by gloop run --out")
@@ -1200,22 +1205,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _build_run_fixer(kind: str):
-    """Compose the fix engine for batch `gloop run` at the composition root (no core edit): canned
-    hermetic stub, or the real ModelPatchEngine (gateway model; degrades to a canned empty model that
-    abstains when KLOOP_PRODUCE_API_KEY is unset), mirroring `gloop fixeval`."""
+    """Compose the fix engine for batch `gloop run` at the composition root (no core edit): the real
+    ModelPatchEngine over the gateway model (the production default), or the hermetic canned stub. `main`
+    fail-closes on a missing gateway key BEFORE calling this for kind="model", so there is deliberately no
+    silent degrade-to-stub here — a stub fixer on the production path was an enforcement gap (docs/capabilities.md)."""
     from groundloop.adapters.fix.canned import CannedFixEngine
     from groundloop.adapters.mock.model import CannedModel
     if kind == "model":
-        import os
         from groundloop.adapters.fix.model_patch import ModelPatchEngine
-        if os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
-            from groundloop.adapters.model.gateway import GatewayModel
-            from groundloop.config.settings import Settings
-            s = Settings.load()
-            return ModelPatchEngine(GatewayModel(s.produce_base_url, s.produce_api_key,
-                                                 s.produce_main_model))
-        print("gloop run --fixer model: no KLOOP_PRODUCE_API_KEY — canned empty model (fix abstains).")
-        return ModelPatchEngine(CannedModel({"default": ""}))
+        from groundloop.adapters.model.gateway import GatewayModel
+        from groundloop.config.settings import Settings
+        s = Settings.load()
+        return ModelPatchEngine(GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model))
     return CannedFixEngine(CannedModel({"default": "patch"}))
 
 
@@ -1240,7 +1241,9 @@ def _run_grade_run(args) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "run":
+        import os
         extractor = AndroidSignalExtractor()
+        match_arm = args.match_arm     # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
         if args.index_db:
             index = AtlasIndex(args.index_db)
             if args.match_arm == "routing":
@@ -1248,18 +1251,26 @@ def main(argv: list[str] | None = None) -> int:
                 from groundloop.domains.android_ivi.fault_signals import FaultSignalExtractor
                 index, extractor = FaultRoutingIndex(args.index_db), FaultSignalExtractor()
             elif args.match_arm == "component":
-                from groundloop.adapters.index.component_prior import ComponentPriorIndex
-                from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
-                from groundloop.domains.android_ivi.component_signals import ComponentExtractor
-                if not args.affinity:
-                    print("gloop run --match-arm component: --affinity is required")
-                    return 2
-                index = ComponentPriorIndex(AtlasIndex(args.index_db), ComponentAffinity.load(args.affinity))
-                extractor = ComponentExtractor(AndroidSignalExtractor())
+                affinity_path = args.affinity or os.environ.get("KLOOP_AFFINITY", "").strip()
+                if affinity_path:
+                    from groundloop.adapters.index.component_prior import ComponentPriorIndex
+                    from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
+                    from groundloop.domains.android_ivi.component_signals import ComponentExtractor
+                    index = ComponentPriorIndex(AtlasIndex(args.index_db),
+                                                ComponentAffinity.load(affinity_path))
+                    extractor = ComponentExtractor(AndroidSignalExtractor())
+                else:
+                    # No affinity artifact: the prior is the production-validated lever, but degrading to the
+                    # honest (weaker) flood baseline beats hard-failing. Warn loudly — never degrade silently —
+                    # and record the arm as "flood" so the run-record does not claim the prior engaged.
+                    match_arm = "flood"
+                    print("gloop run --match-arm component: no affinity artifact (--affinity / KLOOP_AFFINITY) "
+                          "— falling back to the flood baseline (recall@1 ~0.10 [production] vs ~0.50 with the "
+                          "prior). Mine one with `gloop mine-affinity` to engage the validated lever.")
         else:
-            index = TokenIndex(args.index)
+            index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
-        if args.case:                                              # single-case (back-compat)
+        if args.case:  # single-case: hermetic demo path (canned fixer + MockEstate); production uses batch --out
             rec = run_ticket(args.case, issues=issues, extractor=extractor,
                              estate=MockEstate(args.catalog, args.work), index=index,
                              fixer=CannedFixEngine(CannedModel({"default": "patch"})),
@@ -1269,13 +1280,26 @@ def main(argv: list[str] | None = None) -> int:
         if args.out:                                              # batch -> self-scoring run-records
             from groundloop.adapters.estate import CheckoutEstate, RecordingEstate
             from groundloop.run.batch import run_dataset
+            # Fail-closed on the production path (--fixer model): a real fixer with no model or no checked-out
+            # sources silently fabricates (the 2026-07-11 fix 0/10 lesson). Only the explicit hermetic
+            # `--fixer canned` may run over empty MockEstate worktrees.
+            if args.fixer == "model":
+                if not os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
+                    print("gloop run --fixer model: KLOOP_PRODUCE_API_KEY unset — refusing to run a real "
+                          "fixer with no model (it would fabricate patches). Configure gateway creds, or "
+                          "pass --fixer canned for a hermetic run.")
+                    return 2
+                if not args.repos:
+                    print("gloop run --fixer model: --repos is required — a real fixer over empty worktrees "
+                          "fabricates file paths. Pass --repos <owner-snapshots-dir>, or --fixer canned.")
+                    return 2
             inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
                      else MockEstate(args.catalog, args.work))
             n = run_dataset(args.dataset, issues=issues, extractor=extractor,
                             estate=RecordingEstate(inner), index=index,
                             fixer=_build_run_fixer(args.fixer),
                             changes=MockGerrit(args.changes, issues),
-                            match_arm=args.match_arm, out=args.out)
+                            match_arm=match_arm, out=args.out)
             print(f"runs written: {n} -> {args.out}/runs")
             return 0
         print("gloop run: pass --case <id> (single) or --out <dir> (batch over --dataset)")

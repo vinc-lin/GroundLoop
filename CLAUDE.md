@@ -52,9 +52,12 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
 ## Docs — single source of truth
 **GroundLoop `docs/` is the single source of truth** (consolidated 2026-07-04 from `../loop-agent` +
 `../knowledgeLoop`; re-consolidated 2026-07-11 from 23 → 12 top-level docs — see the design/plan under
-`docs/superpowers/{specs,plans}/2026-07-11-docs-optimization*.md`):
+`docs/superpowers/{specs,plans}/2026-07-11-docs-optimization*.md`; `capabilities.md` added 2026-07-12):
 - `docs/environments.md` — **the canonical dev-box ↔ production split + the `[proxy]`/`[production]` result
   tag convention.** Read this first; every other doc links here instead of restating it.
+- `docs/capabilities.md` — **the Production-Core / Dev-Labs governance model + the capability registry**
+  (every capability → Core / Candidate / Dev-Labs-Infra / Fixture / Archived, with evidence). The line
+  between the product and research scaffolding; says which `gloop run` defaults are Core-aligned.
 - `docs/charter.md` — mission, FR-1..8 / NFR-1..8, the four stages, metrics, glossary, non-goals.
 - `docs/architecture.md` — hexagonal ports & adapters, the deterministic control plane, atlas internals, migration.
 - `docs/guide.md` — how GroundLoop is deployed, run, and migrated (the single how-to; adapter swap map, checklist).

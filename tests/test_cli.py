@@ -49,9 +49,12 @@ def test_cli_run_with_index_db_no_index_flag(tmp_path, monkeypatch, capsys):
     # Build a real atlas.db using the hermetic fixture builder
     atlas_db = build_atlas_fixture(str(tmp_path / "atlas.db"))
 
+    # Pin the flood/AtlasIndex path this test is about: the default arm is now `component`, which reads an
+    # ambient KLOOP_AFFINITY — an explicit --match-arm flood (+ delenv) keeps the branch deterministic.
+    monkeypatch.delenv("KLOOP_AFFINITY", raising=False)
     rc = main(["run", "--case", "GP-352", "--dataset", str(ds),
                "--catalog", str(fix / "catalog.json"),
-               "--index-db", atlas_db,
+               "--index-db", atlas_db, "--match-arm", "flood",
                "--work", str(tmp_path / "work"),
                "--changes", str(tmp_path / "changes.jsonl")])
     assert rc == 0

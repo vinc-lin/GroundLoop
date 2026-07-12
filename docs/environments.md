@@ -9,6 +9,10 @@ restating it.
 **One-line rule:** the proxy tells you the mechanism *works*; only production tells you it *works well*.
 Build on the proxy, trust production.
 
+**Companion:** [`capabilities.md`](capabilities.md) applies this split to *every capability* — the
+Production-Core / Dev-Labs governance model + the registry of what is product vs research scaffolding.
+`[production]`-validation is what promotes a capability into Core there.
+
 ## The two environments
 
 | | **Dev box (OSS proxy)** | **Production (real GEI)** |
