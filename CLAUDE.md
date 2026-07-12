@@ -58,6 +58,8 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
 - `docs/capabilities.md` — **the Production-Core / Dev-Labs governance model + the capability registry**
   (every capability → Core / Candidate / Dev-Labs-Infra / Fixture / Archived, with evidence). The line
   between the product and research scaffolding; says which `gloop run` defaults are Core-aligned.
+- `docs/workflows.md` — the two operational checklists (**Production** deploy→run→grade→feedback SOP +
+  **Dev** inner-loop/Candidate→Core promotion) + the **per-stage feature map** (stage × feature × state).
 - `docs/charter.md` — mission, FR-1..8 / NFR-1..8, the four stages, metrics, glossary, non-goals.
 - `docs/architecture.md` — hexagonal ports & adapters, the deterministic control plane, atlas internals, migration.
 - `docs/guide.md` — how GroundLoop is deployed, run, and migrated (the single how-to; adapter swap map, checklist).

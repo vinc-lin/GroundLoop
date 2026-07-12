@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-13 | KB fair-eval Phase 1 (metric+injection fix) | `[proxy]` | `resolved_rate` now gradeable but **0 floor** → inconclusive; confound confirmed: skills-in-localize-query **Δ−0.10** file@1; `fix-only` invariant |
 | 2026-07-11 | functional 10-case e2e (GEI) | `[production]` | match recall@1 **7/10**, localize **7/10** file@5, fix ungradeable (empty worktree) |
 | 2026-07-10 | functional-bug matching arm | `[proxy]` | functional/dispatch recall@1 **0.68** vs flood 0.32; dispatch **0.94** on crash (no regression) |
 | 2026-07-10 | component-routing match | `[proxy→production]` | flood 0.32 → component **0.49/0.92** `[proxy]`; **0.10 → 0.50/0.90** `[production]` |
@@ -15,6 +16,29 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
+
+## 2026-07-13 · KB fair-eval Phase 1 — metric+injection fix · `[proxy]`
+
+Re-test after finding the KB's "Archived null" was measured on the wrong outcome (`plan_target_recall`, not
+`resolved_rate`) and confounded by localize-query pollution. Phase 1 made resolution gradeable (synth plants a
+headroom-clean `required_api`, named in the skill guidance, into 6 crash classes) and added `gloop fixeval
+--skills-inject fix-only` (KB into the fix prompt only). A/B: `none` / `kb·fix-only` / `kb·both`, 34-case
+gradeable slice (oboe/antennapod/newpipe/dlt-daemon), `--fixer direct`, deepseek, ~$0.10.
+- **Harness fix validated:** `resolved_rate` now defined (`n_gradeable=34`); `fix-only` is provably
+  localize-invariant on real data — `none` and `kb·fix-only` have **identical** `file_recall@1` (0.157=0.157).
+- **Confound confirmed + quantified:** injecting skills into the localize query (`both`) **degrades**
+  localization by **Δ−0.10 file@1** (0.157 → 0.054) — much of what the 2026-07-07 "raw KB HURTS" was actually
+  measuring (retrieval pollution, not guidance quality). `fix-only` removes it.
+- **KB fix-value INCONCLUSIVE:** `resolved_rate = 0.0` in **every** arm — the fix loop abstained on ~all 34
+  cases (weak summary-localize ≈0.16; patches don't apply). No resolution headroom → the KB can't be
+  discriminated. Root cause: a **synthetic** crash log is disconnected from the real PR fix, so the model
+  can't reconstruct a resolving patch — synth is valid for matching/localization but the **wrong substrate
+  for `resolved_rate`**.
+- **Verdict:** the Archived null is **discredited** (confound + wrong metric, both reproduced) but the KB is
+  **not vindicated** (zero positive signal) → **unproven**. KB reclassified **Archived → Candidate**; a real
+  verdict needs Phase 2 (real mined fixes with achievable resolution). Branch `kb-fair-eval-phase1`; spec/plan
+  `docs/superpowers/{specs,plans}/2026-07-12-kb-fair-eval-phase1*.md`; Phase 2 spec
+  `docs/superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md`.
 
 ## 2026-07-11 · functional 10-case e2e (GEI) · `[production]`
 

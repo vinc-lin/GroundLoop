@@ -9,9 +9,23 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 [`charter.md`](charter.md) · [`architecture.md`](architecture.md) · [`guide.md`](guide.md) ·
 [`evaluation.md`](evaluation.md) · [`build-setup.md`](build-setup.md) · [`fix-loop.md`](fix-loop.md) ·
 [`engines.md`](engines.md) · [`production-guide.md`](production-guide.md) · [`roadmap.md`](roadmap.md) ·
-[`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md).
+[`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md) · [`workflows.md`](workflows.md).
 
 ## Done
+
+### KB fair-eval Phase 1 — harness fix + re-verdict (2026-07-13) ✅
+The KB's "Archived null" was measured on the wrong outcome. Phase 1 (branch `kb-fair-eval-phase1`,
+subagent-driven, 2-stage-reviewed): synth now plants a headroom-clean `required_api` (named in the skill
+guidance) into 6 crash classes → `resolved_rate` is **gradeable for the first time** (the miner hard-coded
+`required_apis=[]` and synth omitted it — it was undefined loop-wide); + `gloop fixeval --skills-inject
+fix-only` (KB into the fix prompt only, not the localize query). Live A/B (34-case gradeable slice, `--fixer
+direct`, ~$0.10): **harness fix validated** (`fix-only` provably localize-invariant — `none`=`kb·fix-only`
+file@1 0.157); **confound confirmed** (skills in the localize query cost **Δ−0.10** file@1); but
+**`resolved_rate` INCONCLUSIVE** (0 floor — the synthetic log is disconnected from the real fix, so nothing
+resolves; synth is the wrong substrate for resolution). Verdict: the Archived null is **discredited** but the
+KB is **unproven** → reclassified **Archived → Candidate**. A real verdict needs **Phase 2** (real-fix slice;
+spec `docs/superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md`). Detail: `results-log.md` 2026-07-13.
+**572 passed / 7 skipped, ruff clean.**
 
 ### Production-Core / Dev-Labs governance + `gloop run` default re-point (2026-07-12) ✅
 Adopted the **Production Core + Dev Labs** model and applied it. New [`capabilities.md`](capabilities.md):
