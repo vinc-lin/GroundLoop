@@ -64,8 +64,9 @@ bind.** These map onto four objective stages:
 | 3 — Fix assistance | localized repo + ticket | candidate fix (patch) | Later |
 | 4 — Binding & tracking | commit/PR + ticket | append‑only auditable chain (discovery → logs → repo → localization → fix → PR/commit ↔ ticket) | Later |
 
-**Stage‑1 is the gate** — downstream stages are pursued only against correctly‑matched tickets. Stage 3
-today is a **`CannedFixEngine` stub** (design provenance: [fix-loop.md](fix-loop.md)).
+**Stage‑1 is the gate** — downstream stages are pursued only against correctly‑matched tickets. Stage 3's
+real engine is **`ModelPatchEngine`** (via `gloop fixeval` / `gloop run --fixer model`); `gloop run`'s
+default is still a **`CannedFixEngine` stub** (design provenance: [fix-loop.md](fix-loop.md)).
 
 ## 3. Requirements catalog
 
@@ -89,7 +90,8 @@ by number.
 - **FR-4 Code localization.** Within the matched repo, localize suspicious files / functions / APIs /
   call chains, reusing the grounded localization + retrieval machinery. *(Port: `CodeIndex.retrieve`.)*
 - **FR-5 Root‑cause assistance & fix proposal.** Assist analysis and emit a candidate fix (patch).
-  *(Port: `FixEngine.propose`; current adapter: `CannedFixEngine` stub.)*
+  *(Port: `FixEngine.propose`; real adapter `ModelPatchEngine` via `gloop fixeval` / `gloop run --fixer
+  model`; `gloop run`'s default is the `CannedFixEngine` stub.)*
 - **FR-6 Binding & traceability.** On commit/PR, bind the fix to the originating ticket and persist an
   append‑only, auditable chain (discovery → logs → repo → localization → fix → PR/commit).
   *(Port: `ChangeSink.submit` + `ChangeSink.bind`.)*
@@ -240,8 +242,9 @@ keeps an atlas.db shareable. Engine operations: [engines.md](engines.md).
 - A production UI / ticketing workflow.
 - A multi‑domain plugin framework — the domain seam (`domains/`) exists, but no plugin machinery yet
   (YAGNI).
-- `gloop mine` and a two‑stage matcher are **forward‑looking** — tracked in [roadmap.md](roadmap.md),
-  not built.
+- A real fix engine wired into `gloop run` **by default**, a live 130‑repo estate, and Tier‑2/3 build/test
+  grading remain forward‑looking (tracked in [roadmap.md](roadmap.md)). *(`gloop mine` and semantic + RRF
+  matcher fusion have since shipped — no longer non-goals.)*
 
 ---
 
