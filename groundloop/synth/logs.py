@@ -296,7 +296,8 @@ def _atlas_method(store, repo: str, base: str, cls: str):
 
 
 def synth_log_for_case(store, owning_repo: str, files: list[str], case_id: str):
-    """Build one realistic failure log naming the owner's crash-site symbols. Returns (text, kind) or None.
+    """Build one realistic failure log naming the owner's crash-site symbols. Returns
+    (text, kind, required_api) or None; required_api is "" when the fired class is not resolution-gradeable.
 
     The crash class (which KB skill the log fires) is chosen deterministically per case for even coverage;
     every class embeds the owner's real frames so the log still ranks the owner top-1 over the atlas."""
@@ -307,5 +308,5 @@ def synth_log_for_case(store, owning_repo: str, files: list[str], case_id: str):
     cc = select_crash_class(owning_repo, frames, case_id)
     if cc.surface == "native":
         so = _NATIVE_SO.get(owning_repo, f"lib{owning_repo.split('-')[0]}.so")
-        return cc.builder(so, frames, rng), "native"
-    return cc.builder(frames, rng), "logcat"
+        return cc.builder(so, frames, rng), "native", cc.required_api
+    return cc.builder(frames, rng), "logcat", cc.required_api
