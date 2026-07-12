@@ -1258,6 +1258,9 @@ def _run_grade_run(args) -> int:
         if regs:
             line += f" ({', '.join(regs)})"
         print(line)
+    from groundloop.run.promotion import promotion_notes
+    for _note in promotion_notes(card):
+        print(_note)
     return 0
 
 
