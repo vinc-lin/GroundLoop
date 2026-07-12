@@ -13,6 +13,33 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 
 ## Done
 
+### Production-Core defaults + loop closure — 11-task branch (2026-07-13) ✅
+Branch `prod-core-defaults-loop-closure` (subagent-driven, 11 tasks). Promotes the fix default, closes the
+feedback loop's data plane + reporting edge on the dev box, and prunes the production surface — **plumbing +
+governance, NOT a new efficacy read** (no new `[proxy]`/`[production]` numbers).
+- **Bug Plan Mode → Provisional-Core `gloop run` default:** `--fixer plan` (the `PlanningFixEngine`) is now the
+  default (choices `canned|model|plan`, + a `--max-replan` flag; the fail-closed guard covers `model` **and**
+  `plan`); it now re-gates its *executed* diff against the localize candidate set (abstains if out-of-scope) —
+  end-to-end anti-leak. **Proven merit = safety** (`fabrication_rate = 0.0`, abstains not fabricates);
+  **effectiveness is production-gated** — `resolved_rate` was never gradeable. A new governance state
+  **Provisional-Core** is written into [`capabilities.md`](capabilities.md): default-on on a *fail-safe*
+  mechanism + a charter-aligned safety argument, resolving to Core-or-revert on the next instrumented
+  `[production]` run.
+- **Data plane closed:** a `RecordingExtractor` sidecar captures the loop's `signals`; the run-record persists
+  `signals`/`cost_usd`/`tokens`/`model_calls`/`fixer`; each batch writes a provenance `manifest.json` (atlas
+  identity + model pins + affinity hash + `change_sink=mock` + timestamp). Plan/patch primitives relocated
+  `fixeval/` → `groundloop/fix/` (Core decoupled from Dev-Labs).
+- **Reporting edge closed:** grade-run cards carry per-case predicted/oracle repo + signals + cost + fixer;
+  `grade-run --compare <prev-card>` → a per-stage improved/flat/regressed verdict + a `.compare.json` sibling;
+  reporting-only promotion-eligibility notes (fire for `--fixer plan` runs with gradeable resolution).
+- **Surface pruning:** a `KLOOP_DEV` dev-gate rejects `--index`/`--fixer canned`/`--case` in production (the
+  Type-1 suite arms `KLOOP_DEV=1` via an autouse fixture); the `--repos` guard was hardened from presence-only
+  to verifying catalog snapshots actually exist.
+- **Open follow-up:** the deferred **`[production]` `resolved_rate` A/B (plan vs model)** is what resolves Bug
+  Plan Mode's Provisional-Core status (grade-run emits the promotion note). Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-13-production-core-defaults-and-loop-closure*.md`. **608 passed / 7
+  skipped, ruff clean, `core/` + atlas schema zero-diff.**
+
 ### KB fair-eval Phase 1 — harness fix + re-verdict (2026-07-13) ✅
 The KB's "Archived null" was measured on the wrong outcome. Phase 1 (branch `kb-fair-eval-phase1`,
 subagent-driven, 2-stage-reviewed): synth now plants a headroom-clean `required_api` (named in the skill
@@ -267,9 +294,13 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
    vendors ffmpeg headers; drop vendored `ffmpeg/**` to cut embedding cost + noise. (Small follow-up.)
 3. **Grow the eval fleet** — uncomment `libxcam` / `ndk-samples` in `corpora/atlas.toml`; a meaningful
    Stage-1 match needs several confusable repos so a `1/N` guess scores far below a real match.
-4. **Wire the real fix engine (`ModelPatchEngine`) as the `gloop run` default** (it already ships as a
-   non-default arm via `gloop fixeval` / `gloop run --fixer model`), an ANN vector index, and Tier-2/3
-   grading. *(`gloop mine` has since shipped — no longer a next step.)*
+4. **Resolve Bug Plan Mode's Provisional-Core status — the deferred `[production]` `resolved_rate` A/B (plan
+   vs model).** The real fixer is now the `gloop run` default (2026-07-12 `--fixer model`; 2026-07-13 → the
+   Provisional-Core `--fixer plan`), so the *wiring* is done; the open follow-up is the instrumented
+   `[production]` run that measures `resolved_rate` (grade-run emits the promotion note) → confirm Bug Plan
+   Mode into Core or revert to `--fixer model`. Still-open Core builds: an ANN vector index, live JIRA/Gerrit
+   adapters, Tier-2/3 grading. *(`gloop mine` + the `gloop run` real-fixer default have since shipped — no
+   longer next steps.)*
 
 ## Services / environment
 - **LiteLLM gateway** — creds in the gitignored `/mnt/x/code/loop-agent/.env`, reused by

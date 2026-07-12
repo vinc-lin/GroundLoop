@@ -1,7 +1,7 @@
 # Workflows — Production & Dev checklists
 
-> Two tickable checklists, one per environment, reflecting the **current honest state** (Core-only; `[to build]`
-> = not yet automated). The dev-box ↔ production split + the `[proxy]`/`[production]` tag convention live in
+> Two tickable checklists, one per environment, reflecting the **current honest state** (Core + the one
+> Provisional-Core default; `[to build]` = not yet automated). The dev-box ↔ production split + the `[proxy]`/`[production]` tag convention live in
 > [`environments.md`](environments.md); which capability is Core vs scaffolding lives in
 > [`capabilities.md`](capabilities.md); the authoritative 18-section production SOP is
 > [`production-guide.md`](production-guide.md). This doc is the top-level checklist over those.
@@ -10,8 +10,10 @@
 
 ## Production workflow
 
-**What Production is:** the smallest Core-only system run against **real GEI data** to a graded, traceable
-result. Everything below uses only [`capabilities.md`](capabilities.md) **Core** components.
+**What Production is:** the smallest Core system run against **real GEI data** to a graded, traceable
+result. Everything below uses only [`capabilities.md`](capabilities.md) **Core** components — plus, since
+2026-07-13, the one **Provisional-Core** default (Bug Plan Mode / `--fixer plan`: default-on on a fail-safe
+mechanism + safety argument, its *effectiveness* still production-gated).
 
 ### Layer 1 — the runtime loop (mechanism: one ticket, 8 deterministic stages)
 
@@ -24,7 +26,10 @@ result. Everything below uses only [`capabilities.md`](capabilities.md) **Core**
 4. **materialize** — `CheckoutEstate` checks out the chosen repo (`--repos`). *Omit `--repos` ⇒ `MockEstate`
    empty worktree ⇒ fix ungradeable.*
 5. **localize** — `AtlasIndex.retrieve` = **plain FTS5 keyword search** over symbol units.
-6. **fix** — `ModelPatchEngine` proposes a patch via the gateway model.
+6. **fix** — `PlanningFixEngine` ("Bug Plan Mode", the `--fixer plan` **default**, Provisional-Core) plans →
+   gates → re-plans → **abstains** rather than emit an out-of-scope/ungrounded patch (fail-safe). `ModelPatchEngine`
+   (`--fixer model`) is the single-shot opt-out. *Effectiveness (`resolved_rate`) is production-gated — the default is a
+   safety choice (0 fabrication), not yet a measured resolution win.*
 7. **submit** — `MockGerrit` records a change. `[to build: live Gerrit sink]`
 8. **bind** — `MockGerrit` links change↔ticket. `[to build: real traceable JIRA↔commit chain]`
 
@@ -35,6 +40,8 @@ result. Everything below uses only [`capabilities.md`](capabilities.md) **Core**
 
 **Pre-flight**
 - [ ] Load creds (NOT autoloaded): `set -a; . ./.env; set +a`
+- [ ] **`KLOOP_DEV` must be UNSET** — it is the dev-gate that unlocks the hermetic fixtures (`--index`/`--fixer
+  canned`/`--case`); a production run leaves it off (only hermetic/Type-1 runs set `KLOOP_DEV=1`)
 - [ ] Readiness: `gloop doctor --atlas-db $KLOOP_ATLAS_DB` → **READY** (repo/unit counts as expected)
 - [ ] Hermetic gate green (no gateway needed): `.venv/bin/python -m pytest -q`
 - [ ] Run **off real ext4** (`/home/vinc` directly, `/var/tmp`, `/dev/shm`) — never the v9fs mount (sqlite over the multi-GB atlas)
@@ -42,14 +49,22 @@ result. Everything below uses only [`capabilities.md`](capabilities.md) **Core**
 **Configure inputs** (offline, zero-cost)
 - [ ] Mine the affinity prior over the full historical oracle: `gloop mine-affinity --dataset $FULL_ORACLE --out component_affinity.json`
 - [ ] Arm the validated lever: `export KLOOP_AFFINITY=component_affinity.json` (the `component` default auto-engages the prior; **no artifact ⇒ a loud fall back to the `flood` baseline**)
-- [ ] Confirm `KLOOP_PRODUCE_API_KEY` is set (else `--fixer model` **fail-closes** — by design)
+- [ ] Confirm `KLOOP_PRODUCE_API_KEY` is set (else `--fixer plan`/`--fixer model` **fail-closes** — by design)
 
-**Run** (defaults are now Core: `component` arm + `model` fixer)
+**Run** (defaults: `component` arm = Core · `plan` fixer = Provisional-Core "Bug Plan Mode")
 - [ ] `gloop run --dataset <ds> --catalog <cat> --index-db $KLOOP_ATLAS_DB --repos <19-repo-mirror> --work <dir> --changes <path> --out run-N`
-  - fail-closed contract: `--fixer model` errors without creds **or** without `--repos` (no silent stub, no fabricated paths)
+  - fail-closed contract: `--fixer plan`/`--fixer model` errors without creds **or** without a valid `--repos`
+    (the `--repos` guard verifies catalog snapshots actually exist — no silent stub, no fabricated paths)
+  - the batch writes `<out>/manifest.json` — a provenance sidecar (timestamp, atlas identity, `match_arm`,
+    `fixer`, affinity hash, produce+embed model pins, `change_sink=mock`, `n_cases`)
 
 **Grade** (offline; the oracle is read here only)
 - [ ] `gloop grade-run --runs run-N --dataset <ds> --index-db $KLOOP_ATLAS_DB --out card-N.json`
+  - the card now carries per-case `predicted_repo` / `oracle_repo` / `signals` / `cost_usd` / `fixer` (miss-RCA-ready)
+- [ ] Read the printed **promotion-eligibility notes** — for a `--fixer plan` run with gradeable resolution,
+  grade-run flags the Provisional-Core obligation (PlanningFixEngine → confirm Core / revert)
+- [ ] Regression check vs the last release: `gloop grade-run … --compare <prev-card.json>` → a per-stage
+  improved/flat/regressed verdict + a `.compare.json` sibling
 
 **Accept** (gates — see [`production-guide.md`](production-guide.md) §6)
 - [ ] `component` recall@3 ≫ `flood` recall@3 (else the affinity table / `Ticket.component` join is empty — a **data** problem, not a weight problem)
@@ -96,8 +111,9 @@ stays an opt-in **Candidate** until a `[production]` read earns it promotion.
 ## Per-stage feature map (all states)
 
 Every feature at every stage, with the evidence behind its state and what a promotion needs. **State legend:**
-**Core** = production default, `[production]`-validated · **Core\*** = Core-when-configured (needs its
-artifact/flag) · **Candidate** = Dev-Labs, opt-in, `[proxy]`-only · **Dev-Labs Infra** = permanent
+**Core** = production default, `[production]`-validated · **Provisional-Core** = default-on on a fail-safe
+mechanism + safety argument, *effectiveness* production-gated (resolves to Core or reverts) · **Core\*** =
+Core-when-configured (needs its artifact/flag) · **Candidate** = Dev-Labs, opt-in, `[proxy]`-only · **Dev-Labs Infra** = permanent
 measurement apparatus · **Fixture** = hermetic Type-1 double (never default) · **Archived** = measured null ·
 **`[to build]`** = not implemented. (Wide table — scroll right; states/evidence trace to
 [`capabilities.md`](capabilities.md) + [`results-log.md`](results-log.md).)
@@ -125,8 +141,8 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | | `GitFixtureEstate` (@base snapshot) | Dev-Labs Infra | fixeval | `[proxy]` harness | — (not a loop role) | `adapters/estate.py:29` |
 | **5 localize** (`retrieve`) | `AtlasIndex.retrieve` (FTS5 keyword) | Core | run + fixeval default (component/flood/routing delegate here) | `[production]` **7/10 file@5** | — | `adapters/index/atlas.py:30` |
 | | `SemanticAtlasIndex.retrieve` (bge-m3 vector) | Candidate | only if the semantic index is active | none (unmeasured *for localize*) | wire + measure localize | `adapters/index/atlas_semantic.py:50` |
-| **6 fix** (FixEngine) | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (default) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
-| | `PlanningFixEngine` — **"Bug Plan"** (plan→gate→re-plan→abstain→patch) | Candidate | `fixeval --fixer plan` | `[proxy]` plan recall@1 0.48/@5 0.68, groundedness 0.56, fab 0.0 | wire into run + a `[production]` resolved_rate read | `adapters/fix/planning.py` |
+| **6 fix** (FixEngine) | `PlanningFixEngine` — **"Bug Plan Mode"** (plan→gate→re-plan→abstain→execute; the executed diff is re-gated to candidate scope) | **Provisional-Core (default; effectiveness production-gated)** | `--fixer plan` (**run default**) | `[proxy]` plan recall@1 0.48/@5 0.68, groundedness 0.56, **fab 0.0** (safety proven; resolution never gradeable) | a `[production]` `resolved_rate` read (grade-run promotion note) → confirm Core / revert | `adapters/fix/planning.py` |
+| | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (**opt-out**) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
 | | `CannedFixEngine` (hermetic stub) | Fixture | `--fixer canned` | — | (never) | `adapters/fix/canned.py` |
 | | Dev-experience KB / Skill injection | Candidate | `fixeval --skills kb [--skills-inject fix-only]` | `[proxy]` **unproven**: old null discredited (confound Δ−0.10 file@1, wrong metric); `resolved_rate` re-test inconclusive (0 floor) | Phase 2 real-fix slice with resolution headroom | `adapters/skills/mock.py` |
 | | Claim-centric KB injection | Candidate | `fixeval --claims {candidate,validated}` | `[proxy]` 0/60 on `plan_target_recall` (wrong metric) — unproven, not null | Phase 2 real-fix slice | `kb/claim.py` |

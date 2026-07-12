@@ -172,12 +172,18 @@ Stage-1 feeds the existing localize → propose-fix pipeline; the stages after `
 
 - **Real `RepoEstate` (partially SHIPPED)** — `GitFixtureEstate` / `CheckoutEstate` materialize a predicted
   repo at a pinned SHA for `gloop fixeval` + `gloop run --repos`; the full `@base = fix^` history-scrub and a
-  live 130-repo estate remain forward work. (Since the 2026-07-12 re-point, `gloop run --fixer model` — now
-  the default — **requires** `--repos`/`CheckoutEstate` and fail-closes; `MockEstate` is hermetic-only.)
-- **Real fix engine (SHIPPED + re-pointed to default)** — `ModelPatchEngine` is now the `gloop run` **default**
-  fix stage (2026-07-12; fail-closed without creds/`--repos`), with `CannedFixEngine` demoted to the explicit
-  hermetic Fixture. Remaining downstream: the live JIRA/Gerrit adapters (the traceable chain) + a Tier-2/3
-  grader. Contracts: [fix-loop.md](fix-loop.md).
+  live 130-repo estate remain forward work. (Since the re-point, `gloop run`'s real fixer — `--fixer plan`
+  (default since 2026-07-13) or `--fixer model` — **requires** `--repos`/`CheckoutEstate` and fail-closes;
+  `MockEstate` is hermetic-only, now dev-gated behind `KLOOP_DEV`.)
+- **Real fix engine (SHIPPED + re-pointed to default)** — `ModelPatchEngine` became the `gloop run` real-fixer
+  default on 2026-07-12; **since 2026-07-13 the default is `--fixer plan`** — the `PlanningFixEngine` ("Bug Plan
+  Mode"), promoted to **Provisional-Core** (default-on on a *fail-safe* mechanism — it re-gates its executed
+  diff to candidate scope and **abstains** rather than fabricate, `fabrication_rate = 0.0`; its *effectiveness*
+  is still production-gated). `ModelPatchEngine` (`--fixer model`) is the single-shot opt-out; both fail-closed
+  without creds/`--repos`; `CannedFixEngine` is the explicit hermetic Fixture (now dev-gated). The resolver for
+  Provisional-Core is the deferred **`[production]` `resolved_rate` read** (plan vs model) — `gloop grade-run`
+  emits the promotion-eligibility note → confirm Core or revert. Remaining downstream: the live JIRA/Gerrit
+  adapters (the traceable chain) + a Tier-2/3 grader. Contracts: [fix-loop.md](fix-loop.md).
 - **Dev-experience KB (a Candidate fix arm — PRODUCTION-GATED)** — the KB's fix-value verdict cannot be
   reached on the dev-box proxy: synth fires the KB but floors resolution at 0 (synthetic log ≠ the real fix),
   and the OSS fleet has only **~7–15** genuine crash-with-fix cases (2026-07-13 scout). It is
@@ -188,6 +194,18 @@ Stage-1 feeds the existing localize → propose-fix pipeline; the stages after `
 - **Eval-env harness (SHIPPED)** — the Type-2 live-eval surface (real models + `atlas-9.db`) is built (`gloop
   eval` / `funceval` / `faulteval`); runbook in [build-setup.md](build-setup.md). Follow-ons: ANN vector
   index, PR/JIRA binding scaffold (Stage-4), Tier-3 build/test grading.
+- **Loop-closure data plane + reporting edge (SHIPPED 2026-07-13)** — the feedback loop's *data plane* is now
+  closed on the dev box: the run-record persists the loop's `signals` (via a `RecordingExtractor` sidecar) +
+  `cost_usd`/`tokens`/`model_calls`/`fixer`, and each batch writes a provenance `manifest.json` (atlas
+  identity, model pins, affinity hash, `change_sink=mock`, timestamp). The *reporting edge* shipped alongside:
+  `gloop grade-run` cards carry per-case predicted/oracle repo + signals + cost, a `--compare <prev-card>`
+  per-stage regression verdict, and reporting-only promotion-eligibility notes (the Provisional-Core resolver
+  surface). Also **surface-pruning**: a `KLOOP_DEV` dev-gate rejects the hermetic fixtures
+  (`--index`/`--fixer canned`/`--case`) in production, and the `--repos` guard was hardened to verify catalog
+  snapshots actually exist. Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-13-production-core-defaults-and-loop-closure*.md`. **Open follow-on:**
+  the deferred `[production]` `resolved_rate` A/B (plan vs model) that resolves Bug Plan Mode's Provisional-Core
+  status — plumbing + governance shipped here, but **no new efficacy read** yet.
 
 The former immediate blocker — the pinned `bge-m3` host being down — was **cleared 2026-07-05**; the full
 `gloop index` build ran and the 9-repo `atlas-9.db` was produced. Growing the fleet toward 130+ (so a real
