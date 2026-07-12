@@ -1214,6 +1214,28 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _repos_has_snapshots(repos: str, catalog_path: str) -> bool:
+    """True iff the --repos dir exists and holds a snapshot subdir for at least one catalog repo. Guards
+    against a wrong-but-nonempty --repos yielding empty worktrees (which a real fixer fabricates over)."""
+    import json
+    from pathlib import Path
+    if not repos:
+        return False
+    root = Path(repos)
+    if not root.is_dir():
+        return False
+    try:
+        cat = json.loads(Path(catalog_path).read_text())
+    except Exception:
+        return False
+    # catalog.json is a JSON list of {"name": ...} objects (tests/fixtures/android_ivi/catalog.json);
+    # tolerate a {"repos": [...]} wrapper too.
+    entries = cat if isinstance(cat, list) else cat.get("repos", [])
+    names = {e["name"] for e in entries if isinstance(e, dict) and "name" in e}
+    subdirs = {p.name for p in root.iterdir() if p.is_dir()}
+    return bool(names & subdirs)
+
+
 def _build_run_fixer(kind: str, max_replan: int = 1):
     """Returns (FixEngine, cost_model|None). cost_model is the GatewayModel whose .cost_usd the batch
     driver snapshots per case; None for the canned stub. `main` fail-closes on a missing key BEFORE this
@@ -1338,10 +1360,10 @@ def main(argv: list[str] | None = None) -> int:
                           "real fixer with no model (it would fabricate patches). Configure gateway creds, "
                           "or pass --fixer canned for a hermetic run.")
                     return 2
-                if not args.repos:
-                    print("gloop run --fixer model/plan: --repos is required — a real fixer over empty "
-                          "worktrees fabricates file paths. Pass --repos <owner-snapshots-dir>, or "
-                          "--fixer canned.")
+                if not _repos_has_snapshots(args.repos, args.catalog):
+                    print("gloop run --fixer model/plan: --repos has no snapshots for the catalog repos — a "
+                          "real fixer over empty worktrees fabricates file paths. Point --repos at an "
+                          "owner-snapshots dir (a subdir per catalog repo).")
                     return 2
             inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
                      else MockEstate(args.catalog, args.work))
