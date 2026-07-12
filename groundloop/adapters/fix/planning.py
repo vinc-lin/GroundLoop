@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Sequence
 
 from groundloop.core.types import Patch, Ticket, WorkTree
-from groundloop.fixeval.patch import extract_unified_diff, touched_files
-from groundloop.fixeval.plan import (RepairPlan, check_plan_in_world, parse_plan, plan_groundedness)
+from groundloop.fix.patch import extract_unified_diff, touched_files
+from groundloop.fix.plan import (RepairPlan, check_plan_in_world, parse_plan, plan_groundedness)
 
 
 class PlanningFixEngine:
