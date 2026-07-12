@@ -337,7 +337,7 @@ map like this:
 | *(none — repo given via `repo.json`)* | **extract** + **match** | **The key divergence.** GroundLoop *predicts* the owning repo (`SignalExtractor.extract` → `CodeIndex.rank_repos`); bfl is handed it. See §0. |
 | **Locate** (select project/scope within the given repo) | folds into **match** / localize scope | bfl MVP = whole work-tree; GroundLoop's scope is the matched repo |
 | **Localize** (structured `locations` artifact) | **localize** | real (`AtlasIndex.retrieve` → `locations`); a richer structured artifact is the target shape |
-| **Propose-fix** (`fix.patch` + free-text `diagnosis`) | **fix** (`FixEngine.propose`) | `CannedFixEngine` stub in `gloop run`'s default; the real **`ModelPatchEngine`** runs via `gloop fixeval` / `--fixer model` |
+| **Propose-fix** (`fix.patch` + free-text `diagnosis`) | **fix** (`FixEngine.propose`) | `gloop run` defaults to the real **`PlanningFixEngine`** (`--fixer plan`, Provisional-Core); `--fixer model` = `ModelPatchEngine`; `CannedFixEngine` is the dev-gated stub |
 | *(none — JIRA mocked / out of scope in bfl)* | **submit** + **bind** | GroundLoop closes the JIRA↔commit chain via `ChangeSink.submit` + `.bind` |
 | **Grade** (separate offline pass) | `grade(record, oracle)` — **not a `run_ticket` stage** | offline function, never imported by the loop |
 

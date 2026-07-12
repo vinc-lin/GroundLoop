@@ -254,27 +254,34 @@ programmatically); it stays decoupled from `groundloop.mine.*` by design.
 ## 5. Run the pipeline
 
 ### 5.1 End-to-end smoke — single case (`gloop run --case`)
-Exercises the whole loop on one case (real match/localize via `AtlasIndex`; **fix here is still the
-`CannedFixEngine` stub** — the real fix engine lives in `gloop fixeval`):
+Exercises the whole loop on one case (real match/localize via `AtlasIndex`; fix here is the hermetic
+`CannedFixEngine` stub). **`--case` and the `--index` M0 stub are dev-gated (2026-07-13):** they are
+rejected in a production shell and require `KLOOP_DEV=1` (or the hidden `--dev` flag):
 ```bash
-.venv/bin/gloop run --case <case_id> \
+KLOOP_DEV=1 .venv/bin/gloop run --case <case_id> \
   --dataset "$GL_DATA/dataset" --catalog "$GL_DATA/dataset/catalog.json" \
   --work /var/tmp/gl-work --changes /var/tmp/gl-changes.jsonl \
   --index-db "$KLOOP_ATLAS_DB"           # or --index <token_index.json> for the hermetic M0 stub
 # prints: case=<id> matched=<repo> change=<change-id>
 ```
-`--match-arm {flood,routing,component}` (default `flood` = `AtlasIndex`) selects the Stage-1 match index;
-`--affinity component_affinity.json` is required for `--match-arm component`.
+`--match-arm {flood,routing,component}` (default `component`, the production-validated affinity arm; falls
+back loudly to the `flood` `AtlasIndex` baseline if no `--affinity`/`KLOOP_AFFINITY` artifact) selects the
+Stage-1 match index; `--affinity component_affinity.json` engages the affinity prior.
 
 ### 5.2 Batch + offline grade (`gloop run --out` → `gloop grade-run`)
-Omit `--case` and pass `--out` to run the whole `--dataset`, writing one **oracle-free** run-record per case to
-`<out>/runs/<case>.json`. `--repos` = owner-repo snapshots dir (`CheckoutEstate`; empty → `MockEstate` with empty
-worktrees); `--fixer {canned,model}` picks the hermetic stub vs the real `ModelPatchEngine`:
+Omit `--case` and pass `--out` to run the whole `--dataset`, writing one **oracle-free** run-record per case
+(plus a per-batch provenance `manifest.json`) to `<out>/`. `--repos` = owner-repo snapshots dir
+(`CheckoutEstate`; **required** with a real fixer, and now verified to contain catalog snapshots).
+`--fixer {plan,model,canned}` — **default `plan`** (the Provisional-Core `PlanningFixEngine`, grounded
+plan→gate→abstain), `model` = single-shot `ModelPatchEngine` opt-out, `canned` = the dev-gated hermetic stub
+(`KLOOP_DEV=1`). A production batch (below, `--fixer plan`) needs `KLOOP_PRODUCE_API_KEY` + a real `--repos`,
+else it fail-closes:
 ```bash
 .venv/bin/gloop run \
   --dataset "$GL_DATA/dataset" --catalog "$GL_DATA/dataset/catalog.json" \
   --index-db "$KLOOP_ATLAS_DB" --work /var/tmp/gl-work --changes /var/tmp/gl-changes.jsonl \
-  --out "$GL_DATA/runs" --repos "$GL_DATA/repos" --fixer canned
+  --out "$GL_DATA/runs" --repos "$GL_DATA/repos" --affinity "$GL_DATA/component_affinity.json"
+# hermetic variant: prefix KLOOP_DEV=1 and add --fixer canned
 
 .venv/bin/gloop grade-run \
   --runs "$GL_DATA/runs" --dataset "$GL_DATA/dataset" \
@@ -331,7 +338,7 @@ two-sided `accept` verdict. Fix-loop + KB design: [fix-loop.md](fix-loop.md).
 | **match** | `CodeIndex.rank_repos` | `TokenIndex` (M0 stub) | `AtlasIndex` (FTS5) · `SemanticAtlasIndex` (bge-m3) · `LLMJudgeIndex` | atlas.db on ext4; gateways for semantic/judge |
 | **catalog+materialize** | `RepoEstate.catalog/materialize` | `MockEstate` | `GitFixtureEstate` (git worktree @SHA); **full 130-repo live estate = seam** | git checkouts |
 | **localize** | `CodeIndex.retrieve` | `TokenIndex` stub | `AtlasIndex`/`SemanticAtlasIndex` (same object as match) | atlas.db (+embedder) |
-| **fix** | `FixEngine.propose` | `CannedFixEngine` | `ModelPatchEngine` | the `Model` port |
+| **fix** | `FixEngine.propose` | `CannedFixEngine` (dev-gated) | `PlanningFixEngine` (`--fixer plan`, **default**, Provisional-Core) · `ModelPatchEngine` (`--fixer model`) | the `Model` port |
 | **fix — Model** | `Model.complete` | `CannedModel` | `GatewayModel` | chat gateway + key |
 | **submit / bind** | `ChangeSink.submit/bind` | `MockGerrit` (JSONL ledger) | **SEAM — NOT BUILT** (write a Gerrit/PR adapter) | Gerrit REST / `gh` + `<GH_TOKEN>` |
 
@@ -363,7 +370,8 @@ needs which asset" cut:
   *is the matcher actually picking the owner out of N confusable repos, or just guessing?* (`gloop eval`.)
 - **B. Closed-loop triage & fix on a real ticket (the end-state pipeline).** Drive one ticket + logs all the way
   to a bound change (`gloop run`). Fully wired through `run_ticket` today with mock JIRA/Gerrit; the `run` fix
-  stage is a `CannedFixEngine` stub — the real `ModelPatchEngine` loop lives in `gloop fixeval` / `--fixer model`.
+  stage now defaults to the real `PlanningFixEngine` (`--fixer plan`, Provisional-Core — grounded
+  plan→gate→abstain; `--fixer model` for single-shot `ModelPatchEngine`; `--fixer canned` is the dev-gated stub).
 - **C. A/B-arm mechanism comparison (measured-mechanism mode).** Add each new mechanism only as a *measured arm*
   and keep it only if it beats its cost: matching-strategy arms (membership-only baseline → +semantic rerank →
   +LLM-judge) and signal arms (text-only vs +logs). See [evaluation.md](evaluation.md) for the arm design.
@@ -412,8 +420,9 @@ Be honest about these when deploying — they are **not yet built**:
 
 - **Real intake/submit adapters** — only `MockJira` / `MockGerrit` exist. A production loop needs a real JIRA
   `IssueSource` and a real Gerrit/GitHub-PR `ChangeSink`.
-- **`gloop run` fix is a stub** (`CannedFixEngine`); the real `ModelPatchEngine` fix loop is only in `gloop
-  fixeval` (and `gloop run --fixer model` batch mode).
+- **`gloop run` fix is real by default** (`--fixer plan` = `PlanningFixEngine`, Provisional-Core; `--fixer
+  model` = `ModelPatchEngine`). Effectiveness (`resolved_rate`) is still production-gated — no `[production]`
+  fix read yet; the hermetic `CannedFixEngine` is dev-gated behind `KLOOP_DEV=1`.
 - **Live full-fleet estate** — `GitFixtureEstate`/`CheckoutEstate` handle curated checkouts, not a live
   130-repo clone inside `run`.
 - **Atlas is symbol-only** — `produce`/CodeWiki is impractical at fleet scale (I/O-bound, crashes on giants);
