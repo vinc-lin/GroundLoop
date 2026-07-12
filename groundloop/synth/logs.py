@@ -221,7 +221,7 @@ class CrashClass(NamedTuple):
 # the bug class AND is absent from that class's generated log (headroom: a no-KB `none` arm can't read it
 # for free). Each planted value is asserted named-in-guidance + not-in-log by tests/synth/test_required_api.py.
 # Classes whose fix API leaks into their own log (e.g. FGS's startForeground IS in its log) or is ambiguous
-# (native SEGV underrun, binder, media, GL, lib-load, ANR) keep required_api="" (not resolution-gradeable).
+# (native underrun, binder, media, GL, lib-load, ANR) keep required_api="" (not resolution-gradeable).
 CRASH_CLASSES: list[CrashClass] = [
     CrashClass("native-null-deref-segv", "native", build_native_backtrace, None, "GetLongField"),
     CrashClass("native-heap-corruption-abort", "native", build_native_abort, None, "std::unique_ptr"),
