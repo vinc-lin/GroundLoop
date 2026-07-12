@@ -13,7 +13,7 @@ def test_run_batch_then_grade(tmp_path, capsys):
     run_out = tmp_path / "run"
 
     # batch mode: no --case, with --out (hermetic TokenIndex via --index). Type-1 runs must select the
-    # canned Fixture explicitly — the production default is --fixer model, which fail-closes without creds.
+    # canned Fixture explicitly — the production default is --fixer plan, which fail-closes without creds.
     rc = main(["run", "--dataset", str(ds), "--catalog", str(_FIX / "catalog.json"),
                "--index", str(_FIX / "index.json"), "--work", str(tmp_path / "work"),
                "--changes", str(tmp_path / "changes.jsonl"), "--out", str(run_out), "--fixer", "canned"])
