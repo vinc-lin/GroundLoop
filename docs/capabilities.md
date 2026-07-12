@@ -76,11 +76,20 @@ The **affinity miner** `gloop mine-affinity` is the *offline build step* that pr
 production build step feeding Core, like `gloop index`; it is **not** a `run_ticket` stage and the re-point
 does not touch it.
 
-### Candidate — Dev-Labs research, blocked on a first `[production]` read (6)
+### Candidate — Dev-Labs research, blocked on a first `[production]` read (7)
 `FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · `PlanningFixEngine` (plan-then-act, merged, live
-A/B pending) · the bge-m3+qwen **localize** retrieve (eval-only; the "fancy" localize the production run did
-**not** use).
+A/B pending) · the bge-m3 vector **localize** retrieve (`SemanticAtlasIndex.retrieve`, eval-only, unmeasured
+for localize; there is **no** LLM/qwen-rerank localize — `LLMJudgeIndex.retrieve` delegates to plain FTS5).
+
+**Dev-experience KB** (raw Skills + claim distill) — *unproven, not null* (reclassified from Archived
+2026-07-13). The prior null was measured on the wrong metric (`plan_target_recall`, not `resolved_rate`) and
+rode a localize-query pollution confound — reproduced: skills-in-query cost **Δ−0.10 file@1**. A fair
+`resolved_rate` test (`fixeval --skills-inject fix-only`, which is provably localize-invariant) was
+**inconclusive** — a 0-resolution floor on a synth slice (the synthetic crash log is disconnected from the
+real fix, so nothing resolves). Blocked on **Phase 2**: a real-fix slice (SWE-bench-style) with achievable
+resolution headroom. Its A/B machinery (`kb-ab`/`kb-promote`/`kb-distill`/placebo) is the Dev-Labs eval infra
+for that test.
 
 ### Dev-Labs Infra — permanent measurement / data apparatus (never promoted)
 `eval` · `fixeval` · `funceval` · `faulteval` · `compare` · `grade-run` (the production **feedback**
@@ -91,16 +100,14 @@ scorecard) · `synth` · `mine` · `combine-oracle` / `label-bugkind` · `build-
 `CannedFixEngine` · `MockEstate` · `MockJira` · `MockGerrit` · `CannedModel` · `TokenIndex` (M0 stub) ·
 legacy `grade()`. **The trap that §4 closes: several of these were the production *defaults*.**
 
-### Archived — measured NULL, stop investing (the KB track)
-The entire dev-experience KB line concluded on a hard, twice-reproduced null:
-- Raw 12-Skill injection **hurt** the planner: plan_target_recall@1 0.36 → 0.22 (Δ **−0.14**) `[proxy]`.
-- Claim-centric distill + LOFO retain-loop validated **0 / 60** claims `[proxy]`; no-injection 0.51 >
-  placebo 0.37 > raw Skills 0.22.
-- Machinery kept as record only: `kb-ab` / `kb-promote` / `kb-distill` / `kb-extract` / `kb-attribute`,
-  placebo + distilled arms, `MockSkillRegistry`.
-
-The mechanism works; it produced zero load-bearing knowledge. This *vindicates* the "grounding over
-narrative / distrust-unverified" principle — and is exactly what Archived is for.
+### Archived — measured NULL, stop investing
+*Currently empty.* The dev-experience KB track was **reclassified Archived → Candidate (2026-07-13)**: its
+null was measured on the wrong metric (`plan_target_recall`, not `resolved_rate`) and rode a localize-query
+pollution confound (reproduced: Δ−0.10 file@1), and the fair `resolved_rate` re-test was inconclusive (a
+0-resolution floor on a synth slice — the wrong substrate). So the null is **not** validly established and
+Archived requires a *genuinely-concluded* one. Nothing else has that yet. See Candidate (KB) +
+[`results-log.md`](results-log.md) 2026-07-13. (The lesson still stands — *distrust unverified* — but here it
+cuts the other way: we must not archive on an invalid null either.)
 
 ## 4. Enforcement — defaults must be Core, Fixtures must be explicit
 

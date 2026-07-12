@@ -35,7 +35,7 @@ def write_synth_case(src_case_dir: str, store: Store, dest_root: str):
     built = synth_log_for_case(store, owner, files, cid)
     if not built:
         return None                                   # no indexable crash site (test-only / no symbols)
-    text, kind = built
+    text, kind, required_api = built
     ticket = _load(os.path.join(src_case_dir, "ticket.json"))
     dest = os.path.join(dest_root, cid)
     os.makedirs(os.path.join(dest, "logs"), exist_ok=True)
@@ -43,7 +43,10 @@ def write_synth_case(src_case_dir: str, store: Store, dest_root: str):
         fh.write(text)
     ticket["logs"] = [{"path": "logs/crash.txt", "kind": kind}]      # loop reads the synth failure log
     _dump(os.path.join(dest, "ticket.json"), ticket)
-    _dump(os.path.join(dest, "_oracle", "oracle.json"), {**oracle, "synth_log": kind})
+    oracle_out = {**oracle, "synth_log": kind}
+    if required_api:
+        oracle_out["required_apis"] = [required_api]   # makes resolved_rate gradeable (planted, headroom-clean)
+    _dump(os.path.join(dest, "_oracle", "oracle.json"), oracle_out)
     return cid
 
 

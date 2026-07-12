@@ -146,7 +146,7 @@ def test_synth_log_extracts_owner_signal_and_matches(tmp_path):
     extractor and (b) rank gpuimage top-1 over the fixture atlas — i.e. it exercises the matcher."""
     db = build_atlas_fixture(str(tmp_path / "atlas.db"))
     store = Store(db)
-    text, kind = S.synth_log_for_case(
+    text, kind, _required_api = S.synth_log_for_case(
         store, "android-gpuimage-plus",
         ["library/src/main/jni/cge/CGEImageHandler.cpp"], "gpuimage-1")
     assert kind == "native" and "libCGE.so" in text and "CGEImageHandler" in text

@@ -212,25 +212,33 @@ class CrashClass(NamedTuple):
     surface: str                       # "native" | "java"
     builder: Callable                  # native: (so, frames, rng)->str ; java: (frames, rng)->str
     affinity: Optional[frozenset]      # None = any repo of this surface; else bias to these repos only
+    required_api: str = ""             # a KB-guidance API absent from this class's log; "" => not resolution-gradeable
 
 
 # One class per KB skill (aaos_kb_seed.toml). Affinity biases a class to its natural owners but never
 # hard-gates coverage: every surface keeps affinity-free classes so no repo starves.
+# `required_api` (last field) is populated ONLY where a KB-guidance API is a genuine, correct fix for
+# the bug class AND is absent from that class's generated log (headroom: a no-KB `none` arm can't read it
+# for free). Each planted value is asserted named-in-guidance + not-in-log by tests/synth/test_required_api.py.
+# Classes whose fix API leaks into their own log (e.g. FGS's startForeground IS in its log) or is ambiguous
+# (native underrun, binder, media, GL, lib-load, ANR) keep required_api="" (not resolution-gradeable).
 CRASH_CLASSES: list[CrashClass] = [
-    CrashClass("native-null-deref-segv", "native", build_native_backtrace, None),
-    CrashClass("native-heap-corruption-abort", "native", build_native_abort, None),
+    CrashClass("native-null-deref-segv", "native", build_native_backtrace, None, "GetLongField"),
+    CrashClass("native-heap-corruption-abort", "native", build_native_abort, None, "std::unique_ptr"),
     CrashClass("realtime-audio-callback-underrun", "native", build_audio_underrun, frozenset({"oboe"})),
-    CrashClass("foreground-service-not-started", "java", build_fgs_crash, None),
-    CrashClass("illegalstate-after-savedinstancestate", "java", build_ise_saved_crash, None),
+    CrashClass("foreground-service-not-started", "java", build_fgs_crash, None, "NotificationChannel"),
+    CrashClass("illegalstate-after-savedinstancestate", "java", build_ise_saved_crash, None,
+               "commitAllowingStateLoss"),
     CrashClass("binder-transaction-too-large", "java", build_binder_too_large_crash, None),
     # repo-agnostic: MediaCodec / Surface signatures are generic android.media/GL tokens (no owner leak),
     # and the affine repos (media3/cameraview/gpuimage) are too thin to carry these classes — so keep them
     # affinity-free to guarantee firing coverage across the fleet.
     CrashClass("media-player-illegal-state", "java", build_media_illegal_state_crash, None),
     CrashClass("camera-gl-surface-lifecycle", "java", build_camera_gl_crash, None),
-    CrashClass("shared-state-race-cme", "java", build_cme_crash, None),
+    CrashClass("shared-state-race-cme", "java", build_cme_crash, None, "CopyOnWriteArrayList"),
     CrashClass("native-lib-load-failure", "java", build_native_lib_load_crash, None),
-    CrashClass("fragment-view-after-destroy-npe", "java", build_fragment_npe_crash, None),
+    CrashClass("fragment-view-after-destroy-npe", "java", build_fragment_npe_crash, None,
+               "getViewLifecycleOwner"),
     CrashClass("main-thread-blocking-anr", "java", build_anr, None),
 ]
 
@@ -288,7 +296,8 @@ def _atlas_method(store, repo: str, base: str, cls: str):
 
 
 def synth_log_for_case(store, owning_repo: str, files: list[str], case_id: str):
-    """Build one realistic failure log naming the owner's crash-site symbols. Returns (text, kind) or None.
+    """Build one realistic failure log naming the owner's crash-site symbols. Returns
+    (text, kind, required_api) or None; required_api is "" when the fired class is not resolution-gradeable.
 
     The crash class (which KB skill the log fires) is chosen deterministically per case for even coverage;
     every class embeds the owner's real frames so the log still ranks the owner top-1 over the atlas."""
@@ -299,5 +308,5 @@ def synth_log_for_case(store, owning_repo: str, files: list[str], case_id: str):
     cc = select_crash_class(owning_repo, frames, case_id)
     if cc.surface == "native":
         so = _NATIVE_SO.get(owning_repo, f"lib{owning_repo.split('-')[0]}.so")
-        return cc.builder(so, frames, rng), "native"
-    return cc.builder(frames, rng), "logcat"
+        return cc.builder(so, frames, rng), "native", cc.required_api
+    return cc.builder(frames, rng), "logcat", cc.required_api
