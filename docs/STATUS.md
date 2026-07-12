@@ -23,9 +23,11 @@ direct`, ~$0.10): **harness fix validated** (`fix-only` provably localize-invari
 file@1 0.157); **confound confirmed** (skills in the localize query cost **Δ−0.10** file@1); but
 **`resolved_rate` INCONCLUSIVE** (0 floor — the synthetic log is disconnected from the real fix, so nothing
 resolves; synth is the wrong substrate for resolution). Verdict: the Archived null is **discredited** but the
-KB is **unproven** → reclassified **Archived → Candidate**. A real verdict needs **Phase 2** (real-fix slice;
-spec `docs/superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md`). Detail: `results-log.md` 2026-07-13.
-**572 passed / 7 skipped, ruff clean.**
+KB is **unproven** → reclassified **Archived → Candidate**. **Phase-2 scout (same day)**: the OSS proxy fleet
+has only **~7–15** genuine crash-with-fix cases (features/UI dominate, not AAOS crashes) — too few to test the
+KB. Every dev-box substrate is exhausted (synth: 0 resolution; OSS-real: ~no crashes), so the KB verdict is
+**production-gated** — it needs real AAOS crash+fix tickets; the Phase 2 spec now stands as a production-side
+task. Detail: `results-log.md` 2026-07-13. **572 passed / 7 skipped, ruff clean.**
 
 ### Production-Core / Dev-Labs governance + `gloop run` default re-point (2026-07-12) ✅
 Adopted the **Production Core + Dev Labs** model and applied it. New [`capabilities.md`](capabilities.md):

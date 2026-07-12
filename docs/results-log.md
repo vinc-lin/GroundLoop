@@ -5,7 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
-| 2026-07-13 | KB fair-eval Phase 1 (metric+injection fix) | `[proxy]` | `resolved_rate` now gradeable but **0 floor** → inconclusive; confound confirmed: skills-in-localize-query **Δ−0.10** file@1; `fix-only` invariant |
+| 2026-07-13 | KB fair-eval Phase 1 + Phase-2 scout | `[proxy]` | harness fix validated + confound **Δ−0.10** file@1, but `resolved_rate` inconclusive (0 floor); scout → only **~7–15** crash-with-fix cases fleet-wide ⇒ KB verdict **production-gated** |
 | 2026-07-11 | functional 10-case e2e (GEI) | `[production]` | match recall@1 **7/10**, localize **7/10** file@5, fix ungradeable (empty worktree) |
 | 2026-07-10 | functional-bug matching arm | `[proxy]` | functional/dispatch recall@1 **0.68** vs flood 0.32; dispatch **0.94** on crash (no regression) |
 | 2026-07-10 | component-routing match | `[proxy→production]` | flood 0.32 → component **0.49/0.92** `[proxy]`; **0.10 → 0.50/0.90** `[production]` |
@@ -35,10 +35,16 @@ gradeable slice (oboe/antennapod/newpipe/dlt-daemon), `--fixer direct`, deepseek
   can't reconstruct a resolving patch — synth is valid for matching/localization but the **wrong substrate
   for `resolved_rate`**.
 - **Verdict:** the Archived null is **discredited** (confound + wrong metric, both reproduced) but the KB is
-  **not vindicated** (zero positive signal) → **unproven**. KB reclassified **Archived → Candidate**; a real
-  verdict needs Phase 2 (real mined fixes with achievable resolution). Branch `kb-fair-eval-phase1`; spec/plan
-  `docs/superpowers/{specs,plans}/2026-07-12-kb-fair-eval-phase1*.md`; Phase 2 spec
-  `docs/superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md`.
+  **not vindicated** (zero positive signal) → **unproven**. KB reclassified **Archived → Candidate**. Branch
+  `kb-fair-eval-phase1` (merge `20f6934`); spec/plan `docs/superpowers/{specs,plans}/2026-07-12-kb-fair-eval-phase1*.md`.
+- **Phase-2 scout (same day, offline):** Phase 2 needed a *real* crash-with-fix substrate (issue with a
+  stacktrace → KB fires; merged PR → resolution achievable). Scanned the mined fleet datasets: only **7**
+  genuine crash-report+fix cases in `dataset-full` (261), **15** in `dataset-neg` (643) — the OSS proxy repos
+  are features/UI/usage, not AAOS crashes (bodies un-truncated, up to 23k chars, so the count is real). Too
+  few for a `resolved_rate` verdict. **Conclusion:** every dev-box substrate is exhausted (synth: 0
+  resolution; OSS-real: ~no crashes), so the KB verdict is **production-gated** — it needs real AAOS crash+fix
+  tickets. The Phase 2 spec now stands as a **production-side** task. (Same lesson as efficacy: the proxy
+  can't measure it.)
 
 ## 2026-07-11 · functional 10-case e2e (GEI) · `[production]`
 

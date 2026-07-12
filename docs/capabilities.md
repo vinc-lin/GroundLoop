@@ -87,9 +87,12 @@ for localize; there is **no** LLM/qwen-rerank localize — `LLMJudgeIndex.retrie
 rode a localize-query pollution confound — reproduced: skills-in-query cost **Δ−0.10 file@1**. A fair
 `resolved_rate` test (`fixeval --skills-inject fix-only`, which is provably localize-invariant) was
 **inconclusive** — a 0-resolution floor on a synth slice (the synthetic crash log is disconnected from the
-real fix, so nothing resolves). Blocked on **Phase 2**: a real-fix slice (SWE-bench-style) with achievable
-resolution headroom. Its A/B machinery (`kb-ab`/`kb-promote`/`kb-distill`/placebo) is the Dev-Labs eval infra
-for that test.
+real fix, so nothing resolves). **Production-gated** (2026-07-13 Phase-2 scout): the dev-box proxy provably
+*cannot* test the KB — synth fires it but floors resolution at 0, and the OSS fleet has only **~7–15** genuine
+crash-with-fix cases (features/UI/usage dominate, not AAOS crashes) — too few for a verdict. The KB is
+AAOS-crash-specific; a fair `resolved_rate` verdict needs real **production** AAOS crash+fix tickets (the
+[`Phase 2 spec`](superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md) is therefore a production-side
+task). Its A/B machinery (`kb-ab`/`kb-promote`/`kb-distill`/placebo) is the eval infra for that test.
 
 ### Dev-Labs Infra — permanent measurement / data apparatus (never promoted)
 `eval` · `fixeval` · `funceval` · `faulteval` · `compare` · `grade-run` (the production **feedback**

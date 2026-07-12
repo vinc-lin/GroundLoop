@@ -1,6 +1,12 @@
 # KB Fair-Evaluation — Phase 2 design (a real-fix substrate the KB can actually be tested on)
 
-**Status:** design, 2026-07-13. Follows Phase 1 (`2026-07-12-kb-fair-eval-phase1-design.md`). Proxy-only; no production deploy.
+**Status:** design, 2026-07-13 — **NOT VIABLE ON THE DEV-BOX PROXY; deferred to production.** A same-day scout
+found the OSS proxy fleet has only **~7–15 genuine crash-with-fix cases** fleet-wide (dataset-full 7,
+dataset-neg 15) — too few for a `resolved_rate` verdict, and the OSS bug population is features/UI/usage, not
+AAOS crashes. Combined with Phase 1 (synth floors resolution at 0), **no dev-box substrate can fairly test the
+AAOS-crash KB**. This design therefore stands as the **production-side** task — run it when real AAOS crash+fix
+tickets are reachable (the mechanism below is unchanged; only the substrate moves to production). Follows
+Phase 1 (`2026-07-12-kb-fair-eval-phase1-design.md`).
 
 ## Context — what Phase 1 settled, and the crux it exposed
 
