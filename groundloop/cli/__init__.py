@@ -1015,6 +1015,8 @@ def build_parser() -> argparse.ArgumentParser:
     grun.add_argument("--dataset", required=True, help="the dataset the run was over (for the hidden oracle)")
     grun.add_argument("--index-db", default=None, help="atlas.db — enables the isolated-localize diagnostic")
     grun.add_argument("--out", required=True, help="scorecard JSON path (a .md table is written alongside)")
+    grun.add_argument("--compare", default=None,
+                      help="a previous grade-run card.json — append a per-stage regression section")
 
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
@@ -1245,6 +1247,17 @@ def _run_grade_run(args) -> int:
           f"localize as-run@1={ov['localize']['as_run'].get('file@1')} "
           f"isolated@1={iso.get('file@1')} · "
           f"fix gradeable={fx.get('n_gradeable')} ungradeable={fx.get('n_ungradeable_no_source')}")
+    if args.compare:
+        from groundloop.run.compare import compare_cards
+        prev = json.loads(Path(args.compare).read_text())
+        comp = compare_cards(card, prev)
+        Path(args.out).with_suffix(".compare.json").write_text(
+            json.dumps(comp, indent=2, ensure_ascii=False, default=str))
+        regs = comp["regressions"]
+        line = f"compare vs {args.compare}: verdict={comp['verdict']} · regressions={len(regs)}"
+        if regs:
+            line += f" ({', '.join(regs)})"
+        print(line)
     return 0
 
 
