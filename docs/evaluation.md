@@ -84,9 +84,9 @@ require.
 - **Stages 3 (fix) / 4 (bind)** — **hooks + reserved null fields only.** `CannedFixEngine` makes fix
   quality meaningless, and bind is trivially always-true (`run_ticket` hardcodes `RunRecord.bound=True`;
   `MockGerrit.bind()` just appends a ledger row and transitions the ticket), so the scorecard carries a
-  trivial `bound_rate` sanity column and reserves `fix_applies`/`bound_correct` for the future downstream
-  fix-loop eval ([`fix-loop.md`](fix-loop.md)). This matches the roadmap: the fix
-  stage is a stub.
+  trivial `bound_rate` sanity column and reserves `fix_applies`/`bound_correct` for the (separate) downstream
+  fix-loop eval — now shipped as `gloop fixeval` / `gloop compare` ([`fix-loop.md`](fix-loop.md), §6.4). Fix
+  quality stays out of scope for *this* Stage-1 match eval.
 
 **Grounded-refusal is in scope from E1.** Because the evaluation fleet (§3) yields hundreds of tickets
 (well past the `n≥128` threshold that makes risk-coverage metrics trustworthy, §7), the selective view

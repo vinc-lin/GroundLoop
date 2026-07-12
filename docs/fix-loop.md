@@ -81,10 +81,10 @@ only applicable check is the rubric grade to `resolved = None` and are excluded 
 
 Metric definitions are borrowed (SWE-PolyBench file+CST retrieval, CoSIL's deterministic Top-k
 `FLEvalNew.py`, ARISE Line-Recall@1 vocabulary); the backend is ours. Diff-ref extraction —
-`extract_refs(diff, gold_tokens) → (referenced_symbols, touched_files)` — will power Tier-1 (touched
-files vs `expected_files`) and Tier-1.5 (symbols vs `required_apis ∪ gold_symbols`, whole-word); it is
-**to be ported from the `knowledgeLoop` eval stack** (`extract.py`) and is **not resident under
-`groundloop/` today** (see the migration-source docs at [`../../knowledgeLoop/docs/`](../../knowledgeLoop/docs/)).
+`touched_files` / `references_api` / `added_lines` — **powers** Tier-1 (touched files vs `expected_files`)
+and Tier-1.5 (symbols vs `required_apis`, whole-word); it is **already ported** from the `knowledgeLoop` eval
+stack (`extract.py`) and **resident** at `groundloop/fixeval/patch.py`, driving live Tier-1/1.5 grading in
+`groundloop/fixeval/scorecard.py`.
 
 ---
 
@@ -353,8 +353,8 @@ Two structural consequences of the mapping:
    GroundLoop's match prediction; the repo name becomes an `_oracle` field consumed only offline.
 
 The cognition/control split is identical to bfl's two planes — the deterministic Python plane owns
-sequencing/state/invariants and never reasons; the model plane (behind the `Model` /future
-`FixEngine` ports) reasons and never decides control flow. See [architecture.md](architecture.md).
+sequencing/state/invariants and never reasons; the model plane (behind the `Model` + `FixEngine`
+ports) reasons and never decides control flow. See [architecture.md](architecture.md).
 
 ---
 
@@ -364,5 +364,5 @@ sequencing/state/invariants and never reasons; the model plane (behind the `Mode
 - **bfl architecture** — [`../../loop-agent/docs/architecture.md`](../../loop-agent/docs/architecture.md)
 - **bfl MVP plan** — [`../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md`](../../loop-agent/docs/superpowers/plans/2026-07-02-bfl-mvp.md)
 - **bfl roadmap** (first-A/B, deferred tiers) — [`../../loop-agent/docs/roadmap.md`](../../loop-agent/docs/roadmap.md)
-- **Migration-source engines + eval stack** (cost card, diff-ref extractor, frontier eval machinery — to be ported, not yet resident under `groundloop/`) — [`../../knowledgeLoop/docs/`](../../knowledgeLoop/docs/)
+- **Migration-source engines + eval stack** (cost card, frontier eval machinery — to be ported, not yet resident under `groundloop/`; the diff-ref extractor is already resident at `groundloop/fixeval/patch.py`) — [`../../knowledgeLoop/docs/`](../../knowledgeLoop/docs/)
 - **GroundLoop siblings** — [environments.md](environments.md) · [charter.md](charter.md) · [architecture.md](architecture.md) · [engines.md](engines.md) · [roadmap.md](roadmap.md) · [evaluation.md](evaluation.md) · [build-setup.md](build-setup.md) · [../CLAUDE.md](../CLAUDE.md)

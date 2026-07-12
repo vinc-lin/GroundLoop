@@ -11,7 +11,9 @@ the full consume spec, deploy design), link out to the source docs under `../../
 
 > **Naming.** The source docs call the integrated system "knowledgeLoop" and use a `kl`/`repo_atlas`
 > CLI plus `REPO_MEMORY_*` env. That system **is GroundLoop**. The GroundLoop CLI is **`gloop`**
-> (`run` · `index` · `produce` · `doctor`) — there is no `kl`, `kloop`, or `bfl`. The migration
+> (`run` · `grade-run` · `index` · `produce` · `doctor` · `build-atlas` · `mine` · `mine-affinity` · `eval` ·
+`funceval` · `faulteval` · `fixeval` · `synth` · `combine-oracle` · `compare` · `kb-*`) — there is no `kl`,
+`kloop`, or `bfl`. The migration
 > **source** engine still lives at `/mnt/x/code/knowledgeLoop` (a separate live repo; do not rename).
 
 ---

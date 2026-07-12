@@ -94,7 +94,8 @@ locked in as Type-1 red-tests today (`tests/test_invariants.py`).
 
 Given `ticket + logs`, the `match` stage of `run_ticket` produces a ranked list of candidate repos with
 confidence via `CodeIndex.rank_repos(signals, catalog) -> [RepoScore]` (top-1 = predicted owning repo).
-GL-M1 shipped stage (a) below; stage (b) is the forward work.
+GL-M1 shipped stage (a) below; stage (b) (semantic rerank + RRF fusion) has since LANDED in the
+matcher-arm family (the `--semantic` arm + RRF in the fault-routing / component-prior arms).
 
 **Domain signal extraction (SHIPPED).** `AndroidSignalExtractor`
 (`domains/android_ivi/signal_extractor.py`, the FR-2 `SignalExtractor` port) parses logcat / Java-Kotlin

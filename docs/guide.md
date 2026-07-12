@@ -241,13 +241,13 @@ warns); ship with it on. (Anti-leak integrity detail: [evaluation.md](evaluation
 answerable), `coverage_gap` (merged after `--coverage-cutoff`), `out_of_fleet` (owner held out of the per-case
 catalog → abstaining is correct), `not_a_defect` (label-harvested, `owning_repo="__NOT_A_DEFECT__"`).
 
-### 4.3 Synth-log augmentation (optional; library only — no CLI)
+### 4.3 Synth-log augmentation (optional; `gloop synth` or library)
 Mined tickets are ~87% prose lacking crash signal. `groundloop.synth.dataset.build_synth_dataset(src_root,
 atlas_db, dest_root, catalog_names)` rewrites each case with a deterministic AAOS failure log naming the owner's
 **real** crash-site symbols pulled from the atlas (native SIGSEGV backtrace for native repos, else a FATAL
 EXCEPTION logcat). This is grounded signal (matched against the atlas, never the repo name) and raised Stage-1
-recall@1 from ~0.02 to **0.60 `[proxy]`**. There is **no `gloop synth` subcommand** — call it programmatically.
-It stays decoupled from `groundloop.mine.*` by design.
+recall@1 from ~0.02 to **0.60 `[proxy]`**. It is exposed as `gloop synth` (or call `build_synth_dataset`
+programmatically); it stays decoupled from `groundloop.mine.*` by design.
 
 ---
 

@@ -45,9 +45,9 @@ substrate; real adapters wrap the migrated engines and live services.
 |---|---|---|---|---|
 | **IssueSource** | Ticket I/O (incl. logs) + write-back | `fetch(id)->Ticket`; `post_comment(id, body)`; `transition(id, status)` | `MockJira` (`adapters/mock/jira.py`; dataset files + `ledger.jsonl`) | JIRA client (later) |
 | **SignalExtractor** *(domain)* | logs + ticket → structured signals | `extract(logs, ticket)->Signals` | — (supplied by the DomainPack) | `AndroidSignalExtractor` (`domains/android_ivi/signal_extractor.py`) — **shipped** (FR-2) |
-| **RepoEstate** | fleet catalog + scrubbed checkout | `catalog()->[RepoRef]`; `materialize(repo)->WorkTree` | `MockEstate` (`adapters/estate.py`) | corpus-backed estate (later) |
+| **RepoEstate** | fleet catalog + scrubbed checkout | `catalog()->[RepoRef]`; `materialize(repo)->WorkTree` | `MockEstate` (`adapters/estate.py`) | `GitFixtureEstate` + `CheckoutEstate` (`adapters/estate.py`) — **shipped** (via `--repos`) |
 | **CodeIndex** | repo-ranking (MATCH) + within-repo retrieval | `rank_repos(signals, catalog)->[RepoScore]`; `retrieve(repo, query)->[str]` | `TokenIndex` (`adapters/index/simple.py`, membership-overlap stub) | `AtlasIndex` (`adapters/index/atlas.py`, real FTS5 over an `atlas.db`) |
-| **FixEngine** | localize + propose a patch | `propose(worktree, ticket, locations)->Patch` | `CannedFixEngine` (`adapters/fix/canned.py`, deterministic diff stub) | agentic fix engine (later) |
+| **FixEngine** | localize + propose a patch | `propose(worktree, ticket, locations)->Patch` | `CannedFixEngine` (`adapters/fix/canned.py`, deterministic diff stub) | `ModelPatchEngine` / `PlanningFixEngine` (`adapters/fix/`) — **shipped** (via `gloop fixeval` / `--fixer model`) |
 | **ChangeSink** | patch→Change + bind (JIRA↔commit) | `submit(repo, patch, ticket)->Change`; `bind(change, ticket)` | `MockGerrit` (`adapters/mock/gerrit.py`; content-hashed Change-Id + ledger) | Gerrit client (later) |
 | **Model** *(infra)* | text completion | `complete(prompt)->str` | `CannedModel` (`adapters/mock/model.py`) | LiteLLM gateway (later) |
 
@@ -94,9 +94,10 @@ selects each adapter and passes it to `run_ticket` by keyword. Later milestones 
 (`TokenIndex` → `AtlasIndex`, `CannedFixEngine` → agentic, `MockEstate` → corpus-backed, new domains) **without touching `core/`**.
 
 **`groundloop/core/` is FROZEN.** Never edit `core/` to add a feature — swap the adapter at the composition
-root instead. The CLI is `gloop {run, index, produce, doctor}` (`index` builds an `atlas.db`; `produce`
-generates a CodeWiki; `doctor` checks index/CBM readiness); a `gloop mine` command is aspirational, **not
-built yet** (see §8 and [roadmap](roadmap.md)).
+root instead. The CLI is `gloop {run, grade-run, index, produce, doctor, build-atlas, mine, mine-affinity,
+eval, fixeval, funceval, faulteval, synth, combine-oracle, compare, kb-*}` (`index` builds an `atlas.db`;
+`produce` generates a CodeWiki; `doctor` checks readiness; `mine` harvests benchmark tickets; `fixeval` /
+`grade-run` grade the fix loop). Full list: `CLAUDE.md`.
 
 Config is the single env-reading surface, `groundloop/config/settings.py`, resolved from `KLOOP_*` env vars
 (e.g. `KLOOP_DATA_DIR`, `KLOOP_DOMAIN`, `KLOOP_ATLAS_DB`, `KLOOP_EMBED_MODEL`). No other module reads a path
@@ -151,7 +152,7 @@ and the SOURCE engine docs under [`../../knowledgeLoop/docs/`](../../knowledgeLo
 
 Left as clean seams, **not built now**: a multi-domain plugin framework or a second domain; real JIRA/Gerrit
 clients and a live Gerrit container; an ANN vector index; deeper build/test ("Tier-3") grading; the full
-130+-repo production fleet; and a `gloop mine` command. The fleet grows by requirement across its layers —
+130+-repo production fleet. The fleet grows by requirement across its layers —
 production **target** 130+ AAOS repos, charter **pilot** ~11 OSS repos, **built corpora** 3 at pinned SHAs
 (`corpora/corpus.toml`), and the **hermetic M1 fixture** of 4 repos — see [charter](charter.md) and
 [roadmap](roadmap.md). Milestones **GL-M0** (walking skeleton) and **GL-M1** (real `AtlasIndex` +

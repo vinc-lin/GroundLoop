@@ -13,7 +13,7 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 
 ## Done
 
-### Self-scoring pipeline — `gloop run` batch + `gloop grade-run` (2026-07-11) ✅ merged-ready
+### Self-scoring pipeline — `gloop run` batch + `gloop grade-run` (2026-07-11) ✅ MERGED to master
 Fixes the *measurement* failures the first e2e run exposed (localize misread as 0/10; an 8-vs-7 hand-tally).
 `gloop run` now persists the `RunRecord` it used to discard (batch mode over a dataset, oracle-blind) + `--repos`
 (CheckoutEstate) / `--fixer {canned,model}` knobs; `gloop grade-run` is an offline per-stage scorecard — match
@@ -235,9 +235,9 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
    vendors ffmpeg headers; drop vendored `ffmpeg/**` to cut embedding cost + noise. (Small follow-up.)
 3. **Grow the eval fleet** — uncomment `libxcam` / `ndk-samples` in `corpora/atlas.toml`; a meaningful
    Stage-1 match needs several confusable repos so a `1/N` guess scores far below a real match.
-4. **Real `AgentFixEngine`** (the fix stage), then `gloop mine` (mined tickets + logs; aspirational — not
-   built yet), ANN vector index,
-   Tier-3 grading.
+4. **Wire the real fix engine (`ModelPatchEngine`) as the `gloop run` default** (it already ships as a
+   non-default arm via `gloop fixeval` / `gloop run --fixer model`), an ANN vector index, and Tier-2/3
+   grading. *(`gloop mine` has since shipped — no longer a next step.)*
 
 ## Services / environment
 - **LiteLLM gateway** — creds in the gitignored `/mnt/x/code/loop-agent/.env`, reused by

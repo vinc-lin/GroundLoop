@@ -130,10 +130,11 @@ gloop doctor        # repos > 0, units > 0, embed gateway OK, CBM OK
 `GatewayEmbedder` to embed both, then stores via `Store.reindex_repo`. `gloop build-atlas` wraps
 produce → index → doctor as one fleet build (fail-fast on produce — see gotcha 1).
 
-**Not in GL-M1:** real `AgentFixEngine` (fix stage = `CannedFixEngine` stub, see
-[fix-loop.md](fix-loop.md)); full fleet / parallel worker pool; ANN / vector
-rerank (`GatewayEmbedder` scaffolded, hermetic tests use FTS5 membership; gated vector-rerank is the
-next add-on); Tier-3 grading.
+**Not in GL-M1 (several shipped since):** the real fix engine `ModelPatchEngine` landed later (via `gloop
+fixeval` / `gloop run --fixer model`; `gloop run`'s default is still the `CannedFixEngine` stub — see
+[fix-loop.md](fix-loop.md)); the gated **vector-rerank** arm shipped as `SemanticAtlasIndex` (`--semantic`,
+with `GatewayEmbedder` now wired live). Still pending: an **ANN** index (`store.vector_search` is a
+brute-force scan), a full-fleet parallel worker pool, and Tier-2/3 grading.
 
 ## Gated live-eval setup
 
