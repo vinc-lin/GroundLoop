@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Sequence
 
 from groundloop.core.types import Patch, Ticket, WorkTree
-from groundloop.fixeval.patch import extract_unified_diff, touched_files
+from groundloop.fix.patch import extract_unified_diff, touched_files
 
 
 class ModelPatchEngine:
