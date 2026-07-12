@@ -94,6 +94,48 @@ def test_run_dataset_persists_signals_cost_and_fixer(tmp_path):
     assert doc.fixer == "canned"
 
 
+def _dataset_2case(tmp_path):
+    """Two cases (GEI-1, GEI-2) sharing a catalog — needed to catch a cumulative-vs-delta cost
+    regression (a single-case dataset can't: case 1's delta always equals its cumulative)."""
+    root = tmp_path / "ds2"
+    for cid in ("GEI-1", "GEI-2"):
+        (root / cid).mkdir(parents=True)
+        (root / cid / "ticket.json").write_text(json.dumps(
+            {"id": cid, "summary": "audio glitch", "description": "d", "component": "Audio", "logs": []}))
+        (root / cid / "_oracle").mkdir()
+        (root / cid / "_oracle" / "oracle.json").write_text(json.dumps(
+            {"owning_repo": "alpha", "expected_files": ["Main.kt"]}))
+    cat = root / "catalog.json"
+    cat.write_text(json.dumps([{"name": "alpha"}, {"name": "beta"}]))
+    return str(root), str(cat)
+
+
+def test_run_dataset_records_per_case_cost_delta_not_cumulative(tmp_path):
+    """Each run-record must carry only ITS OWN cost bump, not the running total: with a cost model
+    that adds 0.5 on every run_ticket, BOTH cases must record 0.5 (case 2 must NOT read 1.0)."""
+    from groundloop.adapters.extractor_recording import RecordingExtractor
+
+    ds, cat = _dataset_2case(tmp_path)
+    out = tmp_path / "out"
+    issues = MockJira(ds)
+    estate = RecordingEstate(MockEstate(cat, str(tmp_path / "work")))
+    cost = _FakeCost()
+    extractor = RecordingExtractor(_BumpExtractor(AndroidSignalExtractor(), cost))
+    n = run_dataset(ds, issues=issues, extractor=extractor, estate=estate,
+                    index=_StubIndex(), fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                    changes=MockGerrit(str(out / "changes.jsonl"), issues),
+                    match_arm="component", out=str(out),
+                    extractor_rec=extractor, cost_model=cost, fixer_kind="canned")
+    assert n == 2
+    d1 = RunRecordIO.read(str(out / "runs" / "GEI-1.json"))
+    d2 = RunRecordIO.read(str(out / "runs" / "GEI-2.json"))
+    assert d1.cost_usd == 0.5                                          # first case: own bump
+    assert d2.cost_usd == 0.5                                          # second case: delta, NOT 1.0 cumulative
+    assert d1.tokens == {"input": 100, "output": 20}
+    assert d2.tokens == {"input": 100, "output": 20}
+    assert d1.model_calls == 1 and d2.model_calls == 1
+
+
 def test_run_dataset_cost_zero_without_cost_model(tmp_path):
     """Canned/no-cost-model path: cost keys are present but zero (never None)."""
     from groundloop.adapters.extractor_recording import RecordingExtractor
