@@ -299,7 +299,8 @@ def _run_fixeval(args) -> int:
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
-                           skills=skills, claims=claims, claims_tier_floor=claims_tier_floor)
+                           skills=skills, claims=claims, claims_tier_floor=claims_tier_floor,
+                           skill_inject=args.skills_inject)
     if getattr(args, "fixer", "direct") == "plan":
         from groundloop.adapters.fix.planning import PlanningFixEngine
         fixer = PlanningFixEngine(model, max_replan=args.max_replan)
@@ -1094,6 +1095,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "distilled (the kb-distill output, distilled.toml)")
     fx.add_argument("--skills-seed", dest="skills_seed", default=None,
                     help="override the KB/placebo corpus TOML path (default: the packaged seed)")
+    fx.add_argument("--skills-inject", dest="skills_inject", choices=["both", "fix-only"], default="both",
+                    help="how a skill arm injects: both (localize query + fix prompt) | fix-only "
+                         "(fix/plan prompt only — isolates KB fix-content value from retrieval)")
     fx.add_argument("--claims", choices=["none", "candidate", "validated"], default="none",
                     help="claim-KB arm (claims.json): none | candidate (EVAL floor — includes "
                          "unvalidated candidates) | validated (PRODUCTION floor — validated+canonical only)")

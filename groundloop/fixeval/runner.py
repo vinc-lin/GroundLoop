@@ -64,7 +64,8 @@ class FixRecord:
 
 class FixEvalRunner:
     def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float,
-                 max_refine: int = 1, skills=None, claims=None, claims_tier_floor: str = "validated"):
+                 max_refine: int = 1, skills=None, claims=None, claims_tier_floor: str = "validated",
+                 skill_inject: str = "both"):
         self.issues = issues
         self.estate = estate                     # materialize only
         self.catalog = list(catalog)             # list[RepoRef] for rank_repos
@@ -74,6 +75,7 @@ class FixEvalRunner:
         self.skills = skills                     # a SkillRegistry or None (the `--skills` arm knob)
         self.claims = claims                     # a ClaimRegistry or None (the `--claims` arm knob)
         self.claims_tier_floor = claims_tier_floor   # TIERS floor: `candidate` in eval, `validated` in prod
+        self.skill_inject = skill_inject         # both (localize query + fix prompt) | fix-only (fix prompt only)
 
     def run(self, cases: Sequence[CaseRef], arms: Sequence[Arm], *, fixer) -> list[FixRecord]:
         records: list[FixRecord] = []
@@ -114,7 +116,9 @@ class FixEvalRunner:
             selected = self.skills.select(ctx)
             fired = tuple(getattr(s, "id", "") for s in selected)
             skill_pre = render_skills(selected)
-            skill_query = _skill_query(selected)              # claims DO NOT feed the localize query
+            # fix-only: skills feed ONLY the fix/plan prompt (skill_pre) -> localize stays byte-identical
+            # to the `none` arm. both (default): they also bias the localize retrieval query.
+            skill_query = _skill_query(selected) if self.skill_inject == "both" else ""
         claim_pre = ""
         if self.claims is not None:
             selected_claims = self.claims.select(ctx, self.claims_tier_floor)
