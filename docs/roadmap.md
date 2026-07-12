@@ -172,10 +172,19 @@ Stage-1 feeds the existing localize → propose-fix pipeline; the stages after `
 
 - **Real `RepoEstate` (partially SHIPPED)** — `GitFixtureEstate` / `CheckoutEstate` materialize a predicted
   repo at a pinned SHA for `gloop fixeval` + `gloop run --repos`; the full `@base = fix^` history-scrub and a
-  live 130-repo estate remain forward work (`gloop run`'s *default* is still `MockEstate`).
-- **Real fix engine (SHIPPED as `ModelPatchEngine`)** — drives `gloop fixeval` + `gloop run --fixer model`;
-  `gloop run`'s default fix stage is still the `CannedFixEngine` stub. Wiring the real engine as the `run`
-  default (and a Tier-2/3 grader) is the remaining downstream item. Contracts: [fix-loop.md](fix-loop.md).
+  live 130-repo estate remain forward work. (Since the 2026-07-12 re-point, `gloop run --fixer model` — now
+  the default — **requires** `--repos`/`CheckoutEstate` and fail-closes; `MockEstate` is hermetic-only.)
+- **Real fix engine (SHIPPED + re-pointed to default)** — `ModelPatchEngine` is now the `gloop run` **default**
+  fix stage (2026-07-12; fail-closed without creds/`--repos`), with `CannedFixEngine` demoted to the explicit
+  hermetic Fixture. Remaining downstream: the live JIRA/Gerrit adapters (the traceable chain) + a Tier-2/3
+  grader. Contracts: [fix-loop.md](fix-loop.md).
+- **Dev-experience KB (a Candidate fix arm — PRODUCTION-GATED)** — the KB's fix-value verdict cannot be
+  reached on the dev-box proxy: synth fires the KB but floors resolution at 0 (synthetic log ≠ the real fix),
+  and the OSS fleet has only **~7–15** genuine crash-with-fix cases (2026-07-13 scout). It is
+  AAOS-crash-specific, so a fair `resolved_rate` A/B needs real **production** AAOS crash+fix tickets. The
+  harness is ready (`fixeval --skills-inject fix-only` + synth-planted `required_apis`); the A/B is spec'd as a
+  production-side task ([`Phase 2 spec`](superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md)). Detail:
+  [capabilities.md](capabilities.md) + [results-log.md](results-log.md) 2026-07-13.
 - **Eval-env harness (SHIPPED)** — the Type-2 live-eval surface (real models + `atlas-9.db`) is built (`gloop
   eval` / `funceval` / `faulteval`); runbook in [build-setup.md](build-setup.md). Follow-ons: ANN vector
   index, PR/JIRA binding scaffold (Stage-4), Tier-3 build/test grading.
