@@ -1009,6 +1009,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex)")
     r.add_argument("--affinity", default="",
                    help="component_affinity.json for --match-arm component (else KLOOP_AFFINITY)")
+    r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
     grun.add_argument("--runs", required=True, help="the <out> dir written by gloop run --out")
@@ -1269,6 +1270,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "run":
         import os
         extractor = AndroidSignalExtractor()
+        # Dev gate: --index (M0 TokenIndex stub → forces flood), --fixer canned (emits a literal "patch"),
+        # and --case (single-case demo that ignores --fixer/--repos) each SILENTLY degrade a production run.
+        # Reject them unless the operator explicitly opts into dev mode (KLOOP_DEV=1 / hidden --dev). Placed
+        # before any index construction so a gated run exits before doing work.
+        dev = bool(args.dev or os.environ.get("KLOOP_DEV", "").strip())
+        if args.index and not dev:
+            print("gloop run --index is dev-only (M0 TokenIndex; production uses --index-db). "
+                  "Set KLOOP_DEV=1 for hermetic runs.")
+            return 2
+        if args.fixer == "canned" and not dev:
+            print("gloop run --fixer canned is a dev-only hermetic stub. "
+                  "Set KLOOP_DEV=1 (or use --fixer plan/model).")
+            return 2
+        if args.case and not dev:
+            print("gloop run --case is a dev-only single-case demo (ignores --fixer/--repos); "
+                  "production uses batch --out. Set KLOOP_DEV=1.")
+            return 2
         match_arm = args.match_arm     # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
         affinity_path = ""             # set only on the component path; kept in scope for the manifest
         if args.index_db:

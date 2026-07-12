@@ -29,6 +29,14 @@ FIXTURES = Path(__file__).parent / "fixtures" / "android_ivi"
 _ORACLE_KEYS = {"owning_repo", "expected_files", "required_apis"}
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_dev_mode(monkeypatch):
+    """Type-1 suite is dev by definition — arm the dev gate so CLI paths using the fixture doubles
+    (--fixer canned / --case / --index) stay reachable. Production (gate off) is asserted in
+    tests/run/test_dev_gate.py, which opts out per-test via monkeypatch.delenv."""
+    monkeypatch.setenv("KLOOP_DEV", "1")
+
+
 @dataclass
 class Case:
     """A materialized dataset case (writable copy of a fixture case dir + its hidden oracle)."""
