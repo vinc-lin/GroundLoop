@@ -23,6 +23,16 @@ query time, store schema unchanged. Full build/consume detail: [build-setup.md](
 Live state, blockers, and next steps live in [STATUS.md](STATUS.md) (authoritative over this section);
 the dev-box-vs-production split and the `[proxy]`/`[production]` result tags are in [environments.md](environments.md).
 
+> **Status update (2026-07-11) — much of this forward plan has shipped.** Beyond GL-M0/M1: `gloop mine`
+> (+ `mine-affinity`) and the `groundloop/eval/` harness (`gloop eval` / `funceval` / `faulteval`), semantic
+> retrieval + **RRF fusion**, real materialization (`GitFixtureEstate` / `CheckoutEstate`), the real fix
+> engine `ModelPatchEngine` (via `gloop fixeval` / `gloop run --fixer model`), and self-scoring (`gloop run
+> --out` → `gloop grade-run`). New matcher **arms** that post-date this doc — **component-routing,
+> functional-bug, fault-routing** — are the current Stage-1 frontier. **[STATUS.md](STATUS.md) +
+> [results-log.md](results-log.md) are authoritative for state + measured numbers; `CLAUDE.md` for the
+> current CLI.** The sections below are kept for design rationale — read any "aspirational / forward /
+> not-built" wording against this note.
+
 ## 2. Pilot fleet & log-richness
 
 Stage-1 only becomes non-trivial when the fleet is large and lexically confusable, so a `1/N` guess
@@ -54,11 +64,11 @@ clean positive / hard-negative pairs. Distractor slots are reserved for scaling 
 native-backtrace issues**. `NewPipe`, `OsmAnd`, and `CameraView` are to be sampled before final
 lock-in. Log-rich repos are prioritized because logs are the signal that makes matching learnable.
 
-## 3. Mining pipeline — `gloop mine` (NOT built yet)
+## 3. Mining pipeline — `gloop mine`
 
-**Aspirational: there is no `gloop mine` subcommand today** (the CLI is `gloop {run, index, produce,
-doctor}` only). This is the design for it. It produces benchmark entries from real GitHub issues,
-offline-groundable where possible, each carrying a **hidden `owning_repo`**.
+**SHIPPED** — `gloop mine` (+ `gloop mine-affinity` for the component→repo prior) is built; this section is
+its design rationale. It produces benchmark entries from real GitHub issues, offline-groundable where
+possible, each carrying a **hidden `owning_repo`**. (Full current CLI: `CLAUDE.md`.)
 
 1. **Fetch full history** — ensure a full or blobless bare mirror per fleet repo (`corpora/.mirrors/<repo>.git`).
    Never mutate the shared working checkout used to materialize `@base`; the mined corpus is never depth-1.
@@ -98,12 +108,14 @@ hits **grouped by owning `repo`** → a candidate shortlist. A full-source token
 indexed SHA (never per query); single-repo symbol existence is used only to *verify* membership inside
 the shortlist, not for fleet-wide search.
 
-(b) **Second-stage semantic rerank (FORWARD).** The second stage will wire the atlas semantic retrieve
-(`find_related`) behind `CodeIndex.retrieve` — replacing today's FTS5-keyword `retrieve` (a within-repo
-keyword search via `store.keyword_search`) — restricting it with the shortlist as a `u.repo IN (…)`
-filter; query = ticket text + top signals; every hit carries its `repo`. **Fuse the exact-membership and
-semantic evidence with Reciprocal Rank Fusion (RRF)** into a per-repo score → top-k owning repos. The
-pipeline materializes the top-1 (or explores top-k) downstream.
+(b) **Second-stage semantic rerank + RRF fusion — LANDED (in the arm family).** Semantic retrieval (the
+`--semantic` eval arm) and **Reciprocal Rank Fusion (RRF)** shipped and are load-bearing in the
+fault-routing and component-prior matcher arms. The originally-designed form: wire the atlas semantic
+retrieve (`find_related`) behind `CodeIndex.retrieve` — replacing today's FTS5-keyword `retrieve` (a
+within-repo keyword search via `store.keyword_search`) — restrict it with the shortlist as a `u.repo IN
+(…)` filter (query = ticket text + top signals; every hit carries its `repo`), and fuse exact-membership +
+semantic evidence via RRF into a per-repo score → top-k owning repos; materialize top-1 (or explore top-k)
+downstream.
 
 The embedder is pinned `bge-m3` and the **query-time embedder must equal the index-time embedder** — the
 vectors table stores raw embeddings, so a mismatch silently corrupts cosine ranking and any change forces
@@ -130,8 +142,9 @@ matched ticket**. GroundLoop's current scorer is `grade(record, oracle) -> Score
 `groundloop/grade/grader.py` (today emitting `repo_recall_at_1` / `repo_rank` / `localization_recall` /
 `bound`); the `@k` / `mrr` / `ndcg` metrics are the forward extension of it, ported from knowledgeLoop's
 offline IR harness (`eval/offline/metrics.py` + `harness.py` — success@k / recall@k / ndcg@k / mrr plus
-the per-repo aggregation grouped by `hit['repo']`), applied to ranked repos. That harness is not yet
-migrated into GroundLoop. Grading stays a separate offline pass — the loop never sees the oracle.
+the per-repo aggregation grouped by `hit['repo']`), applied to ranked repos. **That harness is now
+migrated** — `groundloop/eval/` (`metrics.py` / `scorecard.py` / `runner.py`), driving `gloop eval` /
+`funceval` / `faulteval`. Grading stays a separate offline pass — the loop never sees the oracle.
 
 **Arms** (matching strategy and signal set are measured, not assumed):
 
@@ -156,18 +169,20 @@ metric over its cost. Grounded precedent from that track worth carrying forward:
 
 Stage-1 feeds the existing localize → propose-fix pipeline; the stages after `match` harden in order:
 
-- **Real `RepoEstate`** — materialize the top-1 (or top-k) predicted repo at `@base` for localization
-  (today `MockEstate`).
-- **Real `AgentFixEngine`** — the `fix` stage is currently a `CannedFixEngine` stub; the real agentic
-  fix engine is the largest downstream item. Design provenance and the localize/fix/grade contracts live
-  in [fix-loop.md](fix-loop.md).
-- **Eval-env harness** — the Type-2 live-eval surface (real models + a real atlas.db) over the grown
-  fleet; runbook in [build-setup.md](build-setup.md). Follow-ons: ANN vector index, PR/JIRA
-  binding scaffold (Stage-4), and Tier-3 build/test grading.
+- **Real `RepoEstate` (partially SHIPPED)** — `GitFixtureEstate` / `CheckoutEstate` materialize a predicted
+  repo at a pinned SHA for `gloop fixeval` + `gloop run --repos`; the full `@base = fix^` history-scrub and a
+  live 130-repo estate remain forward work (`gloop run`'s *default* is still `MockEstate`).
+- **Real fix engine (SHIPPED as `ModelPatchEngine`)** — drives `gloop fixeval` + `gloop run --fixer model`;
+  `gloop run`'s default fix stage is still the `CannedFixEngine` stub. Wiring the real engine as the `run`
+  default (and a Tier-2/3 grader) is the remaining downstream item. Contracts: [fix-loop.md](fix-loop.md).
+- **Eval-env harness (SHIPPED)** — the Type-2 live-eval surface (real models + `atlas-9.db`) is built (`gloop
+  eval` / `funceval` / `faulteval`); runbook in [build-setup.md](build-setup.md). Follow-ons: ANN vector
+  index, PR/JIRA binding scaffold (Stage-4), Tier-3 build/test grading.
 
-Immediate gating item (from [STATUS.md](STATUS.md)): the pinned `bge-m3` host must return healthy before
-the full `gloop index` build and the gated live tests can run. Then the eval fleet grows by uncommenting
-the additional built corpora so a real match is clearly separable from a `1/N` guess.
+The former immediate blocker — the pinned `bge-m3` host being down — was **cleared 2026-07-05**; the full
+`gloop index` build ran and the 9-repo `atlas-9.db` was produced. Growing the fleet toward 130+ (so a real
+match is clearly separable from a `1/N` guess) is the standing scaling item; **production efficacy on the
+real GEI corpus is the scoreboard** (see [environments.md](environments.md)).
 
 ## 8. Milestone-track reconciliation
 
