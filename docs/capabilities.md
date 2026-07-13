@@ -66,7 +66,7 @@ the production path (see §4).
 Evidence tags follow [`environments.md`](environments.md): `[production]` = a real-data efficacy read (the
 only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanism/regression only).
 
-### Core — production-validated and default-on (5)
+### Core — production-validated and default-on (11)
 | Capability | Evidence |
 |---|---|
 | `gloop run` — the frozen 8-stage `run_ticket` loop (`core/workflow.py`) | 2026-07-11 GEI run executed all 8 stages to a bound change on 10/10 cases, 0 crashes `[production]`. |
@@ -78,6 +78,8 @@ only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanis
 | Run-record data plane (2026-07-13): persisted `signals`/`cost_usd`/`fixer` + per-batch `manifest.json` (`run/{record,manifest}.py`) | Closes the feedback loop's data plane — a card is now attributable to its atlas/model/affinity pins; `change_sink=mock` recorded honestly. `GatewayModel` self-tracks cost; the batch snapshots per-case deltas. |
 | `groundloop/fix/` — plan/patch primitives (2026-07-13) | Relocated out of Dev-Labs `fixeval/` so the Core `PlanningFixEngine`/`ModelPatchEngine` don't import Dev-Labs-Infra (governance separation, §1). |
 | Production-surface guards (2026-07-13): the `KLOOP_DEV` dev-gate + the snapshot-verifying `--repos` guard (`cli/__init__.py`) | Dev-gate rejects the silent-degrade fixtures (`--index`/`--fixer canned`/`--case`) in production; the `--repos` guard now verifies catalog snapshots exist (a wrong-but-nonempty path no longer yields fabricating empty worktrees). |
+| `AndroidSignalExtractor` / `ComponentExtractor` — the domain **extract** stage (`domains/android_ivi/`) | Ran in the `[production]` loop; `ComponentExtractor` wraps the base extractor to add the `Ticket.component` join the affinity prior needs. `AndroidSignalExtractor` = the domain adapter (prod == dev). |
+| `GatewayModel` — the live `Model` port (`adapters/model/gateway.py`) | Cross-cutting Core: underlies `--fixer plan`/`model` and any eval rerank, and self-tracks `cost`/`tokens`/`calls` (the run-record data plane reads it). `CannedModel` is the Fixture double. |
 
 ### Core-when-configured — production-validated, engaged when their artifact/flags are supplied
 These have real `[production]` validation. **§4 re-points the default *selection*** so a correctly-configured
@@ -89,7 +91,7 @@ defaults at the validated components; it does not fabricate the affinity lever o
 |---|---|---|
 | **Component→repo affinity arm** (`ComponentPriorIndex`, RRF-fused) | The dominant Stage-1 lever: recall@1 **0.10 → 0.50** `[production]`. | default arm is now `component`; the prior engages with `--affinity`/`KLOOP_AFFINITY`, else an honest flood fallback. |
 | **RRF fusion** (K=60) | The RRF form (not additive-raw) lands the 0.50/0.90 `[production]` shape. | the component prior engages. |
-| **`ModelPatchEngine`** (real single-shot fixer) + `GatewayModel` | Ran in the `[production]` loop; fix ungradeable only for lack of worktrees. | `--fixer model` — since 2026-07-13 the **opt-out** (the default is the Provisional-Core `--fixer plan`); still fail-closed without creds / `--repos`. |
+| **`ModelPatchEngine`** (real single-shot fixer, over the Core `GatewayModel`) | Ran in the `[production]` loop; fix ungradeable only for lack of worktrees. | `--fixer model` — since 2026-07-13 the **opt-out** (the default is the Provisional-Core `--fixer plan`); still fail-closed without creds / `--repos`. |
 | **`CheckoutEstate`** (real owner-repo checkout) | The materializer that makes `git apply --check` meaningful. | `--repos` given (required with `--fixer model`). |
 
 The **affinity miner** `gloop mine-affinity` is the *offline build step* that produces that artifact — a
