@@ -264,9 +264,19 @@ KLOOP_DEV=1 .venv/bin/gloop run --case <case_id> \
   --index-db "$KLOOP_ATLAS_DB"           # or --index <token_index.json> for the hermetic M0 stub
 # prints: case=<id> matched=<repo> change=<change-id>
 ```
-`--match-arm {flood,routing,component}` (default `component`, the production-validated affinity arm; falls
-back loudly to the `flood` `AtlasIndex` baseline if no `--affinity`/`KLOOP_AFFINITY` artifact) selects the
-Stage-1 match index; `--affinity component_affinity.json` engages the affinity prior.
+`--match-arm {flood,routing,component,semantic,judge,functional,dispatch}` (default `component`, the
+production-validated affinity arm; falls back loudly to the `flood` `AtlasIndex` baseline if no
+`--affinity`/`KLOOP_AFFINITY` artifact) selects the Stage-1 match index; `--affinity component_affinity.json`
+engages the affinity prior. The four **experimental** arms are opt-in Candidates that fail-closed without their
+deps: `semantic`/`judge` need gateway creds (`KLOOP_EMBED_BASE_URL` / `KLOOP_PRODUCE_API_KEY`);
+`functional`/`dispatch` additionally need a repo-text profile (`--functional-profile` / `KLOOP_FUNCTIONAL_PROFILE`,
+built by `gloop build-textprofile`). `--localize {atlas,semantic}` (default `atlas`) chooses the localize
+retriever independently of the match arm (semantic localize needs `KLOOP_EMBED_BASE_URL`).
+
+**Labs profile.** `--profile labs` (or `KLOOP_LABS=1`) flips the run *defaults* to the experimental stack
+(`routing` match + `semantic` localize; fix stays `plan`) for a production-*test* deployment — explicit
+`--match-arm`/`--localize` flags override it, and with it unset the defaults are Core-identical
+(`component`/`atlas`/`plan`). The batch `manifest.json` records `profile`/`localize`.
 
 ### 5.2 Batch + offline grade (`gloop run --out` → `gloop grade-run`)
 Omit `--case` and pass `--out` to run the whole `--dataset`, writing one **oracle-free** run-record per case

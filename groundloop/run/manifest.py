@@ -22,12 +22,15 @@ def _affinity_id(affinity) -> object:
 
 
 def write_manifest(out: str, *, atlas_db, match_arm: str, fixer: str, affinity, produce_model: str,
-                   embed_model: str, n_cases: int, change_sink: str = "mock") -> str:
+                   embed_model: str, n_cases: int, change_sink: str = "mock", profile: str = "core",
+                   localize: str = "atlas") -> str:
     manifest = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "atlas_db": str(atlas_db) if atlas_db else "",
         "atlas_identity": _atlas_identity(atlas_db),
         "match_arm": match_arm,
+        "profile": profile,
+        "localize": localize,
         "fixer": fixer,
         "affinity": _affinity_id(affinity),
         "model_pins": {"produce": produce_model, "embed": embed_model},
