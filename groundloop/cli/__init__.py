@@ -1017,6 +1017,10 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
+    r.add_argument("--localize", choices=["atlas", "semantic"], default="atlas",
+                   help="localize retriever, chosen independently of --match-arm: atlas (FTS5, default) | "
+                        "semantic (bge-m3 vector, needs KLOOP_EMBED_BASE_URL). When it differs from the match "
+                        "arm's native retrieve, the index is wrapped in a SplitIndex (rank/retrieve split).")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1390,6 +1394,18 @@ def main(argv: list[str] | None = None) -> int:
                     from groundloop.funceval.arms import _FAULT_SCALE   # tuned fault/functional scale (SSOT)
                     index = DispatchIndex(FaultRoutingIndex(args.index_db), ftext, fault_scale=_FAULT_SCALE)
                     extractor = DispatchExtractor()
+            # localize retriever, independent of the match arm (semantic-match already retrieves via vectors)
+            if args.localize == "semantic" and args.match_arm != "semantic":
+                emb = _build_embedder()
+                if emb is None:
+                    print("gloop run --localize semantic: no embedder — set KLOOP_EMBED_BASE_URL.")
+                    return 2
+                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                from groundloop.adapters.index.split import SplitIndex
+                index = SplitIndex(index, SemanticAtlasIndex(args.index_db, emb))
+            elif args.localize == "atlas" and args.match_arm == "semantic":
+                from groundloop.adapters.index.split import SplitIndex
+                index = SplitIndex(index, AtlasIndex(args.index_db))
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
