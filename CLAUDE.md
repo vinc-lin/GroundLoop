@@ -68,6 +68,8 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
 - `docs/build-setup.md` — atlas build + env-var reference + the reuse contract + gated-live setup + the
   portable atlas-build gotchas (CBM timeout, one-index-at-a-time, `pgrep -fa` not `ps -C`, run eval off ext4).
 - `docs/fix-loop.md` — localize → fix → grade design provenance + the dev-experience KB (a measured fix arm).
+- `docs/kb-distillation.md` — **how the KB distills knowledge into Skills** (the Skill/Claim primitives, the
+  two distillation lanes, injection, the admit-on-measured-lift retain-loop; machinery built, efficacy production-gated).
 - `docs/engines.md` — produce / lore / CBM / atlas engine operations (migrated from knowledgeLoop).
 - `docs/production-guide.md` — production deploy / validate / feedback SOP (the production side of `environments.md`).
 - `docs/roadmap.md` — mining, the two-stage matcher, milestone tracks, downstream phasing.

@@ -4,6 +4,9 @@
 > stages of GroundLoop's control plane — **localize → fix → grade → bind** — the part that runs *after*
 > Stage-1 ticket→repo matching has picked an owning repo.
 >
+> **For the dev-experience KB specifically** — how raw crash-RCA becomes injectable Skills/Claims and the
+> admit-on-measured-lift retain-loop — see the code-grounded guide [`kb-distillation.md`](kb-distillation.md).
+>
 > **State of the code, plainly (updated 2026-07-11):** the fix-loop **eval surface has shipped** — `gloop
 > fixeval` / `gloop grade-run` / `gloop compare`, driven by the real **`ModelPatchEngine`**
 > (`groundloop/adapters/fix/model_patch.py`), with **Tier-1 (file-recall) + Tier-1.5 (required-apis)**
