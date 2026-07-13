@@ -1255,11 +1255,17 @@ def _repos_has_snapshots(repos: str, catalog_path: str) -> bool:
     return bool(names & subdirs)
 
 
+def _env_flag(name: str) -> bool:
+    """True iff env var `name` is set to an affirmative value. Treats '', '0', 'false', 'no', 'off'
+    (case-insensitive) as False, so `KLOOP_X=0` disables rather than silently enabling the switch."""
+    import os
+    return os.environ.get(name, "").strip().lower() not in ("", "0", "false", "no", "off")
+
+
 def _resolve_arms(args):
     """Resolve requested (match_arm, localize) from flags + the labs profile. Explicit flags win; the labs
     profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile)."""
-    import os
-    labs = args.profile == "labs" or bool(os.environ.get("KLOOP_LABS", "").strip())
+    labs = args.profile == "labs" or _env_flag("KLOOP_LABS")
     match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
     localize = args.localize if args.localize is not None else ("semantic" if labs else "atlas")
     return match_arm, localize, ("labs" if labs else "core")
@@ -1337,7 +1343,7 @@ def main(argv: list[str] | None = None) -> int:
         # and --case (single-case demo that ignores --fixer/--repos) each SILENTLY degrade a production run.
         # Reject them unless the operator explicitly opts into dev mode (KLOOP_DEV=1 / hidden --dev). Placed
         # before any index construction so a gated run exits before doing work.
-        dev = bool(args.dev or os.environ.get("KLOOP_DEV", "").strip())
+        dev = bool(args.dev) or _env_flag("KLOOP_DEV")
         if args.index and not dev:
             print("gloop run --index is dev-only (M0 TokenIndex; production uses --index-db). "
                   "Set KLOOP_DEV=1 for hermetic runs.")

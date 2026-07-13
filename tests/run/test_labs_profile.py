@@ -28,6 +28,19 @@ def test_resolve_arms_core_and_labs(monkeypatch):
     assert _resolve_arms(parse([])) == ("routing", "semantic", "labs")
 
 
+def test_kloop_labs_falsey_values_do_not_enable_labs(monkeypatch):
+    """KLOOP_LABS=0/false/no/off must NOT enable labs — an operator writing =0 to disable it must not
+    silently flip production to the experimental defaults."""
+    from groundloop.cli import _resolve_arms, build_parser
+    args = build_parser().parse_args(["run", "--dataset", "d", "--catalog", "c", "--work", "w",
+                                      "--changes", "ch", "--index-db", "a.db", "--out", "o", "--repos", "r"])
+    for falsey in ("0", "false", "no", "off", ""):
+        monkeypatch.setenv("KLOOP_LABS", falsey)
+        assert _resolve_arms(args) == ("component", "atlas", "core")   # stays Core
+    monkeypatch.setenv("KLOOP_LABS", "1")
+    assert _resolve_arms(args)[2] == "labs"                            # affirmative still works
+
+
 def test_manifest_has_profile_and_localize(tmp_path):
     from groundloop.run.manifest import write_manifest
     import json
