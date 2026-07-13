@@ -1003,24 +1003,31 @@ def build_parser() -> argparse.ArgumentParser:
                            help="path to token-index JSON (M0 stub)")
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
+    r.add_argument("--profile", choices=["core", "labs"], default="core",
+                   help="core (default) | labs (experimental defaults: routing match + semantic localize; "
+                        "also KLOOP_LABS=1). Explicit --match-arm/--localize always override the profile.")
     r.add_argument("--match-arm",
                    choices=["flood", "routing", "component", "semantic", "judge", "functional", "dispatch"],
-                   default="component",
-                   help="Stage-1 match index: component (production default — affinity prior via "
-                        "--affinity/KLOOP_AFFINITY, RRF-fused onto AtlasIndex; falls back to flood if no "
-                        "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex) | "
-                        "semantic (bge-m3 vector, needs KLOOP_EMBED_BASE_URL) | judge (LLM rerank, needs creds) "
-                        "| functional (FunctionalTextIndex, needs embedder + repo-text profile) | dispatch "
+                   default=None,
+                   help="Stage-1 match index (default resolved by --profile: component in core, routing in "
+                        "labs): component (affinity prior via --affinity/KLOOP_AFFINITY, RRF-fused onto "
+                        "AtlasIndex; falls back to flood if no affinity artifact) | flood (AtlasIndex "
+                        "baseline) | routing (FaultRoutingIndex) | semantic (bge-m3 vector, needs "
+                        "KLOOP_EMBED_BASE_URL) | judge (LLM rerank, needs creds) | functional "
+                        "(FunctionalTextIndex, needs embedder + repo-text profile) | dispatch "
                         "(FaultRouting+FunctionalText, needs embedder + profile)")
     r.add_argument("--affinity", default="",
                    help="component_affinity.json for --match-arm component (else KLOOP_AFFINITY)")
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "semantic"], default="atlas",
-                   help="localize retriever, chosen independently of --match-arm: atlas (FTS5, default) | "
-                        "semantic (bge-m3 vector, needs KLOOP_EMBED_BASE_URL). When it differs from the match "
-                        "arm's native retrieve, the index is wrapped in a SplitIndex (rank/retrieve split).")
+    r.add_argument("--localize", choices=["atlas", "semantic"], default=None,
+                   help="localize retriever, chosen independently of --match-arm (default resolved by "
+                        "--profile: atlas in core, semantic in labs): atlas (FTS5) | semantic (bge-m3 vector, "
+                        "needs KLOOP_EMBED_BASE_URL). When it differs from the match arm's native retrieve, "
+                        "the index is wrapped in a SplitIndex (rank/retrieve split). A labs-DEFAULTED semantic "
+                        "localize degrades to atlas (warn) without an embedder; explicit --localize semantic "
+                        "fails closed.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1248,6 +1255,16 @@ def _repos_has_snapshots(repos: str, catalog_path: str) -> bool:
     return bool(names & subdirs)
 
 
+def _resolve_arms(args):
+    """Resolve requested (match_arm, localize) from flags + the labs profile. Explicit flags win; the labs
+    profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile)."""
+    import os
+    labs = args.profile == "labs" or bool(os.environ.get("KLOOP_LABS", "").strip())
+    match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
+    localize = args.localize if args.localize is not None else ("semantic" if labs else "atlas")
+    return match_arm, localize, ("labs" if labs else "core")
+
+
 def _build_embedder():
     """GatewayEmbedder when KLOOP_EMBED_BASE_URL is set, else None (mirrors _run_kb_ab / _run_fixeval).
     Used by the semantic / functional / dispatch match arms and the semantic localize retriever."""
@@ -1333,15 +1350,19 @@ def main(argv: list[str] | None = None) -> int:
             print("gloop run --case is a dev-only single-case demo (ignores --fixer/--repos); "
                   "production uses batch --out. Set KLOOP_DEV=1.")
             return 2
-        match_arm = args.match_arm     # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
+        # Resolve the requested arms from flags + the labs profile (--profile labs / KLOOP_LABS=1 flips the
+        # defaults to routing match + semantic localize); explicit --match-arm/--localize always win.
+        arm_req, localize_req, profile = _resolve_arms(args)
+        localize_explicit = args.localize is not None
+        match_arm = arm_req            # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
         affinity_path = ""             # set only on the component path; kept in scope for the manifest
         if args.index_db:
             index = AtlasIndex(args.index_db)
-            if args.match_arm == "routing":
+            if arm_req == "routing":
                 from groundloop.adapters.index.fault_routing import FaultRoutingIndex
                 from groundloop.domains.android_ivi.fault_signals import FaultSignalExtractor
                 index, extractor = FaultRoutingIndex(args.index_db), FaultSignalExtractor()
-            elif args.match_arm == "component":
+            elif arm_req == "component":
                 affinity_path = args.affinity or os.environ.get("KLOOP_AFFINITY", "").strip()
                 if affinity_path:
                     from groundloop.adapters.index.component_prior import ComponentPriorIndex
@@ -1358,7 +1379,7 @@ def main(argv: list[str] | None = None) -> int:
                     print("gloop run --match-arm component: no affinity artifact (--affinity / KLOOP_AFFINITY) "
                           "— falling back to the flood baseline (recall@1 ~0.10 [production] vs ~0.50 with the "
                           "prior). Mine one with `gloop mine-affinity` to engage the validated lever.")
-            elif args.match_arm == "semantic":
+            elif arm_req == "semantic":
                 emb = _build_embedder()
                 if emb is None:
                     print("gloop run --match-arm semantic: no embedder — set KLOOP_EMBED_BASE_URL "
@@ -1366,7 +1387,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
                 from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
                 index = SemanticAtlasIndex(args.index_db, emb)
-            elif args.match_arm == "judge":
+            elif arm_req == "judge":
                 if not os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
                     print("gloop run --match-arm judge: no judge creds — set KLOOP_PRODUCE_API_KEY.")
                     return 2
@@ -1375,7 +1396,7 @@ def main(argv: list[str] | None = None) -> int:
                 s = _S.load()
                 index = LLMJudgeIndex(AtlasIndex(args.index_db), GatewayJudge(
                     s.produce_base_url, s.produce_api_key, s.produce_main_model))
-            elif args.match_arm in ("functional", "dispatch"):
+            elif arm_req in ("functional", "dispatch"):
                 emb = _build_embedder()
                 profile_db = args.functional_profile or os.environ.get("KLOOP_FUNCTIONAL_PROFILE", "").strip()
                 if emb is None or not profile_db:
@@ -1387,7 +1408,7 @@ def main(argv: list[str] | None = None) -> int:
                 from groundloop.domains.android_ivi.functional_signals import (
                     DispatchExtractor, FunctionalTextExtractor)
                 ftext = FunctionalTextIndex(profile_db, emb, atlas_db=args.index_db)
-                if args.match_arm == "functional":
+                if arm_req == "functional":
                     index, extractor = ftext, FunctionalTextExtractor()
                 else:
                     from groundloop.adapters.index.fault_routing import FaultRoutingIndex
@@ -1395,15 +1416,22 @@ def main(argv: list[str] | None = None) -> int:
                     index = DispatchIndex(FaultRoutingIndex(args.index_db), ftext, fault_scale=_FAULT_SCALE)
                     extractor = DispatchExtractor()
             # localize retriever, independent of the match arm (semantic-match already retrieves via vectors)
-            if args.localize == "semantic" and args.match_arm != "semantic":
+            if localize_req == "semantic" and arm_req != "semantic":
                 emb = _build_embedder()
                 if emb is None:
-                    print("gloop run --localize semantic: no embedder — set KLOOP_EMBED_BASE_URL.")
-                    return 2
-                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-                from groundloop.adapters.index.split import SplitIndex
-                index = SplitIndex(index, SemanticAtlasIndex(args.index_db, emb))
-            elif args.localize == "atlas" and args.match_arm == "semantic":
+                    if localize_explicit:
+                        print("gloop run --localize semantic: no embedder — set KLOOP_EMBED_BASE_URL.")
+                        return 2
+                    # labs-DEFAULTED semantic localize: degrade to atlas FTS5 (warn) rather than fail closed;
+                    # record the localize that ACTUALLY ran (atlas) in the manifest below.
+                    print("gloop run (labs): --localize semantic wanted but no embedder — falling back to "
+                          "atlas FTS5 localize. Set KLOOP_EMBED_BASE_URL to engage semantic localize.")
+                    localize_req = "atlas"
+                else:
+                    from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                    from groundloop.adapters.index.split import SplitIndex
+                    index = SplitIndex(index, SemanticAtlasIndex(args.index_db, emb))
+            elif localize_req == "atlas" and arm_req == "semantic":
                 from groundloop.adapters.index.split import SplitIndex
                 index = SplitIndex(index, AtlasIndex(args.index_db))
         else:
@@ -1451,7 +1479,8 @@ def main(argv: list[str] | None = None) -> int:
             _s = _S.load()
             write_manifest(args.out, atlas_db=args.index_db, match_arm=match_arm, fixer=args.fixer,
                            affinity=affinity_path, produce_model=_s.produce_main_model,
-                           embed_model=getattr(_s, "embed_model", "bge-m3"), n_cases=n)
+                           embed_model=getattr(_s, "embed_model", "bge-m3"), n_cases=n,
+                           profile=profile, localize=localize_req)
             print(f"runs written: {n} -> {args.out}/runs (+ manifest.json)")
             return 0
         print("gloop run: pass --case <id> (single) or --out <dir> (batch over --dataset)")
