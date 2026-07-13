@@ -90,8 +90,9 @@ by number.
 - **FR-4 Code localization.** Within the matched repo, localize suspicious files / functions / APIs /
   call chains, reusing the grounded localization + retrieval machinery. *(Port: `CodeIndex.retrieve`.)*
 - **FR-5 Root‑cause assistance & fix proposal.** Assist analysis and emit a candidate fix (patch).
-  *(Port: `FixEngine.propose`; real adapter `ModelPatchEngine` via `gloop fixeval` / `gloop run --fixer
-  model`; `gloop run`'s default is the `CannedFixEngine` stub.)*
+  *(Port: `FixEngine.propose`; `gloop run`'s default is now `--fixer plan` = the real `PlanningFixEngine`
+  (Provisional-Core, grounded plan→gate→abstain), with `--fixer model` = `ModelPatchEngine` as the opt-out;
+  the `CannedFixEngine` stub is dev-gated. Effectiveness is production-gated.)*
 - **FR-6 Binding & traceability.** On commit/PR, bind the fix to the originating ticket and persist an
   append‑only, auditable chain (discovery → logs → repo → localization → fix → PR/commit).
   *(Port: `ChangeSink.submit` + `ChangeSink.bind`.)*

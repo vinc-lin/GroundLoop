@@ -62,7 +62,12 @@ def _case_row(row):
     fix = "ungradeable(no_source)" if not present else (
         "applies" if row["doc"].patch_applies else "unappliable")
     return {"case_id": row["case_id"], "rank": row["rank"], "as_run@1": as_run1,
-            "isolated@1": iso1, "fix": fix}
+            "isolated@1": iso1, "fix": fix,
+            "predicted_repo": row["doc"].chosen,
+            "oracle_repo": row["owner"],
+            "signals": getattr(row["doc"], "signals", None),
+            "cost_usd": getattr(row["doc"], "cost_usd", 0.0),
+            "fixer": getattr(row["doc"], "fixer", "")}
 
 
 def _fix_record(row):

@@ -11,12 +11,20 @@ from groundloop.run.record import MaterializeOutcome, RunRecordIO
 
 
 def run_dataset(dataset: str, *, issues, extractor, estate, index, fixer, changes, match_arm: str,
-                out: str) -> int:
+                out: str, extractor_rec=None, cost_model=None, fixer_kind: str = "") -> int:
     Path(out).mkdir(parents=True, exist_ok=True)                      # ChangeSink may write under out/ mid-run
     cases = load_cases(dataset)                                        # never reads _oracle/
     for case in cases:
+        c0 = ((cost_model.cost_usd, cost_model.input_tokens, cost_model.output_tokens,
+               cost_model.calls) if cost_model else (0.0, 0, 0, 0))    # snapshot cost BEFORE the loop
         rec = run_ticket(case.case_id, issues=issues, extractor=extractor, estate=estate,
                          index=index, fixer=fixer, changes=changes)
+        sig = getattr(extractor_rec, "last_signals", None)            # signals the loop just computed
+        cost = ({"cost_usd": cost_model.cost_usd - c0[0],
+                 "input_tokens": cost_model.input_tokens - c0[1],
+                 "output_tokens": cost_model.output_tokens - c0[2],
+                 "calls": cost_model.calls - c0[3]} if cost_model else
+                {"cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0, "calls": 0})
         outcome = None
         if hasattr(estate, "outcome_for"):
             outcome = estate.outcome_for(rec.chosen.name)
@@ -24,5 +32,6 @@ def run_dataset(dataset: str, *, issues, extractor, estate, index, fixer, change
             outcome = MaterializeOutcome(rec.chosen.name, "", False, 0)
         applies = patch_applies(rec.patch.diff, outcome.path) if outcome.present else False
         RunRecordIO.write(f"{out}/runs/{case.case_id}.json", rec, materialize=outcome,
-                          match_arm=match_arm, patch_applies=applies)
+                          match_arm=match_arm, patch_applies=applies,
+                          signals=sig, cost=cost, fixer=fixer_kind)
     return len(cases)

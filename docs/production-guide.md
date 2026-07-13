@@ -106,11 +106,15 @@ gloop run   --dataset <ds> --catalog <cat> --index-db $KLOOP_ATLAS_DB --match-ar
             --affinity component_affinity.json --repos <19-repo-mirror> --fixer model --out run-N
 gloop grade-run --runs run-N --dataset <ds> --index-db $KLOOP_ATLAS_DB --out card-N.json
 ```
-**Defaults (2026-07-12 re-point):** `--match-arm component` and `--fixer model` are now the *defaults*
-(set `KLOOP_AFFINITY=component_affinity.json` and the prior auto-engages; no affinity ⇒ a loud fall back to
-the `flood` baseline). The run **fail-closes** when `--fixer model` has no gateway creds or no `--repos`
-(a real fixer over empty worktrees fabricates paths — the 2026-07-11 fix-0/10 lesson), so the explicit flags
-above double as the fail-closed contract. Governance + the full capability registry: [`capabilities.md`](capabilities.md) §4.
+**Defaults (2026-07-12 re-point; fixer default updated 2026-07-13):** `--match-arm component` is the match
+default (set `KLOOP_AFFINITY=component_affinity.json` and the prior auto-engages; no affinity ⇒ a loud fall
+back to the `flood` baseline). The **fixer default is now `--fixer plan`** — the Provisional-Core
+`PlanningFixEngine` ("Bug Plan Mode"), which **abstains** rather than emit an out-of-scope/ungrounded patch
+(safety default: `fabrication_rate = 0.0`, *effectiveness* still production-gated); `--fixer model`
+(`ModelPatchEngine`, shown pinned in the command above) is the single-shot opt-out. The run **fail-closes**
+when `--fixer plan`/`--fixer model` has no gateway creds or no valid `--repos` (a real fixer over empty
+worktrees fabricates paths — the 2026-07-11 fix-0/10 lesson; the `--repos` guard now verifies catalog
+snapshots exist). Governance + the full capability registry: [`capabilities.md`](capabilities.md) §4.
 **Acceptance gates `[production]`:** `component` recall@3 ≫ `flood` recall@3 (else the affinity table or
 `Ticket.component` is empty/mis-joined — a data problem, not a weight problem); and functional recall@1/@3
 lands near the production 406 `comp+fusion` target (**≈ 0.50 / 0.90 `[production]`**, under honest `--loo`);
@@ -121,7 +125,10 @@ Preserve failed cases (§11).
 
 ### 7. Performance validation `[in place]` (cost) / `[to build]` (latency)
 Collect per request/workflow, keyed to atlas SHA + config: per-stage latency, model inference time, retrieval
-time; **token usage + `$/solved`** (already emitted by fixeval — `cost_total`, `cost_per_solved`); atlas
+time; **token usage + `$/solved`** — `[in place]` on **both** paths: fixeval (`cost_total`, `cost_per_solved`)
+**and, since 2026-07-13, the production `gloop run`→`grade-run` path** (`GatewayModel` self-tracks spend; the
+run-record now persists per-case `cost_usd` / `tokens` / `model_calls`, and the grade-run card carries per-case
+`cost_usd` → cost-per-solved is attributable to each case, not just aggregate); atlas
 build/query CPU + memory; timeout + error rate. **GPU-OOM / GPU utilisation is out of scope here** — inference
 is gateway-side (deepseek/qwen/bge-m3 run on the gateway host, not the pipeline box). Reject a `[proxy]` or
 `[production]` lift that costs too much per solved case (`--cost-budget`).
@@ -183,10 +190,11 @@ concrete mechanism that closes production back onto the dev box (`environments.m
 
 ### 15. Feedback submission format `[in place]` (schema) / `[to build]` (collection tooling)
 Every failure case (§11) and feedback record (§13) uses the **canonical record**; `*` = auto-emitted by
-`grade-run`:
+`grade-run` (the `predicted_repo`/`oracle_repo`/`signals`/`cost_usd`/`fixer` per-case fields shipped
+2026-07-13 — the card is now self-describing, no hand-entry):
 ```
-record_id · date · env=[production] · reporter · stage(match|localize|fix)
-ticket_id* · predicted_repo* · oracle_repo* · signals* · expected_vs_actual*
+record_id · date · env=[production] · reporter · stage(match|localize|fix) · fixer*
+ticket_id* · predicted_repo* · oracle_repo* · signals* · cost_usd* · expected_vs_actual*
 category · severity · frequency · impact · logs · root_cause · workaround
 suggested_improvement · owner · target_version · status
 ```
@@ -197,16 +205,22 @@ performance · stability · model · retrieval · knowledge · workflow · user-
 High-severity → handled immediately; recurring → prioritized by **severity × frequency ÷ development-cost**
 (business impact + user impact weighted).
 
-### 17. Release tracking `[to build]`
-Every production deploy records: release date, **atlas SHA**, **model pins**, **affinity-table version**,
-config version, change summary, known issues, **rollback procedure** (revert to the prior atlas + affinity —
-both are versioned artifacts), and the validation result. Feedback + failure cases are linked to the release
+### 17. Release tracking `[in place]` (per-batch provenance manifest) / `[to build]` (formal release ledger)
+Per-batch provenance is now captured automatically `[in place]` (2026-07-13): every `gloop run --out` writes
+`<out>/manifest.json` — **timestamp, atlas identity, `match_arm`, `fixer`, affinity hash, produce+embed model
+pins, `change_sink=mock`, `n_cases`** — so a card/run is attributable to the exact atlas + model pins +
+affinity artifact it was produced against (the provenance half of what a release record needs). Still
+`[to build]`: the formal deploy ledger over these (change summary, known issues, **rollback procedure** — revert
+to the prior atlas + affinity, both versioned artifacts) and linking feedback + failure cases to the release
 version they were observed on.
 
 ### 18. Success criteria `[in place]` (checkable) / `[to build]` (thresholds + monitoring)
 A production deploy is successful when:
 - the gateway + atlas are READY and the 1–2-case smoke + `grade-run` pass;
-- match / localize are within the agreed thresholds **vs the last release** (no regression);
+- match / localize are within the agreed thresholds **vs the last release** (no regression) — the per-stage
+  verdict is now mechanized `[in place]` (2026-07-13): `gloop grade-run … --compare <prev-card.json>` emits an
+  **improved/flat/regressed** verdict per stage + a `.compare.json` sibling (only the threshold policy +
+  standing monitoring remain `[to build]`);
 - no unresolved critical issue;
 - feedback records (§11/§15) can be collected;
 - rollback is possible (prior atlas + affinity retained).

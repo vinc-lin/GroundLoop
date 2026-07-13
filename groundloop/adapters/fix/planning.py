@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Sequence
 
 from groundloop.core.types import Patch, Ticket, WorkTree
-from groundloop.fixeval.patch import extract_unified_diff, touched_files
-from groundloop.fixeval.plan import (RepairPlan, check_plan_in_world, parse_plan, plan_groundedness)
+from groundloop.fix.patch import extract_unified_diff, norm_path, touched_files
+from groundloop.fix.plan import (RepairPlan, check_plan_in_world, parse_plan, plan_groundedness)
 
 
 class PlanningFixEngine:
@@ -42,7 +42,11 @@ class PlanningFixEngine:
         meta = {"replans": attempts, "groundedness": plan_groundedness(chk)}
         if not chk.ok:                                    # gate failed / abstained -> honest refusal
             return plan, Patch(diff="", files=()), meta
-        return plan, self._execute(worktree, ticket, plan), meta
+        patch = self._execute(worktree, ticket, plan)
+        cand = {norm_path(loc) for loc in locs}
+        if any(norm_path(f) not in cand for f in patch.files):   # anti-leak: executed diff must stay in scope
+            return plan, Patch(diff="", files=()), {**meta, "abstain_reason": "diff_out_of_scope"}
+        return plan, patch, meta
 
     def _plan(self, worktree, ticket, locations, *, feedback) -> RepairPlan | None:
         heads = "\n\n".join(self._head(worktree.path, loc) for loc in locations)

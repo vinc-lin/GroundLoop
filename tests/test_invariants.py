@@ -146,6 +146,35 @@ def test_selfscore_grader_is_sole_oracle_reader():
     assert "load_eval_oracle" in grade, "grade_run must be the sole oracle reader"
 
 
+# Invariant 9 (anti-leak) — the production PlanningFixEngine re-gates its EXECUTED diff, not just the
+# plan: a diff touching a file outside the localize candidate set must abstain (empty Patch), so a fix
+# can never write outside the scope the loop was given.
+def test_planning_fixer_abstains_on_out_of_scope_diff(tmp_path):
+    from groundloop.adapters.fix.planning import PlanningFixEngine
+    from groundloop.core.types import RepoRef, Ticket, WorkTree
+
+    class _Seq:                                   # scripted model: replies in order, last repeats
+        def __init__(self, replies):
+            self._r, self.i = list(replies), 0
+
+        def complete(self, prompt):
+            r = self._r[self.i]
+            self.i = min(self.i + 1, len(self._r) - 1)
+            return r
+
+    (tmp_path / "in_scope.py").write_text("def fix_me():\n    return 1\n")
+    plan_json = ('{"root_cause":"npe","targets":[{"file":"in_scope.py","symbol":"fix_me"}],'
+                 '"required_apis":[],"strategy":"guard","citations":["in_scope.py"]}')
+    out_of_scope_diff = ("```diff\n--- a/other/secret.py\n+++ b/other/secret.py\n@@ -1 +1 @@\n"
+                         "-x = 1\n+x = 2\n```")
+    eng = PlanningFixEngine(_Seq([plan_json, out_of_scope_diff]))
+    wt = WorkTree(repo=RepoRef(name="r"), path=str(tmp_path))
+    _plan, patch, meta = eng.propose_with_plan(wt, Ticket(id="c1", summary="s", description="d"),
+                                               ["in_scope.py"])
+    assert patch.diff == "", "executed diff left the candidate set but was not abstained (anti-leak)"
+    assert meta.get("abstain_reason") == "diff_out_of_scope"
+
+
 # Bridge to Type-2 — the invariants hold over the REAL FTS5 matcher too, and it beats the 1/N guess
 # baseline (fleet-integrity backstop, §3.4): a matcher that guessed would not rank the owner first.
 def test_atlas_matcher_honors_invariants(atlas_harness):

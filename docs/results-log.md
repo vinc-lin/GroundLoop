@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-13 | Production-Core defaults + loop closure (11-task branch) | governance | Bug Plan Mode → **Provisional-Core** default (`--fixer plan`); feedback data-plane + reporting-edge closed on dev box; dev-gate + hardened `--repos`. **No new efficacy read** — deferred `[production]` `resolved_rate` A/B (plan vs model) is the resolver |
 | 2026-07-13 | KB fair-eval Phase 1 + Phase-2 scout | `[proxy]` | harness fix validated + confound **Δ−0.10** file@1, but `resolved_rate` inconclusive (0 floor); scout → only **~7–15** crash-with-fix cases fleet-wide ⇒ KB verdict **production-gated** |
 | 2026-07-11 | functional 10-case e2e (GEI) | `[production]` | match recall@1 **7/10**, localize **7/10** file@5, fix ungradeable (empty worktree) |
 | 2026-07-10 | functional-bug matching arm | `[proxy]` | functional/dispatch recall@1 **0.68** vs flood 0.32; dispatch **0.94** on crash (no regression) |
@@ -45,6 +46,33 @@ gradeable slice (oboe/antennapod/newpipe/dlt-daemon), `--fixer direct`, deepseek
   resolution; OSS-real: ~no crashes), so the KB verdict is **production-gated** — it needs real AAOS crash+fix
   tickets. The Phase 2 spec now stands as a **production-side** task. (Same lesson as efficacy: the proxy
   can't measure it.)
+
+## 2026-07-13 · Production-Core defaults + loop closure (11-task branch) · governance / plumbing (no efficacy read)
+
+An 11-task branch (`prod-core-defaults-loop-closure`) that promotes the fix default, closes the feedback loop's
+data plane + reporting edge on the dev box, and prunes the production surface. **This is plumbing + governance,
+not a new efficacy read — there are NO new `[proxy]`/`[production]` numbers here.**
+- **Bug Plan Mode → Provisional-Core default:** `gloop run --fixer plan` (the `PlanningFixEngine`) is the new
+  default; `--fixer` is now `canned|model|plan` (+ a `--max-replan` flag); the fail-closed guard now covers
+  `model` **and** `plan`. Its proven merit is **safety** — the engine re-gates its *executed* diff against the
+  localize candidate set and **abstains** rather than emit an out-of-scope/ungrounded patch
+  (`fabrication_rate = 0.0` `[proxy]`), a charter-aligned ("grounding over narrative") default. Its
+  **effectiveness is NOT proven**: `resolved_rate` was never gradeable (`[proxy]` only). The **deferred
+  `[production]` `resolved_rate` A/B (plan vs model)** is the follow-on that resolves Provisional-Core → Core or
+  revert (grade-run emits the promotion-eligibility note).
+- **Data plane closed:** a `RecordingExtractor` sidecar captures the loop's `signals`; the run-record now
+  persists `signals`/`cost_usd`/`tokens`/`model_calls`/`fixer`; each batch writes a provenance `manifest.json`
+  (timestamp, atlas identity, `match_arm`, `fixer`, affinity hash, produce+embed model pins, `change_sink=mock`,
+  `n_cases`). Plan/patch primitives were relocated `fixeval/` → `groundloop/fix/` (Core decoupled from Dev-Labs).
+- **Reporting edge closed:** `grade-run` cards carry per-case `predicted_repo`/`oracle_repo`/`signals`/
+  `cost_usd`/`fixer`; `grade-run --compare <prev-card>` emits a per-stage improved/flat/regressed verdict + a
+  `.compare.json` sibling; grade-run prints reporting-only promotion-eligibility notes.
+- **Surface pruning:** a `KLOOP_DEV` dev-gate rejects `--index`/`--fixer canned`/`--case` in production
+  (reachable only with `KLOOP_DEV=1` or the hidden `--dev`; the Type-1 suite arms it via an autouse fixture);
+  the `--repos` guard was hardened from presence-only to verifying catalog snapshots actually exist.
+- **Verification:** 608 passed / 7 skipped, ruff clean; `core/` + atlas schema zero-diff. Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-13-production-core-defaults-and-loop-closure*.md`; branch
+  `prod-core-defaults-loop-closure`.
 
 ## 2026-07-11 · functional 10-case e2e (GEI) · `[production]`
 

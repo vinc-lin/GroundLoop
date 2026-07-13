@@ -84,11 +84,18 @@ GL-M1 plan (for provenance):
   Single test: `.venv/bin/python -m pytest tests/test_atlas_index.py -q` (or `-k <pattern>`).
   Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/build-setup.md`.
 - CLI: `.venv/bin/gloop {run,grade-run,index,produce,doctor,build-atlas,mine,mine-affinity,eval,fixeval,funceval,faulteval,synth,combine-oracle,compare}`.
+  `gloop run` defaults (Core-aligned): match `component` arm + **`--fixer plan`** (the Provisional-Core
+  `PlanningFixEngine` "Bug Plan Mode", default since 2026-07-13; `--fixer` = `canned|model|plan`; safety default —
+  abstains not fabricates, effectiveness production-gated), fail-closed without gateway creds / a valid `--repos`.
 - **Two test surfaces** (`docs/evaluation.md` §14 + `docs/environments.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in
   `tests/conftest.py`, anti-leak invariants in `tests/test_invariants.py`) and **Type-2 (Test 2)** live
   eval / evaluation environment (real models + a real atlas.db; `skipif`-gated). Live-eval setup +
   build steps: `docs/build-setup.md`.
+- **`KLOOP_DEV` dev-gate:** the hermetic fixtures (`--index` M0 stub, `--fixer canned`, single-case `--case`)
+  are **dev-gated** — reachable only with `KLOOP_DEV=1` (or the hidden `--dev` flag). The Type-1 suite arms
+  `KLOOP_DEV=1` via an autouse fixture; **production leaves `KLOOP_DEV` OFF** so a run cannot silently select a
+  hermetic double.
 
 ## Conventions & guardrails
 - **Never modify `groundloop/core/`.** Never alter the SQLite schema in `engines/atlas/store.py` (there

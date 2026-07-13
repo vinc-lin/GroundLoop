@@ -991,9 +991,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--repos", default="",
                    help="batch: owner-repo snapshots dir (CheckoutEstate). REQUIRED with --fixer model; "
                         "empty -> MockEstate (empty worktrees, hermetic only)")
-    r.add_argument("--fixer", choices=["canned", "model"], default="model",
-                   help="batch fix engine: model (real ModelPatchEngine — the production default) | "
-                        "canned (hermetic stub; select explicitly for Type-1 runs)")
+    r.add_argument("--fixer", choices=["canned", "model", "plan"], default="plan",
+                   help="batch fix engine: plan (grounded plan→gate→abstain PlanningFixEngine — the "
+                        "production default; abstains rather than fabricate) | model (single-shot "
+                        "ModelPatchEngine opt-out) | canned (dev-only hermetic stub)")
+    r.add_argument("--max-replan", type=int, default=1,
+                   help="plan fixer: max re-plan attempts before abstaining (default 1)")
     # --index and --index-db are mutually exclusive; at least one must be provided
     idx_group = r.add_mutually_exclusive_group(required=True)
     idx_group.add_argument("--index", default=None,
@@ -1006,12 +1009,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex)")
     r.add_argument("--affinity", default="",
                    help="component_affinity.json for --match-arm component (else KLOOP_AFFINITY)")
+    r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
     grun.add_argument("--runs", required=True, help="the <out> dir written by gloop run --out")
     grun.add_argument("--dataset", required=True, help="the dataset the run was over (for the hidden oracle)")
     grun.add_argument("--index-db", default=None, help="atlas.db — enables the isolated-localize diagnostic")
     grun.add_argument("--out", required=True, help="scorecard JSON path (a .md table is written alongside)")
+    grun.add_argument("--compare", default=None,
+                      help="a previous grade-run card.json — append a per-stage regression section")
 
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
@@ -1208,20 +1214,45 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _build_run_fixer(kind: str):
-    """Compose the fix engine for batch `gloop run` at the composition root (no core edit): the real
-    ModelPatchEngine over the gateway model (the production default), or the hermetic canned stub. `main`
-    fail-closes on a missing gateway key BEFORE calling this for kind="model", so there is deliberately no
-    silent degrade-to-stub here — a stub fixer on the production path was an enforcement gap (docs/capabilities.md)."""
+def _repos_has_snapshots(repos: str, catalog_path: str) -> bool:
+    """True iff the --repos dir exists and holds a snapshot subdir for at least one catalog repo. Guards
+    against a wrong-but-nonempty --repos yielding empty worktrees (which a real fixer fabricates over)."""
+    import json
+    from pathlib import Path
+    if not repos:
+        return False
+    root = Path(repos)
+    if not root.is_dir():
+        return False
+    try:
+        cat = json.loads(Path(catalog_path).read_text())
+    except Exception:
+        return False
+    # catalog.json is a JSON list of {"name": ...} objects (tests/fixtures/android_ivi/catalog.json);
+    # tolerate a {"repos": [...]} wrapper too.
+    entries = cat if isinstance(cat, list) else cat.get("repos", [])
+    names = {e["name"] for e in entries if isinstance(e, dict) and "name" in e}
+    subdirs = {p.name for p in root.iterdir() if p.is_dir()}
+    return bool(names & subdirs)
+
+
+def _build_run_fixer(kind: str, max_replan: int = 1):
+    """Returns (FixEngine, cost_model|None). cost_model is the GatewayModel whose .cost_usd the batch
+    driver snapshots per case; None for the canned stub. `main` fail-closes on a missing key BEFORE this
+    for kind in {model, plan}, so no silent degrade-to-stub here."""
     from groundloop.adapters.fix.canned import CannedFixEngine
     from groundloop.adapters.mock.model import CannedModel
-    if kind == "model":
-        from groundloop.adapters.fix.model_patch import ModelPatchEngine
+    if kind in ("model", "plan"):
         from groundloop.adapters.model.gateway import GatewayModel
         from groundloop.config.settings import Settings
         s = Settings.load()
-        return ModelPatchEngine(GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model))
-    return CannedFixEngine(CannedModel({"default": "patch"}))
+        gm = GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model)
+        if kind == "plan":
+            from groundloop.adapters.fix.planning import PlanningFixEngine
+            return PlanningFixEngine(gm, max_replan=max_replan), gm
+        from groundloop.adapters.fix.model_patch import ModelPatchEngine
+        return ModelPatchEngine(gm), gm
+    return CannedFixEngine(CannedModel({"default": "patch"})), None
 
 
 def _run_grade_run(args) -> int:
@@ -1239,6 +1270,20 @@ def _run_grade_run(args) -> int:
           f"localize as-run@1={ov['localize']['as_run'].get('file@1')} "
           f"isolated@1={iso.get('file@1')} · "
           f"fix gradeable={fx.get('n_gradeable')} ungradeable={fx.get('n_ungradeable_no_source')}")
+    if args.compare:
+        from groundloop.run.compare import compare_cards
+        prev = json.loads(Path(args.compare).read_text())
+        comp = compare_cards(card, prev)
+        Path(args.out).with_suffix(".compare.json").write_text(
+            json.dumps(comp, indent=2, ensure_ascii=False, default=str))
+        regs = comp["regressions"]
+        line = f"compare vs {args.compare}: verdict={comp['verdict']} · regressions={len(regs)}"
+        if regs:
+            line += f" ({', '.join(regs)})"
+        print(line)
+    from groundloop.run.promotion import promotion_notes
+    for _note in promotion_notes(card):
+        print(_note)
     return 0
 
 
@@ -1247,7 +1292,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "run":
         import os
         extractor = AndroidSignalExtractor()
+        # Dev gate: --index (M0 TokenIndex stub → forces flood), --fixer canned (emits a literal "patch"),
+        # and --case (single-case demo that ignores --fixer/--repos) each SILENTLY degrade a production run.
+        # Reject them unless the operator explicitly opts into dev mode (KLOOP_DEV=1 / hidden --dev). Placed
+        # before any index construction so a gated run exits before doing work.
+        dev = bool(args.dev or os.environ.get("KLOOP_DEV", "").strip())
+        if args.index and not dev:
+            print("gloop run --index is dev-only (M0 TokenIndex; production uses --index-db). "
+                  "Set KLOOP_DEV=1 for hermetic runs.")
+            return 2
+        if args.fixer == "canned" and not dev:
+            print("gloop run --fixer canned is a dev-only hermetic stub. "
+                  "Set KLOOP_DEV=1 (or use --fixer plan/model).")
+            return 2
+        if args.case and not dev:
+            print("gloop run --case is a dev-only single-case demo (ignores --fixer/--repos); "
+                  "production uses batch --out. Set KLOOP_DEV=1.")
+            return 2
         match_arm = args.match_arm     # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
+        affinity_path = ""             # set only on the component path; kept in scope for the manifest
         if args.index_db:
             index = AtlasIndex(args.index_db)
             if args.match_arm == "routing":
@@ -1283,28 +1346,41 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.out:                                              # batch -> self-scoring run-records
             from groundloop.adapters.estate import CheckoutEstate, RecordingEstate
+            from groundloop.adapters.extractor_recording import RecordingExtractor
             from groundloop.run.batch import run_dataset
+            # Record the signals the loop computes so the run-record can carry them (batch path only; the
+            # single-case demo above stays unwrapped). Wraps the FINAL extractor (post component/routing swap).
+            extractor = RecordingExtractor(extractor)
             # Fail-closed on the production path (--fixer model): a real fixer with no model or no checked-out
             # sources silently fabricates (the 2026-07-11 fix 0/10 lesson). Only the explicit hermetic
             # `--fixer canned` may run over empty MockEstate worktrees.
-            if args.fixer == "model":
+            if args.fixer in ("model", "plan"):
                 if not os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
-                    print("gloop run --fixer model: KLOOP_PRODUCE_API_KEY unset — refusing to run a real "
-                          "fixer with no model (it would fabricate patches). Configure gateway creds, or "
-                          "pass --fixer canned for a hermetic run.")
+                    print("gloop run --fixer model/plan: KLOOP_PRODUCE_API_KEY unset — refusing to run a "
+                          "real fixer with no model (it would fabricate patches). Configure gateway creds, "
+                          "or pass --fixer canned for a hermetic run.")
                     return 2
-                if not args.repos:
-                    print("gloop run --fixer model: --repos is required — a real fixer over empty worktrees "
-                          "fabricates file paths. Pass --repos <owner-snapshots-dir>, or --fixer canned.")
+                if not _repos_has_snapshots(args.repos, args.catalog):
+                    print("gloop run --fixer model/plan: --repos has no snapshots for the catalog repos — a "
+                          "real fixer over empty worktrees fabricates file paths. Point --repos at an "
+                          "owner-snapshots dir (a subdir per catalog repo).")
                     return 2
             inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
                      else MockEstate(args.catalog, args.work))
+            fixer, cost_model = _build_run_fixer(args.fixer, args.max_replan)
             n = run_dataset(args.dataset, issues=issues, extractor=extractor,
                             estate=RecordingEstate(inner), index=index,
-                            fixer=_build_run_fixer(args.fixer),
+                            fixer=fixer,
                             changes=MockGerrit(args.changes, issues),
-                            match_arm=match_arm, out=args.out)
-            print(f"runs written: {n} -> {args.out}/runs")
+                            match_arm=match_arm, out=args.out,
+                            extractor_rec=extractor, cost_model=cost_model, fixer_kind=args.fixer)
+            from groundloop.run.manifest import write_manifest
+            from groundloop.config.settings import Settings as _S
+            _s = _S.load()
+            write_manifest(args.out, atlas_db=args.index_db, match_arm=match_arm, fixer=args.fixer,
+                           affinity=affinity_path, produce_model=_s.produce_main_model,
+                           embed_model=getattr(_s, "embed_model", "bge-m3"), n_cases=n)
+            print(f"runs written: {n} -> {args.out}/runs (+ manifest.json)")
             return 0
         print("gloop run: pass --case <id> (single) or --out <dir> (batch over --dataset)")
         return 2
