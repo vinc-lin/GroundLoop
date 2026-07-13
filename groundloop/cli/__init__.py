@@ -1003,10 +1003,12 @@ def build_parser() -> argparse.ArgumentParser:
                            help="path to token-index JSON (M0 stub)")
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
-    r.add_argument("--match-arm", choices=["flood", "routing", "component"], default="component",
+    r.add_argument("--match-arm", choices=["flood", "routing", "component", "semantic", "judge"],
+                   default="component",
                    help="Stage-1 match index: component (production default — affinity prior via "
                         "--affinity/KLOOP_AFFINITY, RRF-fused onto AtlasIndex; falls back to flood if no "
-                        "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex)")
+                        "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex) | "
+                        "semantic (bge-m3 vector, needs KLOOP_EMBED_BASE_URL) | judge (LLM rerank, needs creds)")
     r.add_argument("--affinity", default="",
                    help="component_affinity.json for --match-arm component (else KLOOP_AFFINITY)")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
@@ -1236,6 +1238,18 @@ def _repos_has_snapshots(repos: str, catalog_path: str) -> bool:
     return bool(names & subdirs)
 
 
+def _build_embedder():
+    """GatewayEmbedder when KLOOP_EMBED_BASE_URL is set, else None (mirrors _run_kb_ab / _run_fixeval).
+    Used by the semantic / functional / dispatch match arms and the semantic localize retriever."""
+    import os
+    if not os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
+        return None
+    from groundloop.config.settings import Settings
+    from groundloop.engines.atlas.embed import GatewayEmbedder
+    st = Settings.load()
+    return GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+
+
 def _build_run_fixer(kind: str, max_replan: int = 1):
     """Returns (FixEngine, cost_model|None). cost_model is the GatewayModel whose .cost_usd the batch
     driver snapshots per case; None for the canned stub. `main` fail-closes on a missing key BEFORE this
@@ -1334,6 +1348,23 @@ def main(argv: list[str] | None = None) -> int:
                     print("gloop run --match-arm component: no affinity artifact (--affinity / KLOOP_AFFINITY) "
                           "— falling back to the flood baseline (recall@1 ~0.10 [production] vs ~0.50 with the "
                           "prior). Mine one with `gloop mine-affinity` to engage the validated lever.")
+            elif args.match_arm == "semantic":
+                emb = _build_embedder()
+                if emb is None:
+                    print("gloop run --match-arm semantic: no embedder — set KLOOP_EMBED_BASE_URL "
+                          "(bge-m3 gateway). This arm needs the vector index.")
+                    return 2
+                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                index = SemanticAtlasIndex(args.index_db, emb)
+            elif args.match_arm == "judge":
+                if not os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
+                    print("gloop run --match-arm judge: no judge creds — set KLOOP_PRODUCE_API_KEY.")
+                    return 2
+                from groundloop.adapters.index.atlas_judge import GatewayJudge, LLMJudgeIndex
+                from groundloop.config.settings import Settings as _S
+                s = _S.load()
+                index = LLMJudgeIndex(AtlasIndex(args.index_db), GatewayJudge(
+                    s.produce_base_url, s.produce_api_key, s.produce_main_model))
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
