@@ -1003,14 +1003,20 @@ def build_parser() -> argparse.ArgumentParser:
                            help="path to token-index JSON (M0 stub)")
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
-    r.add_argument("--match-arm", choices=["flood", "routing", "component", "semantic", "judge"],
+    r.add_argument("--match-arm",
+                   choices=["flood", "routing", "component", "semantic", "judge", "functional", "dispatch"],
                    default="component",
                    help="Stage-1 match index: component (production default — affinity prior via "
                         "--affinity/KLOOP_AFFINITY, RRF-fused onto AtlasIndex; falls back to flood if no "
                         "affinity artifact) | flood (AtlasIndex baseline) | routing (FaultRoutingIndex) | "
-                        "semantic (bge-m3 vector, needs KLOOP_EMBED_BASE_URL) | judge (LLM rerank, needs creds)")
+                        "semantic (bge-m3 vector, needs KLOOP_EMBED_BASE_URL) | judge (LLM rerank, needs creds) "
+                        "| functional (FunctionalTextIndex, needs embedder + repo-text profile) | dispatch "
+                        "(FaultRouting+FunctionalText, needs embedder + profile)")
     r.add_argument("--affinity", default="",
                    help="component_affinity.json for --match-arm component (else KLOOP_AFFINITY)")
+    r.add_argument("--functional-profile", default="",
+                   help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
+                        "else KLOOP_FUNCTIONAL_PROFILE")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1365,6 +1371,25 @@ def main(argv: list[str] | None = None) -> int:
                 s = _S.load()
                 index = LLMJudgeIndex(AtlasIndex(args.index_db), GatewayJudge(
                     s.produce_base_url, s.produce_api_key, s.produce_main_model))
+            elif args.match_arm in ("functional", "dispatch"):
+                emb = _build_embedder()
+                profile_db = args.functional_profile or os.environ.get("KLOOP_FUNCTIONAL_PROFILE", "").strip()
+                if emb is None or not profile_db:
+                    print("gloop run --match-arm functional/dispatch: needs an embedder "
+                          "(KLOOP_EMBED_BASE_URL) AND a repo-text profile "
+                          "(--functional-profile / KLOOP_FUNCTIONAL_PROFILE, built by `gloop build-textprofile`).")
+                    return 2
+                from groundloop.adapters.index.functional_text import DispatchIndex, FunctionalTextIndex
+                from groundloop.domains.android_ivi.functional_signals import (
+                    DispatchExtractor, FunctionalTextExtractor)
+                ftext = FunctionalTextIndex(profile_db, emb, atlas_db=args.index_db)
+                if args.match_arm == "functional":
+                    index, extractor = ftext, FunctionalTextExtractor()
+                else:
+                    from groundloop.adapters.index.fault_routing import FaultRoutingIndex
+                    from groundloop.funceval.arms import _FAULT_SCALE   # tuned fault/functional scale (SSOT)
+                    index = DispatchIndex(FaultRoutingIndex(args.index_db), ftext, fault_scale=_FAULT_SCALE)
+                    extractor = DispatchExtractor()
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)

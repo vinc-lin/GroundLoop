@@ -46,3 +46,53 @@ def test_semantic_arm_builds_index_when_embedder_present(monkeypatch):
     except Exception:
         pass  # a later stage fails on the fake dataset; we only assert the semantic index was built
     assert built.get("db") == "a.db"   # the semantic branch passed the guard and constructed the index
+
+
+def test_functional_arm_fail_closed_without_profile(monkeypatch, capsys):
+    monkeypatch.setenv("KLOOP_EMBED_BASE_URL", "http://stub")   # embedder present...
+    monkeypatch.delenv("KLOOP_FUNCTIONAL_PROFILE", raising=False)  # ...but no profile artifact
+    import groundloop.cli as cli
+    monkeypatch.setattr(cli, "_build_embedder", lambda: object())
+    rc = cli.main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
+                   "--index-db", "a.db", "--out", "o", "--repos", "r", "--match-arm", "functional"])
+    assert rc == 2 and "profile" in capsys.readouterr().out.lower()
+
+
+def test_functional_arm_fail_closed_without_embedder(monkeypatch, capsys):
+    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)
+    from groundloop.cli import main
+    rc = main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
+               "--index-db", "a.db", "--out", "o", "--repos", "r", "--match-arm", "functional",
+               "--functional-profile", "p.db"])
+    assert rc == 2
+
+
+def test_dispatch_arm_builds_when_deps_present(monkeypatch):
+    monkeypatch.setattr("groundloop.cli._build_embedder", lambda: object())
+    import groundloop.adapters.index.functional_text as ft
+    built = {}
+
+    class _FT:  # FunctionalTextIndex stub
+        def __init__(self, profile_db, emb, atlas_db=None):
+            built["ft"] = profile_db
+
+    class _DI:  # DispatchIndex stub
+        def __init__(self, fault, functional, fault_scale=1.0):
+            built["di"] = fault_scale
+
+        def rank_repos(self, s, c):
+            return []
+
+        def retrieve(self, r, q):
+            return []
+
+    monkeypatch.setattr(ft, "FunctionalTextIndex", _FT)
+    monkeypatch.setattr(ft, "DispatchIndex", _DI)
+    import groundloop.cli as cli
+    try:
+        cli.main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
+                  "--index-db", "a.db", "--out", "o", "--repos", "r", "--match-arm", "dispatch",
+                  "--functional-profile", "p.db"])
+    except Exception:
+        pass
+    assert built.get("ft") == "p.db" and "di" in built   # dispatch built FunctionalTextIndex + DispatchIndex
