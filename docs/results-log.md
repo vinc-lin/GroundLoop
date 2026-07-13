@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-13 | labs arms run-reachable + functional-arm A/B | `[proxy]` | experimental arms wired into `gloop run` + `KLOOP_LABS` switch (Core default unchanged); functional recall@1 **0.68** vs flood 0.32 (+0.36) on 212 functional bugs via the built `textprofile-9.db`; stays Candidate |
 | 2026-07-13 | Production-Core defaults + loop closure (11-task branch) | governance | Bug Plan Mode → **Provisional-Core** default (`--fixer plan`); feedback data-plane + reporting-edge closed on dev box; dev-gate + hardened `--repos`. **No new efficacy read** — deferred `[production]` `resolved_rate` A/B (plan vs model) is the resolver |
 | 2026-07-13 | KB fair-eval Phase 1 + Phase-2 scout | `[proxy]` | harness fix validated + confound **Δ−0.10** file@1, but `resolved_rate` inconclusive (0 floor); scout → only **~7–15** crash-with-fix cases fleet-wide ⇒ KB verdict **production-gated** |
 | 2026-07-11 | functional 10-case e2e (GEI) | `[production]` | match recall@1 **7/10**, localize **7/10** file@5, fix ungradeable (empty worktree) |
@@ -17,6 +18,34 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
+
+## 2026-07-13 · labs arms run-reachable + functional-arm proxy A/B · `[proxy]`
+
+The experimental Candidate arms were wired into `gloop run` (branch `labs-arms-profile`, merged): selectable
+`--match-arm {semantic,judge,functional,dispatch}` + `--localize semantic` (via `SplitIndex`) + a
+`KLOOP_LABS` / `--profile labs` per-environment switch that flips run defaults to the experimental stack **only
+where enabled** — the Core default (`component`/`atlas`/`plan`) is unchanged unless labs is on (locked by
+`tests/run/test_core_defaults_unchanged.py`). No `core/` / schema edits.
+
+Then the functional arm's repo-text profile was built (`gloop build-textprofile` → `gl-eval/textprofile-9.db`,
+bge-m3, 992 units across the 9 fleet repos) and the first proxy A/B run end-to-end through the run-reachable
+arm — `gloop funceval --dataset functional-clean (212 functional-bug cases, `bug_kind=functional`)
+--profile-db textprofile-9.db --index-db atlas-9.db --arms functional,dispatch,flood,faultslice,routing`:
+
+| arm | recall@1 | recall@3 | coverage | acc@answered | Φ₁ |
+|---|---|---|---|---|---|
+| **functional** | **0.68** | 0.79 | 0.58 | 0.83 (CI 0.75–0.89) | 0.39 |
+| dispatch | 0.68 | 0.79 | 0.58 | 0.83 | 0.39 |
+| flood (baseline) | 0.32 | 0.58 | 0.30 | 1.00 | 0.30 |
+| faultslice / routing | 0.01 | 0.18 | 0.00 | — | 0.00 |
+
+**functional 0.68 vs flood 0.32 (+0.36, 2.1×)** on functional bugs — reproduces the 2026-07-10 result via the
+freshly-built profile + the run-reachable arm. `dispatch == functional` on pure-functional data (its router
+only diverges when crash signals are present, which this dataset lacks). The crash arms (faultslice/routing)
+collapse to ≈0.01 — they need crash signals functional/UI bugs don't carry. flood's higher acc-when-answered
+(1.00) is a small-denominator artifact: it abstains on 70% of cases; functional answers on 58% at 0.83 and wins
+on **both** forced recall@1 and Φ₁. Stays **Candidate** — promotion to Core needs a `[production]` read on real
+GEI functional tickets. Artifact + run: `gl-eval/{textprofile-9.db, funceval-functional-ab.json}` (dev-box).
 
 ## 2026-07-13 · KB fair-eval Phase 1 — metric+injection fix · `[proxy]`
 
