@@ -127,6 +127,7 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | | `FaultSignalExtractor` | Candidate | routing arm / faulteval | `[proxy]` faultslice 0.86 | a `[production]` read | `domains/android_ivi/fault_signals.py` |
 | | `FunctionalTextExtractor` | Candidate | funceval | `[proxy]` functional 0.68 | wire into run + `[production]` | `domains/android_ivi/functional_signals.py` |
 | | `DispatchExtractor` | Candidate | funceval | `[proxy]` dispatch 0.94 (crash) | wire into run + `[production]` | `domains/android_ivi/functional_signals.py` |
+| | `RecordingExtractor` (signals-capture sidecar) | Core | batch `--out` (default) | `[production]`-ready — records the loop's `signals` into the run-record (miss-RCA data); mirrors `RecordingEstate`, core frozen | — | `adapters/extractor_recording.py` |
 | **3 match** (`rank_repos`) | `AtlasIndex` (flood, FTS5 membership) | Core | `--match-arm flood` / base | `[production]` recall@1 0.10 | — | `adapters/index/atlas.py` |
 | | `ComponentPriorIndex` (affinity prior + RRF) | Core\* | `--match-arm component` (default) + `--affinity`/`KLOOP_AFFINITY` | `[production]` 0.10→**0.50** / @3 0.90 | supply the mined affinity artifact (else honest flood) | `adapters/index/component_prior.py` |
 | | `FaultRoutingIndex` (faultslice + routing) | Candidate | `--match-arm routing` / faulteval | `[proxy]` routing 0.94, decoy-robust | a `[production]` read | `adapters/index/fault_routing.py` |
@@ -150,11 +151,22 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | | live Gerrit sink | `[to build]` | — | none | push a real change + Change-Id | — |
 | **8 bind** (ChangeSink) | `MockGerrit.bind` (change↔ticket) | Fixture | default (only) | `[production]` ran (no real chain) | replaced, not promoted | `adapters/mock/gerrit.py` |
 | | real traceable JIRA↔commit chain | `[to build]` | — | none | live JIRA + Gerrit write-back | — |
-| **offline** (grade) | `grade-run` (per-stage self-scoring) | Core | `gloop grade-run` | `[production]` scorecard | — | `run/grade_run.py` |
+| **run-record** (batch `--out` output) | persisted `signals` + fix `cost_usd`/`tokens` + `fixer` kind | Core | batch `--out` (default) | `[production]`-ready feedback data plane — core `RunRecord` stays frozen; captured via sidecars + `GatewayModel` self-cost | — | `run/record.py`, `run/batch.py` |
+| | `manifest.json` provenance (timestamp · atlas identity · produce+embed model pins · affinity hash · `change_sink=mock` · `n_cases`) | Core | batch `--out` (default) | `[production]`-ready run attribution | — | `run/manifest.py` |
+| **offline** (grade) | `grade-run` per-stage self-scoring + richer rows (predicted/oracle repo · `signals` · `cost_usd` · `fixer`) | Dev-Labs Infra | `gloop grade-run` | `[production]` feedback scorecard | — (measurement apparatus, never promoted into the loop) | `run/grade_run.py` |
+| | `grade-run --compare <prev-card>` (per-stage improved/flat/regressed verdict + `.compare.json`) | Dev-Labs Infra | `gloop grade-run --compare` | `[production]`-ready regression gate | — | `run/compare.py` |
+| | promotion-eligibility notes (reporting-only; never auto-enacts) | Dev-Labs Infra | `gloop grade-run` (auto-printed) | surfaces the Provisional-Core obligation (plan run w/ gradeable resolution → confirm Core / revert) | — | `run/promotion.py` |
 
 **Model port (cross-cutting, underlies fix + any eval rerank):** `GatewayModel` = Core (`adapters/model/gateway.py`);
 `CannedModel` = Fixture (`adapters/mock/model.py`) — the hermetic model, and formerly the silent-degrade the
 re-point removed.
+
+**Production-surface guards & infra (cross-cutting, 2026-07-13) — all Core:** the **dev-gate**
+(`KLOOP_DEV` / hidden `--dev`) rejects the Fixture paths (`--index` / `--fixer canned` / `--case`) in a
+production shell — Type-1 arms it via an autouse fixture (`cli/__init__.py`, `tests/conftest.py`); the hardened
+**`--repos` guard** verifies catalog snapshots actually exist before a real fixer runs (`cli/__init__.py`); and
+the plan/patch primitives were relocated to **`groundloop/fix/`** so Core no longer imports the Dev-Labs
+`fixeval/` package (`groundloop/fix/{plan,patch}.py`).
 
 ---
 
