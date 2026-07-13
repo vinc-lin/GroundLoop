@@ -66,7 +66,7 @@ the production path (see §4).
 Evidence tags follow [`environments.md`](environments.md): `[production]` = a real-data efficacy read (the
 only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanism/regression only).
 
-### Core — production-validated and default-on (11)
+### Core — production-validated and default-on (13)
 | Capability | Evidence |
 |---|---|
 | `gloop run` — the frozen 8-stage `run_ticket` loop (`core/workflow.py`) | 2026-07-11 GEI run executed all 8 stages to a bound change on 10/10 cases, 0 crashes `[production]`. |
@@ -80,6 +80,8 @@ only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanis
 | Production-surface guards (2026-07-13): the `KLOOP_DEV` dev-gate + the snapshot-verifying `--repos` guard (`cli/__init__.py`) | Dev-gate rejects the silent-degrade fixtures (`--index`/`--fixer canned`/`--case`) in production; the `--repos` guard now verifies catalog snapshots exist (a wrong-but-nonempty path no longer yields fabricating empty worktrees). |
 | `AndroidSignalExtractor` / `ComponentExtractor` — the domain **extract** stage (`domains/android_ivi/`) | Ran in the `[production]` loop; `ComponentExtractor` wraps the base extractor to add the `Ticket.component` join the affinity prior needs. `AndroidSignalExtractor` = the domain adapter (prod == dev). |
 | `GatewayModel` — the live `Model` port (`adapters/model/gateway.py`) | Cross-cutting Core: underlies `--fixer plan`/`model` and any eval rerank, and self-tracks `cost`/`tokens`/`calls` (the run-record data plane reads it). `CannedModel` is the Fixture double. |
+| `SplitIndex` (`adapters/index/split.py`) — 2026-07-13 | Composition-root composite: `rank_repos` from the match index, `retrieve` from the localize index — lets `--localize` differ from `--match-arm` (`run_ticket` uses one `CodeIndex` for both). No `core/` edit. |
+| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 | A per-environment switch (the analogue of `KLOOP_DEV`): flips the run defaults to the experimental stack (routing match + semantic localize; fix stays `plan`) **only where enabled**. Explicit flags override it; with it **unset the defaults are Core-identical** (`component`/`atlas`/`plan`). The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — the arms it selects are still Candidate until each earns a `[production]` read. |
 
 ### Core-when-configured — production-validated, engaged when their artifact/flags are supplied
 These have real `[production]` validation. **§4 re-points the default *selection*** so a correctly-configured
@@ -109,9 +111,15 @@ next instrumented `[production]` run.
 ### Candidate — Dev-Labs research, blocked on a first `[production]` read (6)
 `FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · the bge-m3 vector **localize** retrieve
-(`SemanticAtlasIndex.retrieve`, eval-only, unmeasured for localize; there is **no** LLM/qwen-rerank localize —
+(`SemanticAtlasIndex.retrieve`, unmeasured for localize; there is **no** LLM/qwen-rerank localize —
 `LLMJudgeIndex.retrieve` delegates to plain FTS5). (`PlanningFixEngine` moved to **Provisional-Core** above on
 2026-07-13.)
+
+> **Now run-reachable (2026-07-13).** These arms are wired into `gloop run` as opt-in, fail-closed selectable
+> arms — `--match-arm {semantic,judge,functional,dispatch}` and `--localize semantic` (via `SplitIndex`) — so
+> each can earn its `[production]` read directly. Their blocker moved from *"wire into run + `[production]`"* to
+> just **a `[production]` read**. They stay **Candidate**: run-reachable ≠ default. The Core default is
+> unchanged unless the **labs switch** (below) is enabled.
 
 **Dev-experience KB** (raw Skills + claim distill) — *unproven, not null* (reclassified from Archived
 2026-07-13). The prior null was measured on the wrong metric (`plan_target_recall`, not `resolved_rate`) and
@@ -185,6 +193,8 @@ validated components (the affinity prior engaged whenever its artifact is config
   not worsened) or reverts it → Candidate / the prior default. If that read has not happened by the next
   production cycle, revert to the prior safe default — do **not** let it sit default-on indefinitely on an
   unpaid governance debt. Admit a new Provisional-Core **only** for a fail-safe mechanism (§2 criteria).
-- Never let a Fixture become a default (CI/regression should assert the production defaults are **Core- or
-  Provisional-Core-aligned**, and that `KLOOP_DEV` is off in the production config).
+- Never let a Fixture (or an unvalidated Candidate) become a default (CI/regression should assert the
+  production defaults are **Core- or Provisional-Core-aligned**, and that `KLOOP_DEV` **and `KLOOP_LABS`** are
+  off in the production config — `tests/run/test_core_defaults_unchanged.py` locks the labs half:
+  no-profile/no-env → `component`/`atlas`/`plan`).
 - When in doubt between Candidate and Fixture: *is anyone trying to promote it?* If no, it's a Fixture.

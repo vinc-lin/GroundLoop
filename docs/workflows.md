@@ -42,6 +42,11 @@ mechanism + safety argument, its *effectiveness* still production-gated).
 - [ ] Load creds (NOT autoloaded): `set -a; . ./.env; set +a`
 - [ ] **`KLOOP_DEV` must be UNSET** — it is the dev-gate that unlocks the hermetic fixtures (`--index`/`--fixer
   canned`/`--case`); a production run leaves it off (only hermetic/Type-1 runs set `KLOOP_DEV=1`)
+- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`atlas`/`plan`). Set
+  `KLOOP_LABS=1` (or `--profile labs`) ONLY in a **production-*test*** deployment to default the experimental
+  stack (routing match + semantic localize) and earn its `[production]` read; the manifest records `profile=labs`
+  so the two are never confused. Individual arms are also runnable explicitly (`--match-arm {semantic,judge,
+  functional,dispatch}`, `--localize semantic`) — each fail-closes without its creds/artifact.
 - [ ] Readiness: `gloop doctor --atlas-db $KLOOP_ATLAS_DB` → **READY** (repo/unit counts as expected)
 - [ ] Hermetic gate green (no gateway needed): `.venv/bin/python -m pytest -q`
 - [ ] Run **off real ext4** (`/home/vinc` directly, `/var/tmp`, `/dev/shm`) — never the v9fs mount (sqlite over the multi-GB atlas)
@@ -125,23 +130,23 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | **2 extract** (SignalExtractor) | `AndroidSignalExtractor` | Core | default base | `[production]` (under component) | — | `domains/android_ivi/signal_extractor.py` |
 | | `ComponentExtractor` (adds `Ticket.component`) | Core | component arm (default) | `[production]` | — | `domains/android_ivi/component_signals.py` |
 | | `FaultSignalExtractor` | Candidate | routing arm / faulteval | `[proxy]` faultslice 0.86 | a `[production]` read | `domains/android_ivi/fault_signals.py` |
-| | `FunctionalTextExtractor` | Candidate | funceval | `[proxy]` functional 0.68 | wire into run + `[production]` | `domains/android_ivi/functional_signals.py` |
-| | `DispatchExtractor` | Candidate | funceval | `[proxy]` dispatch 0.94 (crash) | wire into run + `[production]` | `domains/android_ivi/functional_signals.py` |
+| | `FunctionalTextExtractor` | Candidate | `gloop run --match-arm functional` / funceval | `[proxy]` functional 0.68 | a `[production]` read (now run-reachable) | `domains/android_ivi/functional_signals.py` |
+| | `DispatchExtractor` | Candidate | `gloop run --match-arm dispatch` / funceval | `[proxy]` dispatch 0.94 (crash) | a `[production]` read (now run-reachable) | `domains/android_ivi/functional_signals.py` |
 | | `RecordingExtractor` (signals-capture sidecar) | Core | batch `--out` (default) | `[production]`-ready — records the loop's `signals` into the run-record (miss-RCA data); mirrors `RecordingEstate`, core frozen | — | `adapters/extractor_recording.py` |
 | **3 match** (`rank_repos`) | `AtlasIndex` (flood, FTS5 membership) | Core | `--match-arm flood` / base | `[production]` recall@1 0.10 | — | `adapters/index/atlas.py` |
 | | `ComponentPriorIndex` (affinity prior + RRF) | Core\* | `--match-arm component` (default) + `--affinity`/`KLOOP_AFFINITY` | `[production]` 0.10→**0.50** / @3 0.90 | supply the mined affinity artifact (else honest flood) | `adapters/index/component_prior.py` |
 | | `FaultRoutingIndex` (faultslice + routing) | Candidate | `--match-arm routing` / faulteval | `[proxy]` routing 0.94, decoy-robust | a `[production]` read | `adapters/index/fault_routing.py` |
-| | `FunctionalTextIndex` (bge-m3 repo-text) | Candidate | funceval | `[proxy]` 0.68 vs flood 0.32 | wire into run + `[production]` | `adapters/index/functional_text.py` |
-| | `DispatchIndex` (crash\|functional router) | Candidate | funceval | `[proxy]` 0.94 on crash (no regression) | wire into run + `[production]` | `adapters/index/functional_text.py` |
-| | `SemanticAtlasIndex` (bge-m3 vector) | Candidate | `gloop eval --semantic` | `[proxy]` recall 0.02→0.23 | wire into run + `[production]` | `adapters/index/atlas_semantic.py` |
-| | `LLMJudgeIndex` (LLM rerank) | Candidate | `gloop eval --judge` | none logged | any efficacy read, then wire | `adapters/index/atlas_judge.py` |
+| | `FunctionalTextIndex` (bge-m3 repo-text) | Candidate | `gloop run --match-arm functional` (needs embedder + `--functional-profile`) / funceval | `[proxy]` 0.68 vs flood 0.32 | a `[production]` read (now run-reachable) | `adapters/index/functional_text.py` |
+| | `DispatchIndex` (crash\|functional router) | Candidate | `gloop run --match-arm dispatch` (needs embedder + `--functional-profile`) / funceval | `[proxy]` 0.94 on crash (no regression) | a `[production]` read (now run-reachable) | `adapters/index/functional_text.py` |
+| | `SemanticAtlasIndex` (bge-m3 vector) | Candidate | `gloop run --match-arm semantic` (needs `KLOOP_EMBED_BASE_URL`) / `gloop eval --semantic` | `[proxy]` recall 0.02→0.23 | a `[production]` read (now run-reachable) | `adapters/index/atlas_semantic.py` |
+| | `LLMJudgeIndex` (LLM rerank) | Candidate | `gloop run --match-arm judge` (needs creds) / `gloop eval --judge` | none logged | a `[production]` read (now run-reachable) | `adapters/index/atlas_judge.py` |
 | | `TokenIndex` (M0 stub) | Fixture | `--index <json>` | none (returns `[]` on retrieve) | (never) | `adapters/index/simple.py` |
 | **4 materialize** (RepoEstate) | `CheckoutEstate` (real owner checkout) | Core\* | `--repos` | `[production]`-intended (prod run passed none) | default it / require `--repos` | `adapters/estate.py:87` |
 | | `RecordingEstate` (outcome decorator) | Core | batch `--out` (default) | `[production]` (batch path) | — | `adapters/estate.py:57` |
 | | `MockEstate` (empty worktree) | Fixture | default w/o `--repos` | `[production]` → fix ungradeable | (never) | `adapters/estate.py:13` |
 | | `GitFixtureEstate` (@base snapshot) | Dev-Labs Infra | fixeval | `[proxy]` harness | — (not a loop role) | `adapters/estate.py:29` |
 | **5 localize** (`retrieve`) | `AtlasIndex.retrieve` (FTS5 keyword) | Core | run + fixeval default (component/flood/routing delegate here) | `[production]` **7/10 file@5** | — | `adapters/index/atlas.py:30` |
-| | `SemanticAtlasIndex.retrieve` (bge-m3 vector) | Candidate | only if the semantic index is active | none (unmeasured *for localize*) | wire + measure localize | `adapters/index/atlas_semantic.py:50` |
+| | `SemanticAtlasIndex.retrieve` (bge-m3 vector) | Candidate | `gloop run --localize semantic` (via `SplitIndex`; needs `KLOOP_EMBED_BASE_URL`) | none (unmeasured *for localize*) | a `[production]` read (now run-reachable) | `adapters/index/atlas_semantic.py:50` |
 | **6 fix** (FixEngine) | `PlanningFixEngine` — **"Bug Plan Mode"** (plan→gate→re-plan→abstain→execute; the executed diff is re-gated to candidate scope) | **Provisional-Core (default; effectiveness production-gated)** | `--fixer plan` (**run default**) | `[proxy]` plan recall@1 0.48/@5 0.68, groundedness 0.56, **fab 0.0** (safety proven; resolution never gradeable) | a `[production]` `resolved_rate` read (grade-run promotion note) → confirm Core / revert | `adapters/fix/planning.py` |
 | | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (**opt-out**) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
 | | `CannedFixEngine` (hermetic stub) | Fixture | `--fixer canned` | — | (never) | `adapters/fix/canned.py` |
@@ -167,6 +172,16 @@ production shell — Type-1 arms it via an autouse fixture (`cli/__init__.py`, `
 **`--repos` guard** verifies catalog snapshots actually exist before a real fixer runs (`cli/__init__.py`); and
 the plan/patch primitives were relocated to **`groundloop/fix/`** so Core no longer imports the Dev-Labs
 `fixeval/` package (`groundloop/fix/{plan,patch}.py`).
+
+**Labs switch + SplitIndex (cross-cutting, 2026-07-13) — Core:** the experimental match arms
+(`--match-arm {semantic,judge,functional,dispatch}`) and `--localize semantic` are now **selectable from
+`gloop run`** (opt-in Candidates — fail-closed without their creds/artifacts), so each can earn its
+`[production]` read. **`KLOOP_LABS=1` / `--profile labs`** is a per-environment switch (the analogue of
+`KLOOP_DEV`) that flips the run *defaults* to the experimental stack (routing match + semantic localize; fix
+stays `plan`) — **explicit flags always override it**, and with it **unset the defaults are Core-identical**
+(`component`/`atlas`/`plan`; asserted by `tests/run/test_core_defaults_unchanged.py`). `SplitIndex`
+(`adapters/index/split.py`) lets `--localize` differ from `--match-arm` (rank from one index, retrieve from
+another). The manifest records `profile`/`localize` so a labs run can never be misread as a Core production run.
 
 ---
 
