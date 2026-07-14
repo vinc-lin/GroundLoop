@@ -64,7 +64,7 @@ class LocalizeDispatchIndex:
 
     def retrieve(self, repo, query):
         sig = self._last_signals
-        if sig is not None and is_functional(sig):
+        if sig is not None and is_functional_localize(sig):
             return self._functional.retrieve(repo, query)
         return self._crash.retrieve(repo, query)   # crash path == today, byte-identical
 
@@ -72,10 +72,28 @@ class LocalizeDispatchIndex:
         self._last_signals = signals
 ```
 
-- **Discriminator.** Factor the existing `DispatchIndex._is_functional`
-  (`signals.symbols and signals.symbols[0].startswith(PROSE_MARK)`) into **one shared free
-  function** `is_functional(signals)` (co-located with `DispatchIndex`), used by both dispatchers
-  so they cannot drift. `PROSE_MARK` comes from `domains/android_ivi/functional_signals`.
+- **Discriminator (match-arm-independent).** `is_functional_localize(signals)` — new free
+  function in `domains/android_ivi/functional_signals`:
+
+  ```
+  def is_functional_localize(signals) -> bool:
+      if signals.symbols and signals.symbols[0].startswith(PROSE_MARK):
+          return True                                       # DispatchExtractor marked it prose
+      return not (signals.classes or signals.methods or signals.symbols   # no code anchor at all
+                  or signals.libraries or signals.packages)
+  ```
+
+  **Why not reuse `DispatchIndex._is_functional`** (`symbols[0].startswith(PROSE_MARK)` alone):
+  `PROSE_MARK` is set *only* by `DispatchExtractor`, i.e. only under `--match-arm dispatch/
+  functional`. Under the Core default match arm (`component`/`flood`) no prose mark is ever set,
+  so a PROSE_MARK-only test would make `--localize dispatch` a **silent no-op in production**.
+  Localize must be independent of the match arm (that is what `SplitIndex` exists for). The
+  broader test — *prose-marked OR no code anchor* — routes prose-only symptom tickets to the
+  semantic retriever under **any** extractor, while anchored (crash / with-log) tickets keep the
+  FTS5 path. This directly encodes the root cause: no symbol token in the signals ⇒ FTS5-over-
+  symbols is hopeless ⇒ use bge-m3. The match-side `DispatchIndex._is_functional` stays as-is
+  (it is correct there — `DispatchIndex` only runs under the dispatch arm, where the mark is
+  always present); the two discriminators are documented as intentionally different.
 - **Safe fallback.** No signals stashed/seeded → crash FTS5 path (never worse than today).
 - **`note_signals`** is an honest, documented seam for callers that invoke `retrieve` without a
   preceding `rank_repos` (the grade-run isolated diagnostic). It is **not** the RCA's phantom
@@ -134,8 +152,8 @@ substrate at n≫10 (the GEI n=10 is `[production]`-only).
 
 Live loop (`--localize dispatch`): `run_ticket` → `extractor.extract` → `index.rank_repos(signals)`
 (stash) → `materialize` → `index.retrieve(chosen, ticket.summary)` → dispatch on stashed signals:
-prose-marked → `SemanticAtlasIndex.retrieve` (embed summary prose → bge-m3 cosine over symbol
-units in the chosen repo); else → `AtlasIndex.retrieve` (FTS5). Grade pass (`grade-run`):
+prose-marked **or no code anchor** → `SemanticAtlasIndex.retrieve` (embed summary prose → bge-m3
+cosine over symbol units in the chosen repo); anchored → `AtlasIndex.retrieve` (FTS5). Grade pass (`grade-run`):
 per case, reconstruct localize index from the manifest, `note_signals(doc.signals)`, re-run
 `retrieve` on the **oracle** repo → isolated `file@k`, split by `bug_kind`.
 
