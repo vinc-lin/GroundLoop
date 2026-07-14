@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-14 | functional localize dispatch — proxy A/B | `[proxy]` | 74 prose-only functional cases, isolated on oracle repo: `dispatch` (bge-m3) lifts **file@5 0.014→0.035** (+0.021) but **file@1 0.014→0.000** — vector-alone lifts recall, not rank-1 (as spec §7 predicted). Goal was file@1 ⇒ **stays Candidate, not promoted**; next = rerank (staging C) |
 | 2026-07-14 | KB rename `Claim`→`Knowledge` + Lane-A removal | governance | vocabulary + surface correction only: distilled unit renamed (`--knowledge`, `knowledge.json`), Skill is input-only, Lane A (harvest→distill) removed, `kb-ab` gates on Knowledge — **no efficacy change**, KB stays Candidate/unproven |
 | 2026-07-13 | labs arms run-reachable + functional-arm A/B | `[proxy]` | experimental arms wired into `gloop run` + `KLOOP_LABS` switch (Core default unchanged); functional recall@1 **0.68** vs flood 0.32 (+0.36) on 212 functional bugs via the built `textprofile-9.db`; stays Candidate |
 | 2026-07-13 | Production-Core defaults + loop closure (11-task branch) | governance | Bug Plan Mode → **Provisional-Core** default (`--fixer plan`); feedback data-plane + reporting-edge closed on dev box; dev-gate + hardened `--repos`. **No new efficacy read** — deferred `[production]` `resolved_rate` A/B (plan vs model) is the resolver |
@@ -17,6 +18,31 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-07 | claim-centric KB (Phase D) | `[proxy]` | retain-loop validated **0/60** claims; no-injection 0.51 > placebo 0.37 > raw Skills 0.22 |
 | 2026-07-06 | first cross-stage evaluation | `[proxy]` | match recall@1 **0.60** synth / 0.02–0.23 real; localize 0.85@1 (oracle repo); fix/KB gated |
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
+
+---
+
+## 2026-07-14 · functional localize dispatch — proxy A/B · `[proxy]`
+
+First measured read of `--localize dispatch` (`LocalizeDispatchIndex`; merge `1493c5d`). Substrate: 74
+**prose-only** (`ui_text`, empty-log) functional cases from `functional-clean` (owners span all 9 repos),
+run over `atlas-9.db` with `--match-arm flood --fixer canned`; graded on the **isolated** diagnostic
+(retrieve on the ORACLE repo, query = `ticket.summary`, so match error is removed). This is the exact
+no-anchor population dispatch targets (`is_functional_localize=True` verified — anchorless signals route
+to the bge-m3 branch); audio/carplay cases were excluded because their logs make them anchored → FTS5 in
+both arms (would dilute the signal).
+
+- **atlas (FTS5, baseline):** isolated `file@1` **0.014**, `file@3` 0.014, `file@5` **0.014** `[proxy]` — FTS5
+  over symbol names is ~useless on symptom prose (pulls wiki `.md` + lexically-adjacent-but-wrong files);
+  reproduces (and sharpens, on pure prose-only) the `1/10` `file@1` GEI pathology.
+- **dispatch (bge-m3):** isolated `file@1` **0.000**, `file@3` 0.006, `file@5` **0.035** `[proxy]` — **+0.021
+  file@5 (~2.5×), but no file@1 gain** (−1 case at rank-1). Qualitatively the semantic branch retrieves the
+  right *neighborhood* (topically-relevant files, right package) but rarely the exact file at rank-1.
+- **Verdict:** confirms the spec §7 prediction — **vector-alone lifts recall (@5), not rank-1 precision (@1).**
+  The goal was `file@1`, so dispatch **stays Candidate, NOT promoted** to a default on this read. Mechanism
+  works (routing verified, honest `isolated_arm` attribution); the missing piece is a **reranker over the
+  semantic pool** (staging option **C**: hybrid RRF + LLM rerank). B (signal-tokens query) is inapplicable
+  here — prose-only cases carry no log tokens. Both arms are near-zero at `file@1`, so prose-only functional
+  localization remains a genuinely hard open problem. Artifacts: `/home/vinc/gl-eval/loca-ab/`.
 
 ---
 

@@ -117,9 +117,10 @@ next instrumented `[production]` run.
 routing: prose-only/no-anchor tickets → the bge-m3 semantic retriever, crash/anchored tickets → the FTS5
 retriever, byte-identical to `atlas`; a composition-root class, no `core/`/schema edit; needs an embedder
 (`KLOOP_EMBED_BASE_URL`), else degrades to `atlas` with a warn (fails closed if `--localize dispatch` was
-explicit); unmeasured — awaiting a `[proxy]` functional isolated-localize `file@1`/`file@5` A/B against the
-baseline `file@1 = 1/10`, `file@5 = 7/10` (2026-07-11 GEI, [`results-log.md`](results-log.md)), then a
-`[production]` GEI confirmation). (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
+explicit); **`[proxy]` read 2026-07-14** on 74 prose-only functional cases (isolated): lifts `file@5`
+0.014→**0.035** (+0.021) but **no `file@1` gain** (0.014→0.000) — vector-alone lifts recall, not rank-1
+(spec §7). Goal was `file@1`, so **stays Candidate, NOT promoted**; next lever = rerank the semantic pool
+(staging C). See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
 
 > **Now run-reachable (2026-07-13).** These arms are wired into `gloop run` as opt-in, fail-closed selectable
 > arms — `--match-arm {semantic,judge,functional,dispatch}` and `--localize semantic` (via `SplitIndex`) — so
