@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-14 | KB rename `Claim`→`Knowledge` + Lane-A removal | governance | vocabulary + surface correction only: distilled unit renamed (`--knowledge`, `knowledge.json`), Skill is input-only, Lane A (harvest→distill) removed, `kb-ab` gates on Knowledge — **no efficacy change**, KB stays Candidate/unproven |
 | 2026-07-13 | labs arms run-reachable + functional-arm A/B | `[proxy]` | experimental arms wired into `gloop run` + `KLOOP_LABS` switch (Core default unchanged); functional recall@1 **0.68** vs flood 0.32 (+0.36) on 212 functional bugs via the built `textprofile-9.db`; stays Candidate |
 | 2026-07-13 | Production-Core defaults + loop closure (11-task branch) | governance | Bug Plan Mode → **Provisional-Core** default (`--fixer plan`); feedback data-plane + reporting-edge closed on dev box; dev-gate + hardened `--repos`. **No new efficacy read** — deferred `[production]` `resolved_rate` A/B (plan vs model) is the resolver |
 | 2026-07-13 | KB fair-eval Phase 1 + Phase-2 scout | `[proxy]` | harness fix validated + confound **Δ−0.10** file@1, but `resolved_rate` inconclusive (0 floor); scout → only **~7–15** crash-with-fix cases fleet-wide ⇒ KB verdict **production-gated** |
@@ -16,6 +17,25 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-07 | claim-centric KB (Phase D) | `[proxy]` | retain-loop validated **0/60** claims; no-injection 0.51 > placebo 0.37 > raw Skills 0.22 |
 | 2026-07-06 | first cross-stage evaluation | `[proxy]` | match recall@1 **0.60** synth / 0.02–0.23 real; localize 0.85@1 (oracle repo); fix/KB gated |
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
+
+---
+
+## 2026-07-14 · KB rename `Claim`→`Knowledge` + Lane-A removal · governance (no efficacy read)
+
+A naming + surface correction on branch `skill-to-knowledge-rename` (no `core/`/schema edits). The KB read
+backwards in the docs (a `Skill` was both the raw input *and* a produced output); corrected so a **`Skill` is
+input-only** (raw feedstock) and the distilled, injectable unit is **`Knowledge`** (renamed from `Claim`):
+`kb/claim.py`→`kb/knowledge.py`, `ClaimRegistry`→`KnowledgeRegistry`, `render_claims`→`render_knowledge`,
+`--claims`→`--knowledge`, `claims.json`→`knowledge.json`, `FixRecord.fired_claims`→`fired_knowledge`. **Lane A**
+(the reversed lane that minted a Skill *from* cases — `kb/harvest/`, `kb/distill/`, its `gloop` CLI driver,
+the `--skills distilled` arm and its `.toml` output artifact) was **deleted**; the raw-Skill baseline arm (`--skills
+none|mock|kb|placebo`) is retained as an explicit undistilled control. `gloop kb-ab` was **retargeted** to gate
+on distilled **Knowledge** (candidate floor) via `FixEvalRunner(knowledge=...)` — an empty `knowledge.json`
+keeps every arm byte-identical to `none` (honest cold-start).
+
+**No efficacy change.** This is a vocabulary + surface correction, not a measurement; historical `[proxy]`
+numbers are unchanged. The KB remains **Candidate/unproven** ([[kb-reverdict]]) — a fair `resolved_rate`
+verdict still needs a real-crash-with-fix production substrate.
 
 ---
 

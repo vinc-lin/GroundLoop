@@ -237,6 +237,15 @@ ruff clean, `core/` + atlas schema **zero-diff**, per-phase spec+quality review 
   degrade the planner). Fabrication 0.0 all arms `[proxy]`.
 
 ### Claim-centric distilled KB — MERGED to master (2026-07-07); live preview ✅, full efficacy pending
+> **Vocabulary correction (2026-07-14, branch `skill-to-knowledge-rename`):** the distilled unit `Claim` was
+> renamed **`Knowledge`** (`--claims`→`--knowledge`, `kb/claim.py`→`kb/knowledge.py`, `claims.json`→
+> `knowledge.json`); a `Skill` is now **input-only** (raw feedstock, never a KB output); **Lane A** (the
+> reversed *harvest → distill* lane that minted a Skill as output — `kb/harvest/`, `kb/distill/`, its
+> `gloop` CLI driver, the `--skills distilled` arm and its `.toml` artifact) was **removed**; and `gloop
+> kb-ab` was retargeted to gate on **Knowledge**. This is a naming + surface correction only — **no efficacy
+> change**; the KB stays
+> **Candidate/unproven**. The historical `[proxy]` numbers below are unchanged.
+
 Inverts the KB onto atomic grounded **claims** (design/plan: `docs/superpowers/{specs,plans}/2026-07-07-
 claim-centric-distilled-kb*.md`): Skills are feedstock; `kb-extract` (LLM proposes → ground-check disposes)
 → `--claims` arm injects only tier-qualifying claims into the plan → `kb-attribute` (screen → LOFO-confirm

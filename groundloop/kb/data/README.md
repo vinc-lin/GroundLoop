@@ -6,6 +6,11 @@ registry/arm code (`groundloop/skills/`, currently on the `worktree-sp3-kb-arm` 
 the shared interface the arm consumes, exactly as the synth-log dataset is the interface the matcher
 consumes.
 
+These `Skill`s are **raw source feedstock only** — a Skill is always an *input*, never a KB output.
+`gloop kb-extract` distills them into the injectable **`Knowledge`** unit (grounded, atomic, single-advice;
+store `knowledge.json`) that the fix/localize loop actually consumes and the retain-loop promotes. See
+[`docs/kb-distillation.md`](../../../docs/kb-distillation.md) for the Skill → Knowledge distillation.
+
 ## Format (SP3 `Skill` contract)
 Each `[[skill]]` has: `id`, `provenance`, `signals` (retrieval tags), `hint_apis` (generic API/symbol
 names a correct fix references), `guidance`, and a `[skill.match]` **declarative** predicate (no code in

@@ -151,7 +151,7 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (**opt-out**) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
 | | `CannedFixEngine` (hermetic stub) | Fixture | `--fixer canned` | — | (never) | `adapters/fix/canned.py` |
 | | Dev-experience KB / Skill injection | Candidate | `fixeval --skills kb [--skills-inject fix-only]` | `[proxy]` **unproven**: old null discredited (confound Δ−0.10 file@1, wrong metric); `resolved_rate` re-test inconclusive (0 floor) | Phase 2 real-fix slice with resolution headroom | `adapters/skills/mock.py` |
-| | Claim-centric KB injection | Candidate | `fixeval --claims {candidate,validated}` | `[proxy]` 0/60 on `plan_target_recall` (wrong metric) — unproven, not null | Phase 2 real-fix slice | `kb/claim.py` |
+| | Knowledge injection (distilled) | Candidate | `fixeval --knowledge {candidate,validated}` | `[proxy]` 0/60 on `plan_target_recall` (wrong metric) — unproven, not null | Phase 2 real-fix slice | `kb/knowledge.py` |
 | **7 submit** (ChangeSink) | `MockGerrit.submit` (synthesized change) | Fixture | default (only) | `[production]` ran (synthetic) | replaced, not promoted | `adapters/mock/gerrit.py` |
 | | live Gerrit sink | `[to build]` | — | none | push a real change + Change-Id | — |
 | **8 bind** (ChangeSink) | `MockGerrit.bind` (change↔ticket) | Fixture | default (only) | `[production]` ran (no real chain) | replaced, not promoted | `adapters/mock/gerrit.py` |

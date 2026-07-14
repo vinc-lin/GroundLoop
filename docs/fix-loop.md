@@ -4,8 +4,9 @@
 > stages of GroundLoop's control plane — **localize → fix → grade → bind** — the part that runs *after*
 > Stage-1 ticket→repo matching has picked an owning repo.
 >
-> **For the dev-experience KB specifically** — how raw crash-RCA becomes injectable Skills/Claims and the
-> admit-on-measured-lift retain-loop — see the code-grounded guide [`kb-distillation.md`](kb-distillation.md).
+> **For the dev-experience KB specifically** — how raw crash-RCA **Skills** are distilled into injectable
+> **Knowledge** and the admit-on-measured-lift retain-loop — see the code-grounded guide
+> [`kb-distillation.md`](kb-distillation.md).
 >
 > **State of the code, plainly (updated 2026-07-11):** the fix-loop **eval surface has shipped** — `gloop
 > fixeval` / `gloop grade-run` / `gloop compare`, driven by the real **`ModelPatchEngine`**
@@ -215,8 +216,11 @@ self-test). See the SP3 spec (`docs/superpowers/specs/2026-07-05-type2-negatives
 ## 5. Dev-experience KB (a measured fix arm)
 
 The dev-experience **KB** — real RCA/ops **Skills** authored by previous developers, living in another
-environment — is wired as a **measured arm** on the fix loop (§4), **never a trusted input**. Today it
-runs on a **`MockSkillRegistry`** seeded with real GroundLoop RCA/ops playbooks
+environment — is wired as a **measured arm** on the fix loop (§4), **never a trusted input**. A `Skill` is
+*only ever an input* (raw feedstock); this section documents the raw-Skill baseline arm (`--skills`), while
+the KB's headline arm injects the **distilled `Knowledge`** the retain-loop promotes (`--knowledge`) — see
+[`kb-distillation.md`](kb-distillation.md) for the Skill → Knowledge distillation. Today the raw arm runs on a
+**`MockSkillRegistry`** seeded with real GroundLoop RCA/ops playbooks
 (`groundloop/adapters/skills/data/aaos_playbooks.toml`) — "mock" is only the *wiring*; the content is
 real. When the previous developers' Skills arrive (in that other environment's format) they migrate into
 `Skill` records **unchanged**, swap in at the composition root, and are proven faithful by the **parity

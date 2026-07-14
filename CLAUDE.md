@@ -30,7 +30,8 @@ orchestrator owns control flow; **the loop never sees the oracle** (grading is a
 - **Type-2 stack** (eval/benchmark side): `eval/` (oracle-blind Stage-1 matching eval → scorecard),
   `fixeval/` (fix-loop eval: file_recall/patch_applies/resolved_rate/fabrication_rate + `compare`),
   `mine/` (GitHub issue→merged-PR miner, incl. typed honest-refusal negatives), `synth/` (AAOS synth
-  failure-log generation), `skills/`+`kb/` (dev-experience KB primitive + leak-safe feedstock corpus),
+  failure-log generation), `skills/`+`kb/` (dev-experience KB: raw `Skill` feedstock distilled into the
+  injectable `Knowledge` primitive; leak-safe corpus),
   `build/` (fleet clone + atlas build), `grade/` (offline grader).
 - `groundloop/config/settings.py` — the single env-reading surface (`KLOOP_*`).
 
@@ -68,8 +69,8 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
 - `docs/build-setup.md` — atlas build + env-var reference + the reuse contract + gated-live setup + the
   portable atlas-build gotchas (CBM timeout, one-index-at-a-time, `pgrep -fa` not `ps -C`, run eval off ext4).
 - `docs/fix-loop.md` — localize → fix → grade design provenance + the dev-experience KB (a measured fix arm).
-- `docs/kb-distillation.md` — **how the KB distills knowledge into Skills** (the Skill/Claim primitives, the
-  two distillation lanes, injection, the admit-on-measured-lift retain-loop; machinery built, efficacy production-gated).
+- `docs/kb-distillation.md` — **how the KB distills Skills into knowledge** (the Skill source + Knowledge
+  primitive, the distillation lane, injection, the admit-on-measured-lift retain-loop; machinery built, efficacy production-gated).
 - `docs/engines.md` — produce / lore / CBM / atlas engine operations (migrated from knowledgeLoop).
 - `docs/production-guide.md` — production deploy / validate / feedback SOP (the production side of `environments.md`).
 - `docs/roadmap.md` — mining, the two-stage matcher, milestone tracks, downstream phasing.
@@ -109,8 +110,8 @@ GL-M1 plan (for provenance):
   logic verbatim (only the import rewire + the `_envcompat` shim change).
 - Reuse contract (keep an atlas.db shareable): embed model pinned `bge-m3` at index + query time;
   stable repo names + pinned SHAs; shared atlas.db path; schema unchanged.
-- **KB/fix-arm gotcha:** `localize` runs *before* fix `propose`, so a fix-stage Skill is
-  `file_recall`-invariant — grade Skill lift on `resolved_rate`/`patch_applies`/`fabrication_rate`, never
+- **KB/fix-arm gotcha:** `localize` runs *before* fix `propose`, so a fix-stage Skill/Knowledge injection is
+  `file_recall`-invariant — grade KB lift on `resolved_rate`/`patch_applies`/`fabrication_rate`, never
   `file_recall@1`. The eval datasets carry **no** honest-refusal negatives yet (those metrics are fixture-only).
 - End commit messages with: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
   Commit only when the suite is green + ruff clean.
