@@ -138,7 +138,7 @@ real fix, so nothing resolves). **Production-gated** (2026-07-13 Phase-2 scout):
 crash-with-fix cases (features/UI/usage dominate, not AAOS crashes) — too few for a verdict. The KB is
 AAOS-crash-specific; a fair `resolved_rate` verdict needs real **production** AAOS crash+fix tickets (the
 [`Phase 2 spec`](superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md) is therefore a production-side
-task). Its A/B machinery (`kb-ab`/`kb-promote`/`kb-extract`/`kb-attribute`/placebo) — gating on distilled
+task). Its A/B machinery (`kb-ab`/`kb-extract`/`kb-attribute`/placebo) — gating on distilled
 **Knowledge** — is the eval infra for that test.
 
 ### Dev-Labs Infra — permanent measurement / data apparatus (never promoted)

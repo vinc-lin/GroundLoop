@@ -204,19 +204,21 @@ Two verdicts are emitted: **`kb_vs_placebo`** (primary — isolates content) and
 gates on `accept_grounded` (Δ`plan_target_recall@1` **or** Δ`resolved_rate_strict`, with Δ`fabrication_rate` ≤
 0 and Δ`plan_groundedness` ≥ 0).
 
-### 6c. Lifecycle tiers + provenance
+### 6c. Lifecycle tiers
 
 `apply_verdict` (`kb/lifecycle.py`) walks `candidate → applied → validated → canonical`: a pass promotes one
 rung and resets the fail streak; a fail increments it, and only after **2 consecutive fails** (`hysteresis`)
-demotes one rung (so a single noisy A/B can't knock down a canonical item). Each transition is a new frozen
-`ProvenanceRecord`. **In production the selection floor is `validated`** (`runner.py`), so an unpromoted
-`candidate` Knowledge item is gated *out* of a production run — that is where "admit only on verified lift"
-bites.
+demotes one rung (so a single noisy A/B can't knock down a canonical item). It is generic over any frozen tier
+record; the retain-loop bridges each `Knowledge` item through `attribute.KnowledgeRecord` (`id`, `tier`,
+`fail_count`, `demotions`), and `promote_or_retire` writes the new `tier` + evidence back onto the frozen
+`Knowledge`. **In production the selection floor is `validated`** (`runner.py`), so an unpromoted `candidate`
+Knowledge item is gated *out* of a production run — that is where "admit only on verified lift" bites.
 
-A `ProvenanceRecord` carries `tier`, `lineage`, `validating_case_ids`, `measured_lift`, and an
+The per-item lifecycle bookkeeping (`measured_lift`, `wilson95`, `validating_case_ids`, and the
+`fail_count`/`demotions` streak) lives in each `Knowledge.evidence` dict, written by `promote_or_retire`. An
 `evidence_context` *designed* to pin the atlas SHA + `bge-m3` + model pin + date the lift was measured against
-(so a stale entry is auto-demotable). **Caveat:** `evidence_context` is currently passed `{}` at every site —
-the field exists but the staleness discipline it enables is not yet wired.
+(so a stale entry is auto-demotable) is envisaged but **currently inert** — the field is passed `{}` at every
+site, so the staleness discipline it enables is not yet wired.
 
 ---
 
@@ -226,9 +228,8 @@ The pipeline is fully implemented and wired, but the on-disk state proves **noth
 
 - **No Knowledge exists** — `kb/data/knowledge.json` is absent; `KnowledgeRegistry` fires nothing. Extraction
   has never persisted output (with no `KLOOP_PRODUCE_API_KEY`, the canned model proposes 0 Knowledge items).
-- **All 12 seed Skills are `candidate`** — `provenance.json` shows every row at `tier="candidate"`,
-  `lineage="authored cold-start"`, `measured_lift={}`, `validating_case_ids=[]`. No `apply_verdict(pass)` has
-  ever moved one up.
+- **Seed Skills carry no effectiveness tier** — the seed Skills are raw input feedstock; there is no
+  Skill-tier promotion. Knowledge tiers are governed by `kb-attribute` (per-item, LOFO, placebo-confirmed).
 - **`evidence_context` is inert** — `{}` everywhere, despite the documented intent.
 
 This matches the **KB re-verdict**: the earlier "Archived null" was **discredited** — it was measured on the
@@ -256,7 +257,6 @@ read (`docs/build-setup.md`). None is on the `gloop run` production path.
 - `gloop kb-attribute` — the per-Knowledge retain loop: screen → LOFO-confirm → placebo-swap A/B → promote/retire.
 - `gloop kb-ab` — the 3-arm (`none/kb/placebo`) A/B over **Knowledge** → `scorecard-*.json` + two
   `strengthened_accept` verdicts.
-- `gloop kb-promote` — fold a verdict into the per-Skill provenance tiers (`apply_verdict`).
 - `gloop fixeval --skills {none,mock,kb,placebo} [--skills-inject fix-only] [--knowledge {candidate,validated}]`
   — the measured fix arm (`--knowledge` = the distilled Knowledge; `--skills` = the raw baseline control);
   grade on `resolved_rate`, never `file_recall@1`.

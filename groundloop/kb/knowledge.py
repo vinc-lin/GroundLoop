@@ -3,8 +3,8 @@ spec docs/superpowers/specs/2026-07-13-skill-to-knowledge-rename-design.md). A K
 self-contained, GROUNDED piece of advice carrying its OWN firing predicate (`applies_when`, a
 [skill.match]-style spec reusing groundloop/skills/predicate.compile_predicate) — never a whole Skill.
 
-Knowledge persists in a machine-updated JSON store (`groundloop/kb/data/knowledge.json`, keyed by id —
-analogous to kb/provenance.py's sidecar): the retain-loop mutates tier + evidence, while the human-authored
+Knowledge persists in a machine-updated JSON store (`groundloop/kb/data/knowledge.json`, keyed by id): the
+retain-loop mutates tier + evidence, while the human-authored
 feedstock stays the aaos_kb_seed.toml Skills that extraction (kb-extract) decomposes. The `evidence` dict is
 the lifecycle-bookkeeping bag (measured_lift, wilson95, validating_case_ids, fail_count, demotions,
 evidence_context); Phase C bridges tier + evidence[fail_count]/[demotions] to the reused
@@ -49,7 +49,7 @@ def _to_knowledge(kid: str, raw: dict) -> Knowledge:
 
 def load_knowledge(path: str = KNOWLEDGE_PATH) -> dict[str, Knowledge]:
     """Load the knowledge store keyed by id; a missing file is an empty store (no knowledge yet), not an
-    error — mirrors kb/provenance.load_sidecar."""
+    error."""
     p = Path(path)
     if not p.exists():
         return {}

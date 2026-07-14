@@ -2,21 +2,17 @@
 import dataclasses
 
 from groundloop.kb.lifecycle import TIERS, apply_verdict, next_tier, prev_tier
-from groundloop.kb.provenance import ProvenanceRecord
+
+
+@dataclasses.dataclass(frozen=True)
+class _Rec:
+    tier: str
+    fail_count: int = 0
+    demotions: tuple[str, ...] = ()
 
 
 def _rec(tier="candidate", fail_count=0, demotions=()):
-    return ProvenanceRecord(
-        id="skill-1",
-        tier=tier,
-        lineage="harvest:cluster-42",
-        validating_case_ids=("c1", "c2"),
-        measured_lift={"phi_1.0": 0.31},
-        evidence_context={"n": 5},
-        fail_count=fail_count,
-        demotions=tuple(demotions),
-        leak_check="clean",
-    )
+    return _Rec(tier=tier, fail_count=fail_count, demotions=tuple(demotions))
 
 
 def test_tiers_order_and_neighbors():
@@ -33,7 +29,7 @@ def test_passing_verdict_promotes_and_resets_fail_count():
     assert out.tier == "applied"
     assert out.fail_count == 0
     assert out.demotions == ()
-    assert isinstance(out, ProvenanceRecord)
+    assert isinstance(out, _Rec)
     # frozen: input untouched
     assert rec.tier == "candidate" and rec.fail_count == 1
 

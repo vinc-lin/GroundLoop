@@ -330,7 +330,7 @@ at fix**. `--skills`: `none` baseline · `mock` = SP3 4-playbook seed · `kb` = 
 (Bucket-1 negatives), `phi_c`, cost. `compare` is a hermetic JSON diff → `newly_solved`/`newly_broken` + a
 two-sided `accept` verdict. Fix-loop + KB design: [fix-loop.md](fix-loop.md).
 
-> The KB A/B is exposed as `gloop kb-ab` (+ `kb-promote`/`kb-extract`/`kb-attribute`);
+> The KB A/B is exposed as `gloop kb-ab` (+ `kb-extract`/`kb-attribute`);
 > `strengthened_accept` adds a Φ_c-sweep + Wilson lower bound. Note `file_recall@1` is **skill-invariant**
 > (localize runs before fix), so grade KB lift on `resolved_rate`/`patch`/`fabrication_rate`.
 

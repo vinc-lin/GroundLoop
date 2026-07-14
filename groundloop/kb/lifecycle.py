@@ -1,15 +1,16 @@
-"""Lifecycle tier manager for KB provenance records.
+"""Lifecycle tier manager for KB tier records (e.g. a Knowledge item's `KnowledgeRecord`).
 
-A Skill climbs the trust ladder one rung per passing verdict and slides down only after
+A record climbs the trust ladder one rung per passing verdict and slides down only after
 `hysteresis` CONSECUTIVE failing verdicts (so a single noisy A/B run cannot demote a canonical
-playbook). Records are frozen `ProvenanceRecord`s (B1); every transition returns a NEW record via
-`dataclasses.replace` — the input is never mutated.
+playbook). Every transition returns a NEW record via `dataclasses.replace` — the input is never
+mutated.
 """
 from __future__ import annotations
 
 import dataclasses
+from typing import TypeVar
 
-from groundloop.kb.provenance import ProvenanceRecord
+_R = TypeVar("_R")  # any frozen dataclass with .tier/.fail_count/.demotions (e.g. attribute.KnowledgeRecord)
 
 # Trust ladder, lowest -> highest. Ordered; index arithmetic drives promote/demote.
 TIERS: tuple[str, ...] = ("candidate", "applied", "validated", "canonical")
@@ -27,9 +28,7 @@ def prev_tier(t: str) -> str:
     return TIERS[max(i - 1, 0)]
 
 
-def apply_verdict(
-    rec: ProvenanceRecord, passed: bool, *, hysteresis: int = 2
-) -> ProvenanceRecord:
+def apply_verdict(rec: _R, passed: bool, *, hysteresis: int = 2) -> _R:
     """Fold one A/B verdict into a provenance record and return the updated (new) record.
 
     passed -> promote one tier and reset the fail streak.

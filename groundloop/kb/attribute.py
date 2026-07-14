@@ -22,7 +22,7 @@ from groundloop.kb.lifecycle import TIERS, apply_verdict
 def load_archive(plans_dir: str) -> list[dict]:
     """Load every per-case plan payload written by fixeval/archive.archive_plans (<dir>/*.json). A missing
     dir is an empty archive (nothing to attribute yet), not an error; a malformed file is skipped, not
-    fatal — mirrors kb/provenance.load_sidecar's tolerance."""
+    fatal."""
     d = Path(plans_dir)
     if not d.is_dir():
         return []

@@ -57,7 +57,7 @@ cases — but with **no measured effectiveness yet**. "Validated" requires the S
 two-sided fix-eval A/B (`Δpatch_applies`/`Δrequired_api`/`Δresolved` with **no** `Δfabrication_rate`
 regression), on a **held-out / temporal split** so lift means lift-on-unseen.
 
-`provenance` today names each Skill's real basis. The eventual per-entry provenance sidecar (for the
-lifecycle/tiering) records: source lineage, the `validating_case_ids` (split-tagged), the `measured_lift`
-(flagged **proxy**), and the `evidence_context` (atlas SHA + `bge-m3` + model pin + date) the lift was
-measured against — so a stale entry is auto-demotable and every claim is traceable. See the design spec.
+`provenance` today names each Skill's real basis. Seed Skills are raw input feedstock and carry **no
+effectiveness tier** — there is no Skill-tier promotion. Effectiveness tiering applies to the distilled
+`Knowledge` (governed per-item by `kb-attribute`), whose lifecycle bookkeeping (`measured_lift`,
+`validating_case_ids`, `fail_count`/`demotions`) lives in each item's `Knowledge.evidence`. See the design spec.
