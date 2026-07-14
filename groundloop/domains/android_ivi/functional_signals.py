@@ -24,17 +24,33 @@ def prose_query(signals: Signals) -> str:
     return ""
 
 
-def is_functional_localize(signals: Signals) -> bool:
-    """Localize-side discriminator: True iff localize should use the semantic (bge-m3) retriever
-    instead of FTS5-over-symbols — the ticket is prose-marked (DispatchExtractor) OR carries no
-    code anchor at all. MATCH-ARM-INDEPENDENT: unlike DispatchIndex._is_functional (PROSE_MARK
-    only, correct only under the dispatch match arm), this also fires under the Core component/flood
-    extractors, where a no-crash ticket yields anchorless Signals. No anchor => no symbol token to
-    feed FTS5 => use the vector retriever. `errors` (generic exception names) are NOT anchors."""
+def is_functional_localize(signals) -> bool:
+    """Localize-side discriminator: True (=> semantic/bge-m3 retriever) iff the ticket is prose-marked
+    OR carries NO crash-frame evidence. Crash evidence = a parsed Java stack frame (signals.methods —
+    populated ONLY by the `at pkg.Class.method(` frame regex) or a native backtrace frame (a non-PROSE
+    signals.symbols entry). A functional ticket's logcat can mention FQ class names (fills
+    classes/packages) yet have NO stack frame → routes to semantic. MATCH-ARM-INDEPENDENT. Keys on
+    stack-frame evidence, NOT anchor-emptiness: the old no-anchor test made this a no-op in production,
+    where functional tickets carry logcat class mentions (RCA 2026-07-14). Residual: a lone non-crash
+    `at X.Y(` handler line misroutes to FTS5 — upgrade to a fault_record marker if production shows it."""
     if signals.symbols and signals.symbols[0].startswith(PROSE_MARK):
         return True
-    return not (signals.classes or signals.methods or signals.symbols
-                or signals.libraries or signals.packages)
+    real_symbols = tuple(s for s in signals.symbols if not s.startswith(PROSE_MARK))
+    return not (signals.methods or real_symbols)
+
+
+def code_query(signals) -> str:
+    """FTS5 localize query built from the extracted CODE tokens (classes/methods/packages/symbols/
+    libraries), dropping the reserved PROSE_MARK / COMPONENT_MARK marker tokens. '' if none. The crash
+    localize branch uses this instead of the prose summary (which has no code tokens to match symbols)."""
+    from groundloop.domains.android_ivi.component_signals import COMPONENT_MARK
+    reserved = (PROSE_MARK, COMPONENT_MARK)
+    seen: dict[str, None] = {}
+    for group in (signals.classes, signals.methods, signals.packages, signals.symbols, signals.libraries):
+        for t in group:
+            if t and not t.startswith(reserved):
+                seen.setdefault(t, None)
+    return " ".join(seen)
 
 
 def pack_prose(ticket: Ticket, logs: Sequence[LogAttachment]) -> Signals:

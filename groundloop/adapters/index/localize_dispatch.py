@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from groundloop.core.types import RepoRef, RepoScore, Signals
-from groundloop.domains.android_ivi.functional_signals import is_functional_localize
+from groundloop.domains.android_ivi.functional_signals import code_query, is_functional_localize
 
 
 class LocalizeDispatchIndex:
@@ -28,8 +28,9 @@ class LocalizeDispatchIndex:
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         sig = self._last_signals
         if sig is not None and is_functional_localize(sig):
-            return self._functional.retrieve(repo, query)
-        return self._crash.retrieve(repo, query)
+            return self._functional.retrieve(repo, query)          # semantic: prose summary (bge-m3)
+        fts_query = code_query(sig) if sig is not None else ""
+        return self._crash.retrieve(repo, fts_query or query)      # FTS5: code tokens (fallback: summary)
 
     def note_signals(self, signals: Signals) -> None:
         self._last_signals = signals
