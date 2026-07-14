@@ -1,4 +1,4 @@
-from groundloop.core.types import Signals
+from groundloop.core.types import RepoRef, RepoScore, Signals
 from groundloop.domains.android_ivi.functional_signals import (
     PROSE_MARK, is_functional_localize)
 
@@ -24,3 +24,55 @@ def test_is_functional_localize_with_code_anchor_is_false():
 def test_is_functional_localize_native_symbol_anchor_is_false():
     # A real native symbol (NOT prose-marked) is a crash anchor -> FTS5 path
     assert is_functional_localize(Signals(symbols=("IAP2Session",))) is False
+
+
+class _FakeMatch:
+    def __init__(self):
+        self.seen = None
+    def rank_repos(self, signals, catalog):
+        self.seen = signals
+        return [RepoScore(RepoRef("r"), 1.0)]
+
+
+class _FakeRetriever:
+    def __init__(self, tag):
+        self.tag = tag
+    def retrieve(self, repo, query):
+        return [f"{self.tag}:{repo.name}"]
+
+
+def _dispatch():
+    from groundloop.adapters.index.localize_dispatch import LocalizeDispatchIndex
+    return LocalizeDispatchIndex(_FakeMatch(), _FakeRetriever("crash"), _FakeRetriever("func"))
+
+
+def test_rank_repos_delegates_and_stashes_signals():
+    d = _dispatch()
+    sig = Signals(classes=("com.x.Foo",))
+    out = d.rank_repos(sig, [RepoRef("r")])
+    assert out[0].repo.name == "r"
+    assert d._match.seen is sig            # delegated to the match index
+    assert d._last_signals is sig          # stashed for the following retrieve
+
+
+def test_retrieve_routes_functional_to_semantic_after_rank():
+    d = _dispatch()
+    d.rank_repos(Signals(), [RepoRef("r")])          # no-anchor -> functional
+    assert d.retrieve(RepoRef("r"), "q") == ["func:r"]
+
+
+def test_retrieve_routes_crash_to_fts5_after_rank():
+    d = _dispatch()
+    d.rank_repos(Signals(classes=("com.x.Foo",)), [RepoRef("r")])   # anchored -> crash
+    assert d.retrieve(RepoRef("r"), "q") == ["crash:r"]
+
+
+def test_retrieve_without_signals_falls_back_to_crash():
+    d = _dispatch()
+    assert d.retrieve(RepoRef("r"), "q") == ["crash:r"]   # no rank/seed -> safe FTS5 default
+
+
+def test_note_signals_seeds_functional_route_for_out_of_loop_callers():
+    d = _dispatch()
+    d.note_signals(Signals(symbols=(PROSE_MARK + "prose",)))
+    assert d.retrieve(RepoRef("r"), "q") == ["func:r"]
