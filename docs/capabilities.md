@@ -108,12 +108,18 @@ next instrumented `[production]` run.
 |---|---|---|
 | **`PlanningFixEngine`** — "Bug Plan Mode" (plan→gate→re-plan→abstain→execute); `--fixer plan`, **the run default** since 2026-07-13 | Fail-safe by construction: the in-world gate scope-checks every target *before any disk read*, and the executed diff is **re-gated** against candidate scope, so it **abstains** (empty patch) rather than emit an out-of-scope or ungrounded fix. Measured `fabrication_rate = 0.0` `[proxy]`, with a recorded case of it abstaining where the direct fixer fabricated. That honesty *is* a charter-aligned production improvement and reduces incorrect-run risk (Ask-3). | **No measured resolution lift** over `ModelPatchEngine` yet — `resolved_rate` was never gradeable (`[proxy]` ungradeable 2026-07-07; 0-floor 2026-07-13). The next instrumented `[production]` run measures `resolved_rate` (grade-run emits a promotion-eligibility note) → **confirm Core** if it clears the bar with `fabrication_rate ≤ 0`, else **revert** to `--fixer model`. Until then it is bounded: it reverts on governance debt. |
 
-### Candidate — Dev-Labs research, blocked on a first `[production]` read (6)
+### Candidate — Dev-Labs research, blocked on a first `[production]` read (7)
 `FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · the bge-m3 vector **localize** retrieve
 (`SemanticAtlasIndex.retrieve`, unmeasured for localize; there is **no** LLM/qwen-rerank localize —
-`LLMJudgeIndex.retrieve` delegates to plain FTS5). (`PlanningFixEngine` moved to **Provisional-Core** above on
-2026-07-13.)
+`LLMJudgeIndex.retrieve` delegates to plain FTS5) · the functional/no-crash **localize dispatch**
+(`LocalizeDispatchIndex`, 2026-07-14 — reachable via `gloop run --localize dispatch`; per-ticket localize
+routing: prose-only/no-anchor tickets → the bge-m3 semantic retriever, crash/anchored tickets → the FTS5
+retriever, byte-identical to `atlas`; a composition-root class, no `core/`/schema edit; needs an embedder
+(`KLOOP_EMBED_BASE_URL`), else degrades to `atlas` with a warn (fails closed if `--localize dispatch` was
+explicit); unmeasured — awaiting a `[proxy]` functional isolated-localize `file@1`/`file@5` A/B against the
+baseline `file@1 = 1/10`, `file@5 = 7/10` (2026-07-11 GEI, [`results-log.md`](results-log.md)), then a
+`[production]` GEI confirmation). (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
 
 > **Now run-reachable (2026-07-13).** These arms are wired into `gloop run` as opt-in, fail-closed selectable
 > arms — `--match-arm {semantic,judge,functional,dispatch}` and `--localize semantic` (via `SplitIndex`) — so
