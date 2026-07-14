@@ -32,3 +32,12 @@ def test_signals_from_doc_handles_missing_signals():
     class _Doc:
         signals = None
     assert _signals_from_doc(_Doc()) == Signals()
+
+
+def test_signals_from_doc_preserves_prose_mark():
+    from groundloop.domains.android_ivi.functional_signals import PROSE_MARK, is_functional_localize
+    class _Doc:
+        signals = {"symbols": [PROSE_MARK + "wrong ui label"]}   # JSON round-trip = list of str
+    sig = _signals_from_doc(_Doc())
+    assert sig.symbols[0].startswith(PROSE_MARK)
+    assert is_functional_localize(sig) is True                    # would route to the functional retriever

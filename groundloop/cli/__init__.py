@@ -1316,7 +1316,7 @@ def _run_grade_run(args) -> int:
     iso = ov["localize"].get("isolated") or {}
     print(f"grade-run: {card['n_cases']} cases · match recall@1={ov['match']['recall@1']:.2f} · "
           f"localize as-run@1={ov['localize']['as_run'].get('file@1')} "
-          f"isolated@1={iso.get('file@1')} · "
+          f"isolated@1={iso.get('file@1')} arm={ov['localize'].get('isolated_arm')} · "
           f"fix gradeable={fx.get('n_gradeable')} ungradeable={fx.get('n_ungradeable_no_source')}")
     if args.compare:
         from groundloop.run.compare import compare_cards

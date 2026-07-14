@@ -33,7 +33,10 @@ def _localize_index_for(runs_dir, index_db, embedder):
     arm = "atlas"
     mpath = Path(runs_dir) / "manifest.json"
     if mpath.exists():
-        arm = json.loads(mpath.read_text()).get("localize", "atlas")
+        try:
+            arm = json.loads(mpath.read_text()).get("localize", "atlas")
+        except (json.JSONDecodeError, OSError):
+            arm = "atlas"
     if arm in ("semantic", "dispatch") and embedder is not None:
         from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
         sem = SemanticAtlasIndex(index_db, embedder)
@@ -156,8 +159,9 @@ def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None, embed
         })
     # The isolated-localize diagnostic: re-run retrieve on the ORACLE repo (grade-only, never the loop).
     # Reconstruct the localize index the run actually used (manifest.localize) and seed per-case signals.
+    iso_arm = None
     if index_db:
-        idx, _iso_arm = _localize_index_for(runs_dir, index_db, embedder)
+        idx, iso_arm = _localize_index_for(runs_dir, index_db, embedder)
         for r in rows:
             if r["expected"]:
                 if hasattr(idx, "note_signals"):
@@ -166,6 +170,8 @@ def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None, embed
     with_isolated = bool(index_db)
     oracle_by_case = {r["case_id"]: r["oracle"] for r in rows}
     card = {"n_cases": len(rows), "overall": _grade_subset(rows, oracle_by_case, with_isolated)}
+    if index_db:
+        card["overall"]["localize"]["isolated_arm"] = iso_arm       # honest attribution of the diagnostic
     kinds = sorted({r["bug_kind"] for r in rows if r["bug_kind"]})
     card["by_bug_kind"] = {bk: _grade_subset([r for r in rows if r["bug_kind"] == bk],
                                              oracle_by_case, with_isolated) for bk in kinds}
