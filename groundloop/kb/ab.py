@@ -1,10 +1,11 @@
 """A/B fix-eval orchestration over dev-experience-KB arms {none, kb, placebo}. Each arm reruns the SAME
-whole-loop fix-eval (FixEvalRunner + grade_fix_all) with a different skills registry injected at the FIX
-stage: none = skills off (byte-identical to pre-SP3), kb = OUR 12-skill corpus (groundloop/kb/data/
-aaos_kb_seed.toml), placebo = the length-matched IRRELEVANT control that fires on the SAME cases. Writes
-one scorecard-<arm>.json per arm under out_dir and returns {arm: card}. Oracle-blind loop; grade_fix_all
-is the sole oracle read. _make_fixer mirrors the CLI fixeval handler and is monkeypatched by hermetic
-tests to inject a scripted CannedModel."""
+whole-loop fix-eval (FixEvalRunner + grade_fix_all) with a different KNOWLEDGE registry injected at the
+FIX stage: none = knowledge off (byte-identical to pre-SP3), kb = the distilled Knowledge (candidate
+floor) over groundloop/kb/data/knowledge.json, placebo = the per-item length-matched IRRELEVANT control
+that fires on the SAME cases. An empty knowledge.json -> every arm selects nothing -> byte-identical to
+none (honest cold-start). Writes one scorecard-<arm>.json per arm under out_dir and returns {arm: card}.
+Oracle-blind loop; grade_fix_all is the sole oracle read. _make_fixer mirrors the CLI fixeval handler and
+is monkeypatched by hermetic tests to inject a scripted CannedModel."""
 from __future__ import annotations
 
 import json
@@ -16,13 +17,14 @@ from groundloop.adapters.fix.model_patch import ModelPatchEngine
 from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.adapters.mock.jira import MockJira
 from groundloop.adapters.mock.model import CannedModel
-from groundloop.adapters.skills.mock import MockSkillRegistry
 from groundloop.core.types import RepoRef
 from groundloop.eval.arms import build_arms
 from groundloop.eval.dataset import load_cases, load_eval_oracle
 from groundloop.fixeval.runner import FixEvalRunner
 from groundloop.fixeval.scorecard import grade_fix_all
-from groundloop.kb.placebo import KB_SEED, PLACEBO_SEED
+from groundloop.kb.knowledge import KNOWLEDGE_PATH, load_knowledge
+from groundloop.kb.knowledge_placebo import build_knowledge_placebo
+from groundloop.kb.registry import KnowledgeRegistry
 
 
 def _make_fixer():
@@ -40,13 +42,16 @@ def _make_fixer():
 
 
 def _registry_for(arm: str, embedder):
-    """Map an A/B arm name to its skills registry (None = the true no-op `none` arm)."""
+    """Map an A/B arm to its KNOWLEDGE registry (None = the true no-op `none` arm). kb = distilled
+    Knowledge (candidate floor); placebo = the per-item knowledge placebo (same firing set, scrambled
+    content). Reads knowledge.json; an empty store -> empty registry -> every arm == none (cold-start)."""
     if arm == "none":
         return None
+    store = load_knowledge(KNOWLEDGE_PATH)
     if arm == "kb":
-        return MockSkillRegistry.load(path=KB_SEED, embedder=embedder)
+        return KnowledgeRegistry(list(store.values()), embedder=embedder)
     if arm == "placebo":
-        return MockSkillRegistry.load(path=PLACEBO_SEED, embedder=embedder)
+        return KnowledgeRegistry(list(build_knowledge_placebo(store).values()), embedder=embedder)
     raise ValueError(f"unknown A/B arm: {arm!r} (expected one of none|kb|placebo)")
 
 
@@ -60,10 +65,11 @@ def run_ab(*, dataset, repos, index_db, catalog_path, out_dir,
     out.mkdir(parents=True, exist_ok=True)
     cards: dict[str, dict] = {}
     for arm in arms:
-        skills = _registry_for(arm, embedder)
+        knowledge = _registry_for(arm, embedder)
         runner = FixEvalRunner(issues=MockJira(dataset),
                                estate=GitFixtureEstate(repos, str(out / f"_work-{arm}")),
-                               catalog=catalog, tau_margin=0.0, tau_score=0.0, skills=skills)
+                               catalog=catalog, tau_margin=0.0, tau_score=0.0,
+                               knowledge=knowledge, knowledge_tier_floor="candidate")
         records = runner.run(cases, eval_arms, fixer=_make_fixer())
         card = grade_fix_all(records, oracle_by_case=oracle_by_case)
         (out / f"scorecard-{arm}.json").write_text(json.dumps(card, indent=2))
