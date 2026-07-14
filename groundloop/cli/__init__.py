@@ -772,11 +772,13 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "semantic", "dispatch"], default=None,
+    r.add_argument("--localize", choices=["atlas", "semantic", "dispatch", "tokens"], default=None,
                    help="localize retriever, chosen independently of --match-arm (default resolved by "
                         "--profile: atlas in core, semantic in labs): atlas (FTS5) | semantic (bge-m3 vector, "
                         "needs KLOOP_EMBED_BASE_URL) | dispatch (per-ticket: prose-only/no-anchor -> bge-m3 "
-                        "vector, crash/anchored -> FTS5; needs KLOOP_EMBED_BASE_URL). When it differs from the "
+                        "vector, crash/anchored -> FTS5; needs KLOOP_EMBED_BASE_URL) | tokens (signal-aware "
+                        "FTS5: query the extracted code tokens, fallback prose; no embedder — the validated "
+                        "file@1 lever). When it differs from the "
                         "match arm's native retrieve, the index is wrapped (SplitIndex / LocalizeDispatchIndex). "
                         "A labs-DEFAULTED semantic/dispatch localize degrades to atlas (warn) without an "
                         "embedder; explicit --localize semantic/dispatch fails closed.")
@@ -1188,6 +1190,9 @@ def main(argv: list[str] | None = None) -> int:
                     from groundloop.adapters.index.localize_dispatch import LocalizeDispatchIndex
                     index = LocalizeDispatchIndex(index, AtlasIndex(args.index_db),
                                                   SemanticAtlasIndex(args.index_db, emb))
+            elif localize_req == "tokens":
+                from groundloop.adapters.index.signal_query import SignalQueryIndex
+                index = SignalQueryIndex(index, AtlasIndex(args.index_db))
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)

@@ -41,3 +41,12 @@ def test_signals_from_doc_preserves_prose_mark():
     sig = _signals_from_doc(_Doc())
     assert sig.symbols[0].startswith(PROSE_MARK)
     assert is_functional_localize(sig) is True                    # would route to the functional retriever
+
+
+def test_localize_index_for_tokens_needs_no_embedder(tmp_path):
+    import json as _json
+    from groundloop.run.grade_run import _localize_index_for
+    from groundloop.adapters.index.signal_query import SignalQueryIndex
+    (tmp_path / "manifest.json").write_text(_json.dumps({"localize": "tokens"}))
+    idx, arm = _localize_index_for(str(tmp_path), "unused.db", None)   # embedder=None
+    assert isinstance(idx, SignalQueryIndex) and arm == "tokens"

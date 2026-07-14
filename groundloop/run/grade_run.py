@@ -37,6 +37,9 @@ def _localize_index_for(runs_dir, index_db, embedder):
             arm = json.loads(mpath.read_text()).get("localize", "atlas")
         except (json.JSONDecodeError, OSError):
             arm = "atlas"
+    if arm == "tokens":
+        from groundloop.adapters.index.signal_query import SignalQueryIndex
+        return SignalQueryIndex(AtlasIndex(index_db), AtlasIndex(index_db)), arm
     if arm in ("semantic", "dispatch") and embedder is not None:
         from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
         sem = SemanticAtlasIndex(index_db, embedder)
