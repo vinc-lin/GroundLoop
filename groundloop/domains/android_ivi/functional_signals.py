@@ -24,6 +24,19 @@ def prose_query(signals: Signals) -> str:
     return ""
 
 
+def is_functional_localize(signals: Signals) -> bool:
+    """Localize-side discriminator: True iff localize should use the semantic (bge-m3) retriever
+    instead of FTS5-over-symbols — the ticket is prose-marked (DispatchExtractor) OR carries no
+    code anchor at all. MATCH-ARM-INDEPENDENT: unlike DispatchIndex._is_functional (PROSE_MARK
+    only, correct only under the dispatch match arm), this also fires under the Core component/flood
+    extractors, where a no-crash ticket yields anchorless Signals. No anchor => no symbol token to
+    feed FTS5 => use the vector retriever. `errors` (generic exception names) are NOT anchors."""
+    if signals.symbols and signals.symbols[0].startswith(PROSE_MARK):
+        return True
+    return not (signals.classes or signals.methods or signals.symbols
+                or signals.libraries or signals.packages)
+
+
 def pack_prose(ticket: Ticket, logs: Sequence[LogAttachment]) -> Signals:
     prose = normalize_prose(ticket)
     # optional log evidence only (empty description so ticket prose is NOT double-counted here)
