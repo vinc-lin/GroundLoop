@@ -117,10 +117,13 @@ next instrumented `[production]` run.
 routing: prose-only/no-anchor tickets → the bge-m3 semantic retriever, crash/anchored tickets → the FTS5
 retriever, byte-identical to `atlas`; a composition-root class, no `core/`/schema edit; needs an embedder
 (`KLOOP_EMBED_BASE_URL`), else degrades to `atlas` with a warn (fails closed if `--localize dispatch` was
-explicit); **`[proxy]` read 2026-07-14** on 74 prose-only functional cases (isolated): lifts `file@5`
-0.014→**0.035** (+0.021) but **no `file@1` gain** (0.014→0.000) — vector-alone lifts recall, not rank-1
-(spec §7). Goal was `file@1`, so **stays Candidate, NOT promoted**; next lever = rerank the semantic pool
-(staging C). See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
+explicit); **`[production]` read 2026-07-14: INERT — `file@1 = 0/10`.** Under the production default
+`--match-arm component` the extractor is `ComponentExtractor(AndroidSignalExtractor())`, which never sets
+`PROSE_MARK` and fills `signals.classes` from the logcat, so `is_functional_localize` is always `False` →
+every ticket routes to FTS5 and the bge-m3 branch never engages (`--localize dispatch` ≡ `atlas` in prod).
+The earlier `[proxy]` "file@5 +0.021" was on prose-only (`logs=[]`) cases — the one shape where the
+discriminator fires — so **non-representative**. **Stays Candidate; needs a fault-frame-based discriminator
++ signals-in-query (Bug 2) + a grading path-normalization fix (Bug 3).** See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
 
 > **Now run-reachable (2026-07-13).** These arms are wired into `gloop run` as opt-in, fail-closed selectable
 > arms — `--match-arm {semantic,judge,functional,dispatch}` and `--localize semantic` (via `SplitIndex`) — so

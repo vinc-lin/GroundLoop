@@ -5,7 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
-| 2026-07-14 | functional localize dispatch — proxy A/B | `[proxy]` | 74 prose-only functional cases, isolated on oracle repo: `dispatch` (bge-m3) lifts **file@5 0.014→0.035** (+0.021) but **file@1 0.014→0.000** — vector-alone lifts recall, not rank-1 (as spec §7 predicted). Goal was file@1 ⇒ **stays Candidate, not promoted**; next = rerank (staging C) |
+| 2026-07-14 | functional localize dispatch — **`[production]` = INERT** (+ non-representative proxy) | `[production]` | **GEI run: `file@1 = 0/10`** — dispatch's semantic branch **never engages** under `--match-arm component` (real tickets carry logcat → `AndroidSignalExtractor` fills `classes` → `is_functional_localize`=False → FTS5, always). The earlier `[proxy]` "file@5 +0.021" was on **prose-only (`logs=[]`) cases** where the discriminator fires — NOT representative of production. Also: grading path-prefix mismatch (`app/src/main/java` vs `src/java`) marks rank-1 hits as misses (score understated). Bugs confirmed in code |
 | 2026-07-14 | KB rename `Claim`→`Knowledge` + Lane-A removal | governance | vocabulary + surface correction only: distilled unit renamed (`--knowledge`, `knowledge.json`), Skill is input-only, Lane A (harvest→distill) removed, `kb-ab` gates on Knowledge — **no efficacy change**, KB stays Candidate/unproven |
 | 2026-07-13 | labs arms run-reachable + functional-arm A/B | `[proxy]` | experimental arms wired into `gloop run` + `KLOOP_LABS` switch (Core default unchanged); functional recall@1 **0.68** vs flood 0.32 (+0.36) on 212 functional bugs via the built `textprofile-9.db`; stays Candidate |
 | 2026-07-13 | Production-Core defaults + loop closure (11-task branch) | governance | Bug Plan Mode → **Provisional-Core** default (`--fixer plan`); feedback data-plane + reporting-edge closed on dev box; dev-gate + hardened `--repos`. **No new efficacy read** — deferred `[production]` `resolved_rate` A/B (plan vs model) is the resolver |
@@ -21,7 +21,22 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 ---
 
-## 2026-07-14 · functional localize dispatch — proxy A/B · `[proxy]`
+## 2026-07-14 · functional localize dispatch — `[production]` INERT (proxy was non-representative) · `[production]`
+
+**⚠ Correction (production read).** A GEI `[production]` run scored `--localize dispatch` at **`file@1 = 0/10`**
+and a code-verified RCA shows why: under the production default `--match-arm component`, the extractor is
+`ComponentExtractor(AndroidSignalExtractor())`, which **never sets `PROSE_MARK`** and fills `signals.classes`
+from the ticket's logcat — so `is_functional_localize` always returns `False` and every ticket routes to FTS5.
+**The bge-m3 branch never engages in production; `--localize dispatch` ≡ `--localize atlas` there.** The
+proxy A/B below is real but **non-representative**: it used prose-only (`logs=[]`) cases, the one shape where
+the discriminator fires. Two more confirmed bugs: (2) the localize query is `ticket.summary` only
+(`core/workflow.py:33`), so the strong log-extracted code tokens in `signals` are wasted — likely the real
+file@1 lever, fixable via the stateful adapter (no `core/` edit); (3) grading `norm_path`
+(`fix/patch.py:74`) + exact `recall_at_k` don't reconcile module-prefix differences (`app/src/main/java` vs
+`src/java`), so rank-1 hits score as misses (production number understated). Fix order for file@1:
+**(3) grading → (2) signals-in-query → (1) fault-frame-based routing.**
+
+### (superseded) proxy A/B — prose-only, non-representative
 
 First measured read of `--localize dispatch` (`LocalizeDispatchIndex`; merge `1493c5d`). Substrate: 74
 **prose-only** (`ui_text`, empty-log) functional cases from `functional-clean` (owners span all 9 repos),
