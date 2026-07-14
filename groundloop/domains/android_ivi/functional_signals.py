@@ -24,7 +24,7 @@ def prose_query(signals: Signals) -> str:
     return ""
 
 
-def is_functional_localize(signals) -> bool:
+def is_functional_localize(signals: Signals) -> bool:
     """Localize-side discriminator: True (=> semantic/bge-m3 retriever) iff the ticket is prose-marked
     OR carries NO crash-frame evidence. Crash evidence = a parsed Java stack frame (signals.methods —
     populated ONLY by the `at pkg.Class.method(` frame regex) or a native backtrace frame (a non-PROSE
@@ -39,16 +39,14 @@ def is_functional_localize(signals) -> bool:
     return not (signals.methods or real_symbols)
 
 
-def code_query(signals) -> str:
+def code_query(signals: Signals) -> str:
     """FTS5 localize query built from the extracted CODE tokens (classes/methods/packages/symbols/
-    libraries), dropping the reserved PROSE_MARK / COMPONENT_MARK marker tokens. '' if none. The crash
-    localize branch uses this instead of the prose summary (which has no code tokens to match symbols)."""
-    from groundloop.domains.android_ivi.component_signals import COMPONENT_MARK
-    reserved = (PROSE_MARK, COMPONENT_MARK)
+    libraries), dropping the reserved PROSE_MARK marker token. '' if none. The crash localize branch
+    uses this instead of the prose summary (which has no code tokens to match symbols)."""
     seen: dict[str, None] = {}
     for group in (signals.classes, signals.methods, signals.packages, signals.symbols, signals.libraries):
         for t in group:
-            if t and not t.startswith(reserved):
+            if t and not t.startswith(PROSE_MARK):
                 seen.setdefault(t, None)
     return " ".join(seen)
 

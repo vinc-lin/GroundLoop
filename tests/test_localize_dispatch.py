@@ -128,3 +128,10 @@ def test_functional_branch_keeps_prose_summary_query():
     d = LocalizeDispatchIndex(_FakeMatch(), _EchoRetriever(), _EchoRetriever())
     d.rank_repos(Signals(classes=("com.x.Foo",)), [RepoRef("r")])   # no frame -> functional
     assert d.retrieve(RepoRef("r"), "wrong label") == ["q=wrong label"]   # prose summary for bge-m3
+
+
+def test_code_query_drops_prose_mark_and_dedups_in_order():
+    from groundloop.domains.android_ivi.functional_signals import code_query
+    sig = Signals(classes=("com.x.Foo", "com.x.Foo"), methods=("bar",),
+                  symbols=(PROSE_MARK + "prose", "IAP2Session"))
+    assert code_query(sig) == "com.x.Foo bar IAP2Session"   # prose-mark dropped, deduped, class->method->symbol order
