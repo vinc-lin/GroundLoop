@@ -20,7 +20,7 @@ def test_resolve_arms_core_and_labs(monkeypatch):
             ["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch", "--index-db", "a.db",
              "--out", "o", "--repos", "r", *extra])
     monkeypatch.delenv("KLOOP_LABS", raising=False)
-    assert _resolve_arms(parse([])) == ("component", "atlas", "core")
+    assert _resolve_arms(parse([])) == ("component", "tokens", "core")
     assert _resolve_arms(parse(["--profile", "labs"])) == ("routing", "semantic", "labs")
     assert _resolve_arms(parse(["--profile", "labs", "--match-arm", "functional"])) == ("functional", "semantic", "labs")
     assert _resolve_arms(parse(["--profile", "labs", "--localize", "atlas"])) == ("routing", "atlas", "labs")
@@ -36,7 +36,7 @@ def test_kloop_labs_falsey_values_do_not_enable_labs(monkeypatch):
                                       "--changes", "ch", "--index-db", "a.db", "--out", "o", "--repos", "r"])
     for falsey in ("0", "false", "no", "off", ""):
         monkeypatch.setenv("KLOOP_LABS", falsey)
-        assert _resolve_arms(args) == ("component", "atlas", "core")   # stays Core
+        assert _resolve_arms(args) == ("component", "tokens", "core")   # stays Core-aligned
     monkeypatch.setenv("KLOOP_LABS", "1")
     assert _resolve_arms(args)[2] == "labs"                            # affirmative still works
 

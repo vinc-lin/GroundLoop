@@ -39,8 +39,7 @@ def test_localize_semantic_wraps_in_split_index(monkeypatch):
     assert isinstance(seen.get("index"), SplitIndex)   # localize was split onto SemanticAtlasIndex
 
 
-def test_localize_atlas_default_no_split(monkeypatch):
-    """Default --localize atlas with a non-semantic match leaves the index unwrapped (no SplitIndex)."""
+def _captured_index(monkeypatch, extra):
     seen = {}
     import groundloop.run.batch as batch
     monkeypatch.setattr(batch, "run_dataset",
@@ -49,8 +48,24 @@ def test_localize_atlas_default_no_split(monkeypatch):
     try:
         main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
               "--index-db", "a.db", "--out", "o", "--repos", "r", "--fixer", "canned",
-              "--match-arm", "flood"])
+              "--match-arm", "flood", *extra])
     except Exception:
         pass
+    return seen.get("index")
+
+
+def test_localize_atlas_explicit_no_wrap(monkeypatch):
+    """Explicit --localize atlas with a non-semantic match leaves the index unwrapped (the reversible
+    opt-out from the tokens default): neither a SplitIndex nor a SignalQueryIndex."""
     from groundloop.adapters.index.split import SplitIndex
-    assert not isinstance(seen.get("index"), SplitIndex)
+    from groundloop.adapters.index.signal_query import SignalQueryIndex
+    idx = _captured_index(monkeypatch, ["--localize", "atlas"])
+    assert not isinstance(idx, (SplitIndex, SignalQueryIndex))
+
+
+def test_localize_tokens_is_core_default_wraps_signalquery(monkeypatch):
+    """Core default (no --localize) is now `tokens` (Provisional-Core): the index is wrapped in
+    SignalQueryIndex so the localize FTS5 query uses the extracted code tokens."""
+    from groundloop.adapters.index.signal_query import SignalQueryIndex
+    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = tokens
+    assert isinstance(idx, SignalQueryIndex)

@@ -774,7 +774,8 @@ def build_parser() -> argparse.ArgumentParser:
                         "else KLOOP_FUNCTIONAL_PROFILE")
     r.add_argument("--localize", choices=["atlas", "semantic", "dispatch", "tokens"], default=None,
                    help="localize retriever, chosen independently of --match-arm (default resolved by "
-                        "--profile: atlas in core, semantic in labs): atlas (FTS5) | semantic (bge-m3 vector, "
+                        "--profile: tokens in core (Provisional-Core, no embedder), semantic in labs): "
+                        "atlas (FTS5, prose query — the reversible opt-out) | semantic (bge-m3 vector, "
                         "needs KLOOP_EMBED_BASE_URL) | dispatch (per-ticket: prose-only/no-anchor -> bge-m3 "
                         "vector, crash/anchored -> FTS5; needs KLOOP_EMBED_BASE_URL) | tokens (signal-aware "
                         "FTS5: query the extracted code tokens, fallback prose; no embedder — the validated "
@@ -1001,7 +1002,7 @@ def _resolve_arms(args):
     profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile)."""
     labs = args.profile == "labs" or _env_flag("KLOOP_LABS")
     match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
-    localize = args.localize if args.localize is not None else ("semantic" if labs else "atlas")
+    localize = args.localize if args.localize is not None else ("semantic" if labs else "tokens")
     return match_arm, localize, ("labs" if labs else "core")
 
 

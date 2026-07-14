@@ -100,13 +100,14 @@ The **affinity miner** `gloop mine-affinity` is the *offline build step* that pr
 production build step feeding Core, like `gloop index`; it is **not** a `run_ticket` stage and the re-point
 does not touch it.
 
-### Provisional-Core — default-on on a fail-safe/safety argument, effectiveness production-gated (1)
+### Provisional-Core — default-on on a fail-safe/safety argument, effectiveness production-gated (2)
 Admitted under the §2 Provisional-Core criteria (fail-safe mechanism + charter-aligned safety + a scheduled
 production read). Default-on, but the *effectiveness* claim is production-gated and **must** be resolved by the
 next instrumented `[production]` run.
 | Capability | Why default-on (the safety half — proven) | The gate that resolves it (the effectiveness half — open) |
 |---|---|---|
 | **`PlanningFixEngine`** — "Bug Plan Mode" (plan→gate→re-plan→abstain→execute); `--fixer plan`, **the run default** since 2026-07-13 | Fail-safe by construction: the in-world gate scope-checks every target *before any disk read*, and the executed diff is **re-gated** against candidate scope, so it **abstains** (empty patch) rather than emit an out-of-scope or ungrounded fix. Measured `fabrication_rate = 0.0` `[proxy]`, with a recorded case of it abstaining where the direct fixer fabricated. That honesty *is* a charter-aligned production improvement and reduces incorrect-run risk (Ask-3). | **No measured resolution lift** over `ModelPatchEngine` yet — `resolved_rate` was never gradeable (`[proxy]` ungradeable 2026-07-07; 0-floor 2026-07-13). The next instrumented `[production]` run measures `resolved_rate` (grade-run emits a promotion-eligibility note) → **confirm Core** if it clears the bar with `fabrication_rate ≤ 0`, else **revert** to `--fixer model`. Until then it is bounded: it reverts on governance debt. |
+| **`SignalQueryIndex`** — signal-aware FTS5 localize; `--localize tokens`, **the run default** since 2026-07-15 (was `atlas`) | **Fail-safe-adjacent (honest caveat).** It is NOT the classic "abstains" mechanism — but it introduces **no new failure mode** over the `atlas` default it replaces: a token-less ticket has empty `code_query` → falls back byte-identical to `atlas` (prose FTS5); a token-bearing ticket queries the extracted code tokens (real class/method names) instead of prose — strictly *more grounded* (charter-aligned "grounding over narrative") and inside FTS5's existing retrieval envelope (not an aggressive re-ranker, the §2 exclusion). Strong `[proxy]` evidence: functional isolated `file@1` **0.010→0.166 (16×)** with **no gateway dependency** (pure FTS5), ≥ the atlas/dispatch arms per class. Trivially reversible: `--localize atlas`. | **Only `[proxy]` evidence; no `[production]` read yet.** The residual regression surface is a ticket whose extracted tokens localize *worse* than its summary (measured: `audio` −0.017, ~1/69 — a weak `.so`-only signal). The next instrumented `[production]` GEI run measures `--localize tokens` vs `atlas` `file@1` → **confirm Core** if it wins (with `canonical_path` grading), else **revert** to `--localize atlas`. Bounded: reverts on governance debt. |
 
 ### Candidate — Dev-Labs research, blocked on a first `[production]` read (7)
 `FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
@@ -131,8 +132,9 @@ dispatch lifted functional isolated `file@1` 0.010→**0.161** `[proxy]` — but
 **NO embedder** (pure FTS5); a composition-root class, no `core/`/schema edit). This is the "keep only
 the winner" distillation of dispatch: `[proxy]` functional isolated `file@1` **0.166** ≈ dispatch (0.161)
 and ≥ dispatch per class (carplay 0→0.494; ui_text 0.014 vs dispatch's 0.000 — it falls back to atlas, not
-the worse semantic branch). Because it needs no gateway, it is a viable **Core default** — the
-**default candidate**, awaiting a `[production]` GEI read to promote. See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
+the worse semantic branch). Because it needs no gateway, it is a viable Core default — **PROMOTED 2026-07-15 to the Provisional-Core
+default `--localize tokens`** (see the Provisional-Core table above; `--localize atlas` is the reversible
+opt-out; `[production]` GEI read pending as the resolver). See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
 
 > **Now run-reachable (2026-07-13).** These arms are wired into `gloop run` as opt-in, fail-closed selectable
 > arms — `--match-arm {semantic,judge,functional,dispatch}` and `--localize semantic` (via `SplitIndex`) — so
