@@ -4,7 +4,8 @@ routes localize (retrieve) by the LAST-seen Signals — prose-only / no-anchor t
 retrieve back-to-back per ticket and run/batch.py runs cases sequentially, so stashing the Signals in
 rank_repos is race-free. note_signals() seeds the Signals for out-of-loop callers (grade-run's
 isolated-localize diagnostic) that call retrieve without a preceding rank_repos. No core/ or schema
-edit; the crash path is byte-identical to today's atlas FTS5 localize."""
+edit; the crash path delegates unchanged to the injected FTS5 retriever (byte-identical when wired
+to AtlasIndex)."""
 from __future__ import annotations
 
 from typing import Sequence

@@ -76,3 +76,11 @@ def test_note_signals_seeds_functional_route_for_out_of_loop_callers():
     d = _dispatch()
     d.note_signals(Signals(symbols=(PROSE_MARK + "prose",)))
     assert d.retrieve(RepoRef("r"), "q") == ["func:r"]
+
+
+def test_rank_repos_refreshes_stash_across_tickets_on_one_instance():
+    d = _dispatch()
+    d.rank_repos(Signals(classes=("com.x.Foo",)), [RepoRef("r")])   # ticket 1: anchored -> crash
+    assert d.retrieve(RepoRef("r"), "q") == ["crash:r"]
+    d.rank_repos(Signals(), [RepoRef("r")])                          # ticket 2 (same instance): no-anchor
+    assert d.retrieve(RepoRef("r"), "q") == ["func:r"]               # must re-route, not stay crash
