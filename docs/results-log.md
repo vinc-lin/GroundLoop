@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-15 | **`--localize tokens`** (signal-aware FTS5) 3-arm A/B | `[proxy]` | 212 functional cases, isolated + canonical: **tokens file@1 0.166 ≈ dispatch 0.161 but with NO embedder** (pure FTS5), and ≥ dispatch per class (ui_text 0.014 vs dispatch 0.000 — tokens falls back to atlas, dispatch to worse semantic). ⇒ the semantic branch adds an embedder dep for negative file@1 value; **`tokens` is the default candidate** (Candidate, awaiting `[production]`) |
 | 2026-07-14 | localize dispatch **prod-fixes A/B** (Bugs 1/2/3) | `[proxy]` | 212 functional cases, isolated + canonical grading: fixed dispatch **file@1 0.010→0.161** (+0.151). **Entirely from Bug 2** (code-tokens-in-FTS5): carplay (log carries fault class) **0→0.494**; the semantic branch (Bug 1) is neutral-to-negative (audio/ui_text ~0 either way). ⇒ **Bug 2 is the lever; make tokens-in-query the default; demote semantic.** Re-run GEI to resolve `[production]` |
 | 2026-07-14 | functional localize dispatch — **`[production]` = INERT** (+ non-representative proxy) | `[production]` | **GEI run: `file@1 = 0/10`** — dispatch's semantic branch **never engages** under `--match-arm component` (real tickets carry logcat → `AndroidSignalExtractor` fills `classes` → `is_functional_localize`=False → FTS5, always). The earlier `[proxy]` "file@5 +0.021" was on **prose-only (`logs=[]`) cases** where the discriminator fires — NOT representative of production. Also: grading path-prefix mismatch (`app/src/main/java` vs `src/java`) marks rank-1 hits as misses (score understated). Bugs confirmed in code |
 | 2026-07-14 | KB rename `Claim`→`Knowledge` + Lane-A removal | governance | vocabulary + surface correction only: distilled unit renamed (`--knowledge`, `knowledge.json`), Skill is input-only, Lane A (harvest→distill) removed, `kb-ab` gates on Knowledge — **no efficacy change**, KB stays Candidate/unproven |
@@ -19,6 +20,25 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-07 | claim-centric KB (Phase D) | `[proxy]` | retain-loop validated **0/60** claims; no-injection 0.51 > placebo 0.37 > raw Skills 0.22 |
 | 2026-07-06 | first cross-stage evaluation | `[proxy]` | match recall@1 **0.60** synth / 0.02–0.23 real; localize 0.85@1 (oracle repo); fix/KB gated |
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
+
+---
+
+## 2026-07-15 · `--localize tokens` (signal-aware FTS5) 3-arm A/B · `[proxy]`
+
+`--localize tokens` = the "keep only the winner" distillation of the prior fix: a `SignalQueryIndex`
+that queries `code_query(signals)` (extracted code tokens, fallback prose summary) — NO semantic branch,
+NO embedder (pure FTS5). Same 212 `functional-clean` cases, isolated + canonical grading, added as a
+third arm to the 2026-07-14 A/B below.
+
+- **Overall isolated `file@1`: atlas 0.010 · dispatch 0.161 · tokens 0.166 `[proxy]`** (`file@5`: 0.019 /
+  0.209 / 0.198). tokens ≈ dispatch on `file@1` **but needs no gateway embedder.**
+- **Per class `file@1`:** carplay 0.000 / 0.494 / **0.494** (tokens == dispatch — both FTS5-tokens);
+  ui_text 0.014 / 0.000 / **0.014** (tokens ≥ dispatch — falls back to atlas-summary, not the worse
+  semantic branch); audio 0.017 / 0.001 / 0.000 (all ~0, no fault-class token).
+- **Verdict:** the bge-m3 **semantic branch adds an embedder dependency + complexity for NEGATIVE
+  `file@1` value** — `tokens` equals dispatch's win, is ≥ per class, and is pure FTS5. **`--localize tokens`
+  is the default candidate** (Candidate, no-embedder ⇒ a viable Core default) pending a `[production]`
+  GEI read. Artifacts: `/home/vinc/gl-eval/loca-ab2/` (`run-tokens`/`grade-tokens.json`).
 
 ---
 

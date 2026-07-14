@@ -122,8 +122,17 @@ explicit); **`[production]` read 2026-07-14: INERT — `file@1 = 0/10`.** Under 
 `PROSE_MARK` and fills `signals.classes` from the logcat, so `is_functional_localize` is always `False` →
 every ticket routes to FTS5 and the bge-m3 branch never engages (`--localize dispatch` ≡ `atlas` in prod).
 The earlier `[proxy]` "file@5 +0.021" was on prose-only (`logs=[]`) cases — the one shape where the
-discriminator fires — so **non-representative**. **Stays Candidate; needs a fault-frame-based discriminator
-+ signals-in-query (Bug 2) + a grading path-normalization fix (Bug 3).** See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
+discriminator fires — so **non-representative**. **Bugs 1/2/3 FIXED 2026-07-14** (frame-evidence
+discriminator + crash-branch code-tokens query + grading `canonical_path`, merged to master): the fixed
+dispatch lifted functional isolated `file@1` 0.010→**0.161** `[proxy]` — but the A/B showed the win is
+**entirely the FTS5-code-tokens branch**, while the bge-m3 semantic branch is neutral-to-negative at
+`file@1`.) · the **signal-aware FTS5 localize** (`SignalQueryIndex`, 2026-07-15 — reachable via `gloop run
+--localize tokens`; queries `code_query(signals)` = the extracted code tokens, fallback prose summary;
+**NO embedder** (pure FTS5); a composition-root class, no `core/`/schema edit). This is the "keep only
+the winner" distillation of dispatch: `[proxy]` functional isolated `file@1` **0.166** ≈ dispatch (0.161)
+and ≥ dispatch per class (carplay 0→0.494; ui_text 0.014 vs dispatch's 0.000 — it falls back to atlas, not
+the worse semantic branch). Because it needs no gateway, it is a viable **Core default** — the
+**default candidate**, awaiting a `[production]` GEI read to promote. See [`results-log.md`](results-log.md).) (`PlanningFixEngine` moved to **Provisional-Core** above on 2026-07-13.)
 
 > **Now run-reachable (2026-07-13).** These arms are wired into `gloop run` as opt-in, fail-closed selectable
 > arms — `--match-arm {semantic,judge,functional,dispatch}` and `--localize semantic` (via `SplitIndex`) — so
