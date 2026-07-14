@@ -12,7 +12,7 @@ from groundloop.eval.arms import Arm
 from groundloop.eval.dataset import CaseRef, case_catalog
 from groundloop.fixeval.localize import localize
 from groundloop.fixeval.patch import patch_applies
-from groundloop.kb.render import render_claims
+from groundloop.kb.render import render_knowledge
 from groundloop.skills.base import render_skills
 from groundloop.skills.ctx import build_ctx
 
@@ -59,12 +59,12 @@ class FixRecord:
     groundedness: float | None = None
     replans: int = 0
     fired_skills: tuple[str, ...] = ()
-    fired_claims: tuple[str, ...] = ()
+    fired_knowledge: tuple[str, ...] = ()
 
 
 class FixEvalRunner:
     def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float,
-                 max_refine: int = 1, skills=None, claims=None, claims_tier_floor: str = "validated",
+                 max_refine: int = 1, skills=None, knowledge=None, knowledge_tier_floor: str = "validated",
                  skill_inject: str = "both"):
         self.issues = issues
         self.estate = estate                     # materialize only
@@ -73,8 +73,8 @@ class FixEvalRunner:
         self.tau_score = tau_score
         self.max_refine = max_refine
         self.skills = skills                     # a SkillRegistry or None (the `--skills` arm knob)
-        self.claims = claims                     # a ClaimRegistry or None (the `--claims` arm knob)
-        self.claims_tier_floor = claims_tier_floor   # TIERS floor: `candidate` in eval, `validated` in prod
+        self.knowledge = knowledge               # a KnowledgeRegistry or None (the `--knowledge` arm knob)
+        self.knowledge_tier_floor = knowledge_tier_floor  # TIERS floor: `candidate` in eval, `validated` prod
         self.skill_inject = skill_inject         # both (localize query + fix prompt) | fix-only (fix prompt only)
 
     def run(self, cases: Sequence[CaseRef], arms: Sequence[Arm], *, fixer) -> list[FixRecord]:
@@ -102,14 +102,14 @@ class FixEvalRunner:
         if d.predicted is None:                               # PRIMARY abstain gate (match)
             return rec(abstain_reason="no_repo_match")
         predicted = d.predicted
-        # SKILL/CLAIM INJECTION (post-match, oracle-blind): key on the arm's signals + the predicted repo
+        # SKILL/KNOWLEDGE INJECTION (post-match, oracle-blind): key on the arm's signals + the predicted repo
         # + the raw ticket/log haystack. Empty when nothing applies -> byte-identical to none/none.
         f = fixer
         skill_query = ""
         fired: tuple = ()
-        selected_claims: list = []               # B4 captures ids off this local
+        selected_knowledge: list = []            # B4 captures ids off this local
         ctx = None
-        if self.skills is not None or self.claims is not None:
+        if self.skills is not None or self.knowledge is not None:
             ctx = build_ctx(signals, ticket, predicted)       # loop-visible only (oracle-blind)
         skill_pre = ""
         if self.skills is not None:
@@ -119,20 +119,20 @@ class FixEvalRunner:
             # fix-only: skills feed ONLY the fix/plan prompt (skill_pre) -> localize stays byte-identical
             # to the `none` arm. both (default): they also bias the localize retrieval query.
             skill_query = _skill_query(selected) if self.skill_inject == "both" else ""
-        claim_pre = ""
-        if self.claims is not None:
-            selected_claims = self.claims.select(ctx, self.claims_tier_floor)
-            claim_pre = render_claims(selected_claims)         # PLAN-prompt preamble only
-        preamble = skill_pre + claim_pre                       # skills first; each is "" when its arm is off
+        knowledge_pre = ""
+        if self.knowledge is not None:
+            selected_knowledge = self.knowledge.select(ctx, self.knowledge_tier_floor)
+            knowledge_pre = render_knowledge(selected_knowledge)   # PLAN-prompt preamble only
+        preamble = skill_pre + knowledge_pre                   # skills first; each is "" when its arm is off
         if preamble:
             f = fixer.with_preamble(preamble)
-        fired_claims = tuple(getattr(c, "id", "") for c in selected_claims)
+        fired_knowledge = tuple(getattr(k, "id", "") for k in selected_knowledge)
         c0 = self._cost(fixer)
         wt = self.estate.materialize(RepoRef(predicted))
         locations = localize(arm.index, predicted, signals, ticket.summary, skill_query=skill_query)
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
-                       cost_usd=self._cost(fixer) - c0, fired_skills=fired, fired_claims=fired_claims)
+                       cost_usd=self._cost(fixer) - c0, fired_skills=fired, fired_knowledge=fired_knowledge)
         plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
         applies = patch_applies(patch.diff, wt.path)
         iters = 0
@@ -141,7 +141,7 @@ class FixEvalRunner:
             plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
             applies = patch_applies(patch.diff, wt.path)
         pmeta = dict(plan=plan_dict, groundedness=meta.get("groundedness"),
-                     replans=meta.get("replans", 0), fired_skills=fired, fired_claims=fired_claims)
+                     replans=meta.get("replans", 0), fired_skills=fired, fired_knowledge=fired_knowledge)
         if not patch.diff or not applies:                     # SECONDARY: unappliable -> abstain
             return rec(predicted_repo=predicted, locations=locations, refine_iters=iters,
                        abstain_reason="patch_unappliable", cost_usd=self._cost(fixer) - c0, **pmeta)

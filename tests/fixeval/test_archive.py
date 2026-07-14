@@ -56,21 +56,21 @@ def test_fixrecord_fired_skills_defaults_empty():
     assert r.fired_skills == ()
 
 
-def test_archive_captures_fired_claims(tmp_path):
+def test_archive_captures_fired_knowledge(tmp_path):
     rec = FixRecord(case_id="c1", arm="plan", predicted_repo="r", locations=[], patch_diff="",
                     patch_files=[], patch_emitted=True, patch_applies=True, abstained=False,
                     abstain_reason=None, refine_iters=0, cost_usd=0.0,
                     plan={"root_cause": "rc", "targets": []}, groundedness=1.0, replans=0,
-                    fired_skills=("native-null-deref-segv",), fired_claims=("c-seg",))
+                    fired_skills=("native-null-deref-segv",), fired_knowledge=("c-seg",))
     n = archive_plans([rec], str(tmp_path))
     assert n == 1
     payload = json.loads(next((tmp_path / "plans").glob("*.json")).read_text())
-    assert payload["fired_claims"] == ["c-seg"]
+    assert payload["fired_knowledge"] == ["c-seg"]
     assert payload["fired_skills"] == ["native-null-deref-segv"]   # independent, still present
 
 
-def test_fixrecord_fired_claims_defaults_empty():
+def test_fixrecord_fired_knowledge_defaults_empty():
     r = FixRecord(case_id="c", arm="a", predicted_repo="r", locations=["x"], patch_diff="d",
                   patch_files=["x"], patch_emitted=True, patch_applies=True, abstained=False,
                   abstain_reason=None, refine_iters=0, cost_usd=0.0, plan={"root_cause": "rc"})
-    assert r.fired_claims == ()
+    assert r.fired_knowledge == ()

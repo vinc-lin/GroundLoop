@@ -1,6 +1,6 @@
-"""Deterministic, oracle-blind ground-check for a candidate Claim (design spec §5.2).
+"""Deterministic, oracle-blind ground-check for a candidate Knowledge item (design spec §5.2).
 
-A claim is admitted to the store only if it (a) is WELL-FORMED (valid type, non-empty content, a
+A knowledge item is admitted to the store only if it (a) is WELL-FORMED (valid type, non-empty content, a
 compilable applies_when predicate — reuse skills/predicate.compile_predicate), (b) is GROUNDED — every
 grounding_ref resolves in the atlas (some unit exists for it, fleet-wide) — and (c) is LEAK-SAFE — its
 content / grounding_refs / applies_when name NO fleet-owner token (the same FLEET_OWNER_TOKENS red-test the
@@ -77,50 +77,51 @@ def atlas_resolver(store, *, k: int = 20) -> Callable[[str], bool]:
     return _resolves
 
 
-def _leak_haystack(claim) -> str:
+def _leak_haystack(knowledge) -> str:
     """Lowercased content + grounding_refs + applies_when values — the same surface validate_corpus scans."""
-    parts = [claim.content, " ".join(claim.grounding_refs)]
-    for v in (claim.applies_when or {}).values():
+    parts = [knowledge.content, " ".join(knowledge.grounding_refs)]
+    for v in (knowledge.applies_when or {}).values():
         if isinstance(v, (list, tuple)):
             parts.append(" ".join(str(x) for x in v))
     return "\n".join(parts).lower()
 
 
-def check_claim_grounded(claim, resolver: Callable[[str], bool], *,
-                         denylist: Optional[set[str]] = None) -> GroundCheck:
-    """Dispose one candidate Claim. Grounded iff there are no reasons: well-formed AND every grounding_ref
-    resolves AND no fleet-owner leak. `denylist` defaults to the FLEET_OWNER_TOKENS-derived owner_denylist()."""
+def check_knowledge_grounded(knowledge, resolver: Callable[[str], bool], *,
+                             denylist: Optional[set[str]] = None) -> GroundCheck:
+    """Dispose one candidate Knowledge item. Grounded iff there are no reasons: well-formed AND every
+    grounding_ref resolves AND no fleet-owner leak. `denylist` defaults to the
+    FLEET_OWNER_TOKENS-derived owner_denylist()."""
     deny = owner_denylist() if denylist is None else denylist
     reasons: list[str] = []
 
-    # (a) well-formedness — a claim that can't type-check or can't fire is never grounded/effective.
-    if claim.type not in _VALID_TYPES:
-        reasons.append(f"bad_type:{claim.type}")
-    if not (claim.content or "").strip():
+    # (a) well-formedness — an item that can't type-check or can't fire is never grounded/effective.
+    if knowledge.type not in _VALID_TYPES:
+        reasons.append(f"bad_type:{knowledge.type}")
+    if not (knowledge.content or "").strip():
         reasons.append("empty_content")
-    if not (claim.id or "").strip():
+    if not (knowledge.id or "").strip():
         reasons.append("empty_id")
-    if not claim.applies_when:
+    if not knowledge.applies_when:
         reasons.append("empty_predicate")             # would never fire
     else:
         try:
-            compile_predicate(claim.applies_when)     # reuse: closed-vocab keys + eager regex compile
+            compile_predicate(knowledge.applies_when)  # reuse: closed-vocab keys + eager regex compile
         except ValueError as e:
             reasons.append(f"bad_predicate:{e}")
 
     # (b) existence — every grounding_ref must resolve fleet-wide in the atlas (else hallucinated).
     resolved: list[str] = []
     missing: list[str] = []
-    for ref in claim.grounding_refs:
+    for ref in knowledge.grounding_refs:
         (resolved if resolver(ref) else missing).append(ref)
-    if not claim.grounding_refs:
+    if not knowledge.grounding_refs:
         reasons.append("no_grounding_refs")           # cites nothing -> nothing grounded
     if missing:
         reasons.append("unresolved_refs:" + ",".join(missing))
 
     # (c) leak red-test — no fleet-owner token in content/grounding_refs/applies_when (generic android.*
     #     / androidx.* / sonames are KEPT, exactly as validate_corpus).
-    hay = _leak_haystack(claim)
+    hay = _leak_haystack(knowledge)
     leak = tuple(tok for tok in sorted(deny) if tok in hay)
     if leak:
         reasons.append("leak:" + ",".join(leak))

@@ -1,21 +1,22 @@
-"""Oracle-blind ground-check for candidate Claims (Phase A2). Hermetic: a fake resolver stands in for the
-atlas; the leak red-test runs against the REAL FLEET_OWNER_TOKENS denylist (kb/validate.owner_denylist)."""
+"""Oracle-blind ground-check for candidate Knowledge items (Phase A2). Hermetic: a fake resolver stands in
+for the atlas; the leak red-test runs against the REAL FLEET_OWNER_TOKENS denylist
+(kb/validate.owner_denylist)."""
 import sqlite3
 
 import pytest
 
 from groundloop.engines.atlas.store import Store, Unit
-from groundloop.kb.claim import Claim
-from groundloop.kb.claim_ground import atlas_resolver, check_claim_grounded
+from groundloop.kb.knowledge import Knowledge
+from groundloop.kb.knowledge_ground import atlas_resolver, check_knowledge_grounded
 
 
-def _claim(**over) -> Claim:
+def _knowledge(**over) -> Knowledge:
     base = dict(id="c-guard", applies_when={"any_text": ["sigsegv"]}, type="fix_step",
                 content="Reject a 0 handle at native method entry before dereferencing it.",
                 grounding_refs=("GetLongField", "reinterpret_cast"),
                 provenance="native-null-deref-segv", tier="candidate", evidence={})
     base.update(over)
-    return Claim(**base)
+    return Knowledge(**base)
 
 
 def _resolver(known):
@@ -24,14 +25,14 @@ def _resolver(known):
 
 
 def test_grounded_when_all_refs_resolve_and_no_leak():
-    chk = check_claim_grounded(_claim(), _resolver(["GetLongField", "reinterpret_cast"]))
+    chk = check_knowledge_grounded(_knowledge(), _resolver(["GetLongField", "reinterpret_cast"]))
     assert chk.grounded is True
     assert chk.reasons == ()
     assert set(chk.resolved_refs) == {"GetLongField", "reinterpret_cast"}
 
 
 def test_unresolved_ref_is_not_grounded():
-    chk = check_claim_grounded(_claim(), _resolver(["GetLongField"]))     # reinterpret_cast missing
+    chk = check_knowledge_grounded(_knowledge(), _resolver(["GetLongField"]))     # reinterpret_cast missing
     assert chk.grounded is False
     assert chk.missing_refs == ("reinterpret_cast",)
     assert any(r.startswith("unresolved_refs:") for r in chk.reasons)
@@ -39,22 +40,22 @@ def test_unresolved_ref_is_not_grounded():
 
 def test_owner_token_leak_is_rejected():
     # "exoplayer" is a media3 owner slug in FLEET_OWNER_TOKENS -> a leak even though the ref resolves.
-    c = _claim(content="Guard the ExoPlayer native peer handle.", grounding_refs=("GetLongField",))
-    chk = check_claim_grounded(c, _resolver(["GetLongField"]))
+    k = _knowledge(content="Guard the ExoPlayer native peer handle.", grounding_refs=("GetLongField",))
+    chk = check_knowledge_grounded(k, _resolver(["GetLongField"]))
     assert chk.grounded is False
     assert "exoplayer" in chk.leak_tokens
 
 
 def test_bad_type_and_empty_content_flagged():
-    chk = check_claim_grounded(_claim(type="bogus", content="  "),
-                               _resolver(["GetLongField", "reinterpret_cast"]))
+    chk = check_knowledge_grounded(_knowledge(type="bogus", content="  "),
+                                   _resolver(["GetLongField", "reinterpret_cast"]))
     assert chk.grounded is False
     assert any(r.startswith("bad_type:") for r in chk.reasons)
     assert "empty_content" in chk.reasons
 
 
 def test_empty_grounding_refs_not_grounded():
-    chk = check_claim_grounded(_claim(grounding_refs=()), _resolver([]))
+    chk = check_knowledge_grounded(_knowledge(grounding_refs=()), _resolver([]))
     assert chk.grounded is False
     assert "no_grounding_refs" in chk.reasons
 

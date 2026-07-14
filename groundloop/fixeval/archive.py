@@ -28,7 +28,7 @@ def archive_plans(records, out_dir: str) -> int:
             "predicted_repo": r.predicted_repo,
             "plan": r.plan,
             "fired_skills": list(getattr(r, "fired_skills", [])),
-            "fired_claims": list(getattr(r, "fired_claims", [])),
+            "fired_knowledge": list(getattr(r, "fired_knowledge", [])),
             "outcome": {
                 "groundedness": r.groundedness,
                 "replans": getattr(r, "replans", 0),

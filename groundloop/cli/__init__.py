@@ -247,18 +247,18 @@ def _load_skills(kind: str, seed: str | None, embedder):
     return MockSkillRegistry.load(path, embedder=embedder)
 
 
-def _load_claims(kind: str, embedder, store_path: str | None = None):
-    """Compose the fixeval claim arm. kind: none|candidate|validated.
+def _load_knowledge(kind: str, embedder, store_path: str | None = None):
+    """Compose the fixeval knowledge arm. kind: none|candidate|validated.
     none -> (None, "validated"); candidate -> (registry, "candidate") [EVAL floor];
-    validated -> (registry, "validated") [PRODUCTION floor]. The registry loads the claim store at
-    `store_path` (an external/working claims.json, e.g. the Phase D ext4 store); `store_path=None`
-    resolves to the packaged CLAIMS_PATH -> byte-identical to today. The tier floor gates candidates out
+    validated -> (registry, "validated") [PRODUCTION floor]. The registry loads the knowledge store at
+    `store_path` (an external/working knowledge.json, e.g. the Phase D ext4 store); `store_path=None`
+    resolves to the packaged KNOWLEDGE_PATH -> byte-identical to today. The tier floor gates candidates out
     of prod."""
     if kind == "none":
         return None, "validated"
-    from groundloop.kb.claim import CLAIMS_PATH
-    from groundloop.kb.registry import ClaimRegistry
-    return ClaimRegistry.load(path=store_path or CLAIMS_PATH, embedder=embedder), kind
+    from groundloop.kb.knowledge import KNOWLEDGE_PATH
+    from groundloop.kb.registry import KnowledgeRegistry
+    return KnowledgeRegistry.load(path=store_path or KNOWLEDGE_PATH, embedder=embedder), kind
 
 
 def _run_fixeval(args) -> int:
@@ -288,18 +288,19 @@ def _run_fixeval(args) -> int:
         model = CannedModel({"default": ""})
     cases = load_cases(args.dataset)
     embedder = None
-    want_embed = args.skills != "none" or args.claims != "none"
+    want_embed = args.skills != "none" or args.knowledge != "none"
     if want_embed and os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
         from groundloop.config.settings import Settings
         from groundloop.engines.atlas.embed import GatewayEmbedder
         st = Settings.load()
         embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
     skills = _load_skills(args.skills, args.skills_seed, embedder)
-    claims, claims_tier_floor = _load_claims(args.claims, embedder, store_path=args.claims_store)
+    knowledge, knowledge_tier_floor = _load_knowledge(args.knowledge, embedder,
+                                                      store_path=args.knowledge_store)
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
-                           skills=skills, claims=claims, claims_tier_floor=claims_tier_floor,
+                           skills=skills, knowledge=knowledge, knowledge_tier_floor=knowledge_tier_floor,
                            skill_inject=args.skills_inject)
     if getattr(args, "fixer", "direct") == "plan":
         from groundloop.adapters.fix.planning import PlanningFixEngine
@@ -745,7 +746,7 @@ def _extract_model():
         from groundloop.config.settings import Settings
         s = Settings.load()
         return GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model)
-    print("gloop kb-extract: no KLOOP_PRODUCE_API_KEY — hermetic canned model (proposes 0 claims).")
+    print("gloop kb-extract: no KLOOP_PRODUCE_API_KEY — hermetic canned model (proposes 0 knowledge item(s)).")
     return CannedModel({"default": ""})
 
 
@@ -754,7 +755,7 @@ def _extract_resolver(index_db: str):
     Fails fast on an empty atlas: a wrong/typo'd --index-db makes Store() create an EMPTY schema, which
     would silently reject every ref ('N rejected', exit 0) — misleading. Detect 0 indexed units and error."""
     from groundloop.engines.atlas.store import Store
-    from groundloop.kb.claim_ground import atlas_resolver
+    from groundloop.kb.knowledge_ground import atlas_resolver
     store = Store(index_db)
     if sum(st.unit_count for st in store.list_repo_states()) == 0:
         raise SystemExit(f"gloop kb-extract: atlas {index_db!r} has 0 indexed units — wrong --index-db?")
@@ -762,34 +763,34 @@ def _extract_resolver(index_db: str):
 
 
 def _run_kb_extract(args) -> int:
-    """Decompose each feedstock Skill's prose into candidate Claims (LLM PROPOSES), ground-check every
+    """Decompose each feedstock Skill's prose into candidate Knowledge (LLM PROPOSES), ground-check every
     candidate against the atlas (existence) + the leak red-test (oracle-blind), and MERGE survivors into the
-    claim store at tier=candidate. The LLM is a proposer only; grounding admits."""
-    from groundloop.kb.claim import CLAIMS_PATH, load_claims, save_claims
+    knowledge store at tier=candidate. The LLM is a proposer only; grounding admits."""
     from groundloop.kb.extract import extract_to_store
+    from groundloop.kb.knowledge import KNOWLEDGE_PATH, load_knowledge, save_knowledge
     from groundloop.kb.validate import SEED_PATH as KB_SEED
     from groundloop.kb.validate import load_corpus
 
     seed = args.skills_seed or KB_SEED
-    out = args.out or CLAIMS_PATH
+    out = args.out or KNOWLEDGE_PATH
     skills = load_corpus(seed)
-    existing = load_claims(out)
+    existing = load_knowledge(out)
     store, rejected = extract_to_store(skills, _extract_model(), _extract_resolver(args.index_db),
                                        existing=existing)
-    save_claims(out, store)
+    save_knowledge(out, store)
     admitted = len(store) - len(existing)
-    print(f"kb-extract: {len(skills)} skill(s) -> {admitted} new candidate claim(s), "
+    print(f"kb-extract: {len(skills)} skill(s) -> {admitted} new candidate knowledge item(s), "
           f"{len(rejected)} rejected -> {out}")
-    for claim, chk in rejected:
-        print(f"  drop {claim.id}: {', '.join(chk.reasons)}")
+    for item, chk in rejected:
+        print(f"  drop {item.id}: {', '.join(chk.reasons)}")
     return 0
 
 
-def _build_attribute_run_card_fn(args, claims):
-    """Return `run_card_fn(claim_id_set) -> eval-arm scorecard dict`: re-runs the plan-format fix eval with
-    EXACTLY the passed claim ids (candidates AND their per-claim placebos) injected via a ClaimRegistry at
-    the candidate (EVAL) floor, and returns the eval arm of grade_fix_all (the offline grade = sole oracle
-    read). Mirrors _build_distill_run_fn. Hermetic tests monkeypatch THIS symbol to a scripted stub."""
+def _build_attribute_run_card_fn(args, knowledge):
+    """Return `run_card_fn(knowledge_id_set) -> eval-arm scorecard dict`: re-runs the plan-format fix eval
+    with EXACTLY the passed knowledge ids (candidates AND their per-item placebos) injected via a
+    KnowledgeRegistry at the candidate (EVAL) floor, and returns the eval arm of grade_fix_all (the offline
+    grade = sole oracle read). Hermetic tests monkeypatch THIS symbol to a scripted stub."""
     import itertools
     import json
     import os
@@ -804,8 +805,8 @@ def _build_attribute_run_card_fn(args, claims):
     from groundloop.fixeval.runner import FixEvalRunner
     from groundloop.fixeval.scorecard import grade_fix_all
     from groundloop.kb.ab import _make_fixer
-    from groundloop.kb.claim_placebo import build_claim_placebo
-    from groundloop.kb.registry import ClaimRegistry
+    from groundloop.kb.knowledge_placebo import build_knowledge_placebo
+    from groundloop.kb.registry import KnowledgeRegistry
 
     catalog_path = args.catalog or os.path.join(args.dataset, "catalog.json")
     catalog = [RepoRef(r["name"]) for r in json.loads(Path(catalog_path).read_text())]
@@ -820,17 +821,17 @@ def _build_attribute_run_card_fn(args, claims):
         st = Settings.load()
         embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
 
-    pool = dict(claims)
-    pool.update(build_claim_placebo(claims))         # candidates + one placebo each, keyed by id
-    _work_seq = itertools.count()                    # unique work-dir per call (mirrors _build_distill_run_fn)
+    pool = dict(knowledge)
+    pool.update(build_knowledge_placebo(knowledge))  # candidates + one placebo each, keyed by id
+    _work_seq = itertools.count()                    # unique work-dir per call
 
-    def run_card_fn(claim_ids):
-        selected = [pool[i] for i in claim_ids if i in pool]
-        registry = ClaimRegistry(selected, embedder=embedder)
+    def run_card_fn(knowledge_ids):
+        selected = [pool[i] for i in knowledge_ids if i in pool]
+        registry = KnowledgeRegistry(selected, embedder=embedder)
         estate = GitFixtureEstate(args.repos, args.dataset + f"/_work-attr-{next(_work_seq)}")
         runner = FixEvalRunner(issues=MockJira(args.dataset), estate=estate, catalog=catalog,
                                tau_margin=0.0, tau_score=0.0,
-                               claims=registry, claims_tier_floor="candidate")
+                               knowledge=registry, knowledge_tier_floor="candidate")
         records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
                              fixer=_make_fixer())
         card = grade_fix_all(records, oracle_by_case=oracle_by_case)
@@ -843,40 +844,41 @@ def _build_attribute_run_card_fn(args, claims):
 
 
 def _run_kb_attribute(args) -> int:
-    """Staged per-claim attribution + governance (spec §5.4/§5.5). GATED on a plan archive: no plans/ ->
+    """Staged per-item attribution + governance (spec §5.4/§5.5). GATED on a plan archive: no plans/ ->
     exit 0 (nothing to attribute). screen (archive, oracle-blind) -> shortlist (capped by --max-lofo) ->
-    LOFO-confirm vs per-claim placebo -> accept_grounded -> apply_verdict per claim; writes tier + evidence
-    back to claims.json. Oracle-blind loop; grade_fix_all inside the run-card seam is the sole oracle read."""
+    LOFO-confirm vs per-item placebo -> accept_grounded -> apply_verdict per item; writes tier + evidence
+    back to knowledge.json. Oracle-blind loop; grade_fix_all inside the run-card seam is the sole oracle
+    read."""
     from collections import Counter
 
-    from groundloop.kb.attribute import attribute_and_govern, load_archive, screen_claims
-    from groundloop.kb.claim import CLAIMS_PATH, load_claims, save_claims
+    from groundloop.kb.attribute import attribute_and_govern, load_archive, screen_knowledge
+    from groundloop.kb.knowledge import KNOWLEDGE_PATH, load_knowledge, save_knowledge
 
     payloads = load_archive(args.archive)
     if not payloads:
         print(f"kb-attribute: no plan archive at {args.archive} — nothing to attribute "
-              f"(run `gloop fixeval --claims candidate` first)")
+              f"(run `gloop fixeval --knowledge candidate` first)")
         return 0
 
-    store_path = args.claims_store or CLAIMS_PATH
-    claims = load_claims(store_path)
-    shortlist = screen_claims(payloads, claims, threshold=args.screen_threshold)
+    store_path = args.knowledge_store or KNOWLEDGE_PATH
+    knowledge = load_knowledge(store_path)
+    shortlist = screen_knowledge(payloads, knowledge, threshold=args.screen_threshold)
     if args.max_lofo and len(shortlist) > args.max_lofo:
         shortlist = shortlist[: args.max_lofo]
     if not shortlist:
         print(f"kb-attribute: screened {len(payloads)} plan(s) -> 0 shortlisted "
-              f"(no claim cleared |screen_lift| >= {args.screen_threshold})")
+              f"(no knowledge item cleared |screen_lift| >= {args.screen_threshold})")
         return 0
 
-    run_card_fn = _build_attribute_run_card_fn(args, claims)
-    updated = attribute_and_govern(claims, shortlist, run_card_fn, cost_budget=args.cost_budget)
-    save_claims(store_path, updated)
+    run_card_fn = _build_attribute_run_card_fn(args, knowledge)
+    updated = attribute_and_govern(knowledge, shortlist, run_card_fn, cost_budget=args.cost_budget)
+    save_knowledge(store_path, updated)
 
     print(f"kb-attribute: screened {len(payloads)} plan(s) -> shortlist {len(shortlist)} -> {store_path}")
-    print("  tiers:", dict(Counter(c.tier for c in updated.values())))
-    for cid in shortlist:
-        c = updated[cid]
-        print(f"  {cid}: {c.tier}  (lofo_delta={c.evidence.get('measured_lift', {}).get('lofo_delta')})")
+    print("  tiers:", dict(Counter(k.tier for k in updated.values())))
+    for kid in shortlist:
+        item = updated[kid]
+        print(f"  {kid}: {item.tier}  (lofo_delta={item.evidence.get('measured_lift', {}).get('lofo_delta')})")
     return 0
 
 
@@ -1123,11 +1125,11 @@ def build_parser() -> argparse.ArgumentParser:
     fx.add_argument("--skills-inject", dest="skills_inject", choices=["both", "fix-only"], default="both",
                     help="how a skill arm injects: both (localize query + fix prompt) | fix-only "
                          "(fix/plan prompt only — isolates KB fix-content value from retrieval)")
-    fx.add_argument("--claims", choices=["none", "candidate", "validated"], default="none",
-                    help="claim-KB arm (claims.json): none | candidate (EVAL floor — includes "
+    fx.add_argument("--knowledge", choices=["none", "candidate", "validated"], default="none",
+                    help="knowledge-KB arm (knowledge.json): none | candidate (EVAL floor — includes "
                          "unvalidated candidates) | validated (PRODUCTION floor — validated+canonical only)")
-    fx.add_argument("--claims-store", dest="claims_store", default=None,
-                    help="claim store JSON to read (default: groundloop/kb/data/claims.json)")
+    fx.add_argument("--knowledge-store", dest="knowledge_store", default=None,
+                    help="knowledge store JSON to read (default: groundloop/kb/data/knowledge.json)")
     fx.add_argument("--fixer", choices=["direct", "plan"], default="direct",
                     help="fix engine: direct (single-shot ModelPatchEngine) | "
                          "plan (two-phase PlanningFixEngine: plan->gate->re-plan->abstain->patch)")
@@ -1197,30 +1199,30 @@ def build_parser() -> argparse.ArgumentParser:
                           "(0.0 = demand the full baseline lift)")
 
     kex = sub.add_parser("kb-extract",
-                         help="decompose feedstock Skills -> candidate Claims (LLM propose + ground-check)")
+                         help="decompose feedstock Skills -> candidate Knowledge (LLM propose + ground-check)")
     kex.add_argument("--skills-seed", dest="skills_seed", default=None,
                      help="feedstock corpus TOML (default: groundloop/kb/data/aaos_kb_seed.toml)")
     kex.add_argument("--index-db", required=True, help="atlas.db for the grounding existence check")
     kex.add_argument("--out", default=None,
-                     help="claim store JSON to merge into (default: groundloop/kb/data/claims.json)")
+                     help="knowledge store JSON to merge into (default: groundloop/kb/data/knowledge.json)")
 
     kat = sub.add_parser("kb-attribute",
-                         help="staged per-claim attribution: archive screen -> LOFO confirm vs placebo -> "
-                              "promote/retire (per-claim governance of claims.json)")
+                         help="staged per-item attribution: archive screen -> LOFO confirm vs placebo -> "
+                              "promote/retire (per-item governance of knowledge.json)")
     kat.add_argument("--archive", required=True,
-                     help="plan archive dir (<out>/plans from `gloop fixeval --claims candidate`)")
+                     help="plan archive dir (<out>/plans from `gloop fixeval --knowledge candidate`)")
     kat.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
     kat.add_argument("--catalog", default="", help="catalog.json (default: <dataset>/catalog.json)")
     kat.add_argument("--index-db", required=True, help="path to atlas.db (membership AtlasIndex)")
     kat.add_argument("--repos", required=True, help="fixtures/repos root for @base materialization")
-    kat.add_argument("--claims-store", dest="claims_store", default=None,
-                     help="claim store JSON to govern (default: groundloop/kb/data/claims.json)")
+    kat.add_argument("--knowledge-store", dest="knowledge_store", default=None,
+                     help="knowledge store JSON to govern (default: groundloop/kb/data/knowledge.json)")
     kat.add_argument("--screen-threshold", dest="screen_threshold", type=float, default=0.0,
-                     help="|screen_lift| shortlist threshold (default 0.0 = shortlist any claim with contrast)")
+                     help="|screen_lift| shortlist threshold (default 0.0 = shortlist any item with contrast)")
     kat.add_argument("--max-lofo", dest="max_lofo", type=int, default=20,
                      help="cap the LOFO-confirm shortlist (bounds the real fix-loop spend)")
     kat.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
-                     help="reject a claim if Δcost_per_solved exceeds this (default: advisory only)")
+                     help="reject an item if Δcost_per_solved exceeds this (default: advisory only)")
 
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
