@@ -18,6 +18,36 @@ from groundloop.run.record import RunRecordIO
 _KS = (1, 3, 5)
 
 
+def _signals_from_doc(doc):
+    """Reconstruct a Signals from the persisted run-record dict (JSON round-trip -> lists).
+    Unknown keys are dropped; missing -> Signals defaults (anchorless -> functional route)."""
+    from groundloop.core.types import Signals
+    raw = getattr(doc, "signals", None) or {}
+    fields = ("packages", "classes", "methods", "symbols", "libraries", "errors")
+    return Signals(**{k: tuple(raw[k]) for k in fields if k in raw})
+
+
+def _localize_index_for(runs_dir, index_db, embedder):
+    """Build the isolated-diagnostic localize index matching the arm the run used (manifest.localize).
+    Falls back to AtlasIndex (FTS5) when the arm needs an embedder and none is available."""
+    arm = "atlas"
+    mpath = Path(runs_dir) / "manifest.json"
+    if mpath.exists():
+        try:
+            arm = json.loads(mpath.read_text()).get("localize", "atlas")
+        except (json.JSONDecodeError, OSError):
+            arm = "atlas"
+    if arm in ("semantic", "dispatch") and embedder is not None:
+        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+        sem = SemanticAtlasIndex(index_db, embedder)
+        if arm == "semantic":
+            return sem, arm
+        from groundloop.adapters.index.localize_dispatch import LocalizeDispatchIndex
+        return LocalizeDispatchIndex(AtlasIndex(index_db), AtlasIndex(index_db), sem), arm
+    fell_back = arm in ("semantic", "dispatch")     # wanted embedder, none available
+    return AtlasIndex(index_db), (f"{arm}->atlas(no-embedder)" if fell_back else "atlas")
+
+
 def _match_block(rows):
     n = len(rows)
     hits = {k: sum(recall_at_k(r["ranked_names"], {r["owner"]}, k) for r in rows) for k in _KS}
@@ -113,7 +143,7 @@ def _grade_subset(rows, oracle_by_case, with_isolated):
     }
 
 
-def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None) -> dict:
+def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None, embedder=None) -> dict:
     cases = load_cases(dataset)
     rows = []
     for c in cases:
@@ -128,14 +158,20 @@ def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None) -> di
             "locations": list(doc.locations),
         })
     # The isolated-localize diagnostic: re-run retrieve on the ORACLE repo (grade-only, never the loop).
+    # Reconstruct the localize index the run actually used (manifest.localize) and seed per-case signals.
+    iso_arm = None
     if index_db:
-        idx = AtlasIndex(index_db)
+        idx, iso_arm = _localize_index_for(runs_dir, index_db, embedder)
         for r in rows:
             if r["expected"]:
+                if hasattr(idx, "note_signals"):
+                    idx.note_signals(_signals_from_doc(r["doc"]))
                 r["retrieved"] = idx.retrieve(RepoRef(r["owner"]), r["query"])
     with_isolated = bool(index_db)
     oracle_by_case = {r["case_id"]: r["oracle"] for r in rows}
     card = {"n_cases": len(rows), "overall": _grade_subset(rows, oracle_by_case, with_isolated)}
+    if index_db:
+        card["overall"]["localize"]["isolated_arm"] = iso_arm       # honest attribution of the diagnostic
     kinds = sorted({r["bug_kind"] for r in rows if r["bug_kind"]})
     card["by_bug_kind"] = {bk: _grade_subset([r for r in rows if r["bug_kind"] == bk],
                                              oracle_by_case, with_isolated) for bk in kinds}

@@ -46,7 +46,7 @@ mechanism + safety argument, its *effectiveness* still production-gated).
   `KLOOP_LABS=1` (or `--profile labs`) ONLY in a **production-*test*** deployment to default the experimental
   stack (routing match + semantic localize) and earn its `[production]` read; the manifest records `profile=labs`
   so the two are never confused. Individual arms are also runnable explicitly (`--match-arm {semantic,judge,
-  functional,dispatch}`, `--localize semantic`) — each fail-closes without its creds/artifact.
+  functional,dispatch}`, `--localize {semantic,dispatch}`) — each fail-closes without its creds/artifact.
 - [ ] Readiness: `gloop doctor --atlas-db $KLOOP_ATLAS_DB` → **READY** (repo/unit counts as expected)
 - [ ] Hermetic gate green (no gateway needed): `.venv/bin/python -m pytest -q`
 - [ ] Run **off real ext4** (`/home/vinc` directly, `/var/tmp`, `/dev/shm`) — never the v9fs mount (sqlite over the multi-GB atlas)
@@ -147,6 +147,7 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | | `GitFixtureEstate` (@base snapshot) | Dev-Labs Infra | fixeval | `[proxy]` harness | — (not a loop role) | `adapters/estate.py:29` |
 | **5 localize** (`retrieve`) | `AtlasIndex.retrieve` (FTS5 keyword) | Core | run + fixeval default (component/flood/routing delegate here) | `[production]` **7/10 file@5** | — | `adapters/index/atlas.py:30` |
 | | `SemanticAtlasIndex.retrieve` (bge-m3 vector) | Candidate | `gloop run --localize semantic` (via `SplitIndex`; needs `KLOOP_EMBED_BASE_URL`) | none (unmeasured *for localize*) | a `[production]` read (now run-reachable) | `adapters/index/atlas_semantic.py:50` |
+| | `LocalizeDispatchIndex` (per-ticket FTS5⇄bge-m3 router) | Candidate | `gloop run --localize dispatch` (needs `KLOOP_EMBED_BASE_URL`; degrades to `atlas` with a warn when absent, fails closed if explicit) | none logged — baseline functional isolated `file@1` 1/10 / `file@5` 7/10 (2026-07-11 GEI) | a `[proxy]` A/B then a `[production]` read | `adapters/index/localize_dispatch.py` |
 | **6 fix** (FixEngine) | `PlanningFixEngine` — **"Bug Plan Mode"** (plan→gate→re-plan→abstain→execute; the executed diff is re-gated to candidate scope) | **Provisional-Core (default; effectiveness production-gated)** | `--fixer plan` (**run default**) | `[proxy]` plan recall@1 0.48/@5 0.68, groundedness 0.56, **fab 0.0** (safety proven; resolution never gradeable) | a `[production]` `resolved_rate` read (grade-run promotion note) → confirm Core / revert | `adapters/fix/planning.py` |
 | | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (**opt-out**) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
 | | `CannedFixEngine` (hermetic stub) | Fixture | `--fixer canned` | — | (never) | `adapters/fix/canned.py` |

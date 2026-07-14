@@ -44,6 +44,7 @@ def test_isolated_localize_differs_from_as_run(tmp_path, monkeypatch):
     card = grade_run(out, ds, index_db="atlas.db")
     assert card["overall"]["localize"]["as_run"]["file@1"] == 0.0     # contaminated by match miss
     assert card["overall"]["localize"]["isolated"]["file@1"] == 1.0   # the "7/10 not 0/10" correction
+    assert card["overall"]["localize"]["isolated_arm"] == "atlas"      # honest arm attribution (no manifest)
     assert "functional" in card["by_bug_kind"]
     md = render_run_markdown(card)
     assert "| M |" in md and "isolated" in md.lower()

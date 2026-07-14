@@ -818,13 +818,14 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "semantic"], default=None,
+    r.add_argument("--localize", choices=["atlas", "semantic", "dispatch"], default=None,
                    help="localize retriever, chosen independently of --match-arm (default resolved by "
                         "--profile: atlas in core, semantic in labs): atlas (FTS5) | semantic (bge-m3 vector, "
-                        "needs KLOOP_EMBED_BASE_URL). When it differs from the match arm's native retrieve, "
-                        "the index is wrapped in a SplitIndex (rank/retrieve split). A labs-DEFAULTED semantic "
-                        "localize degrades to atlas (warn) without an embedder; explicit --localize semantic "
-                        "fails closed.")
+                        "needs KLOOP_EMBED_BASE_URL) | dispatch (per-ticket: prose-only/no-anchor -> bge-m3 "
+                        "vector, crash/anchored -> FTS5; needs KLOOP_EMBED_BASE_URL). When it differs from the "
+                        "match arm's native retrieve, the index is wrapped (SplitIndex / LocalizeDispatchIndex). "
+                        "A labs-DEFAULTED semantic/dispatch localize degrades to atlas (warn) without an "
+                        "embedder; explicit --localize semantic/dispatch fails closed.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1090,7 +1091,7 @@ def _run_grade_run(args) -> int:
     from pathlib import Path
     from groundloop.run.grade_run import grade_run
     from groundloop.run.report import render_run_markdown
-    card = grade_run(args.runs, args.dataset, index_db=args.index_db or None)
+    card = grade_run(args.runs, args.dataset, index_db=args.index_db or None, embedder=_build_embedder())
     Path(args.out).write_text(json.dumps(card, indent=2, ensure_ascii=False, default=str))
     Path(args.out).with_suffix(".md").write_text(render_run_markdown(card))
     ov = card["overall"]
@@ -1098,7 +1099,7 @@ def _run_grade_run(args) -> int:
     iso = ov["localize"].get("isolated") or {}
     print(f"grade-run: {card['n_cases']} cases · match recall@1={ov['match']['recall@1']:.2f} · "
           f"localize as-run@1={ov['localize']['as_run'].get('file@1')} "
-          f"isolated@1={iso.get('file@1')} · "
+          f"isolated@1={iso.get('file@1')} arm={ov['localize'].get('isolated_arm')} · "
           f"fix gradeable={fx.get('n_gradeable')} ungradeable={fx.get('n_ungradeable_no_source')}")
     if args.compare:
         from groundloop.run.compare import compare_cards
@@ -1223,6 +1224,22 @@ def main(argv: list[str] | None = None) -> int:
             elif localize_req == "atlas" and arm_req == "semantic":
                 from groundloop.adapters.index.split import SplitIndex
                 index = SplitIndex(index, AtlasIndex(args.index_db))
+            elif localize_req == "dispatch":
+                emb = _build_embedder()
+                if emb is None:
+                    if localize_explicit:
+                        print("gloop run --localize dispatch: no embedder — set KLOOP_EMBED_BASE_URL "
+                              "(bge-m3 gateway). The functional branch needs the vector index.")
+                        return 2
+                    # labs-DEFAULTED dispatch localize: degrade to atlas FTS5 (warn), record honestly.
+                    print("gloop run (labs): --localize dispatch wanted but no embedder — falling back "
+                          "to atlas FTS5 localize. Set KLOOP_EMBED_BASE_URL to engage dispatch localize.")
+                    localize_req = "atlas"
+                else:
+                    from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                    from groundloop.adapters.index.localize_dispatch import LocalizeDispatchIndex
+                    index = LocalizeDispatchIndex(index, AtlasIndex(args.index_db),
+                                                  SemanticAtlasIndex(args.index_db, emb))
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
