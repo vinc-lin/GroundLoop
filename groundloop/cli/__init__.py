@@ -1308,7 +1308,7 @@ def _run_grade_run(args) -> int:
     from pathlib import Path
     from groundloop.run.grade_run import grade_run
     from groundloop.run.report import render_run_markdown
-    card = grade_run(args.runs, args.dataset, index_db=args.index_db or None)
+    card = grade_run(args.runs, args.dataset, index_db=args.index_db or None, embedder=_build_embedder())
     Path(args.out).write_text(json.dumps(card, indent=2, ensure_ascii=False, default=str))
     Path(args.out).with_suffix(".md").write_text(render_run_markdown(card))
     ov = card["overall"]
