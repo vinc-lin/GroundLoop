@@ -84,3 +84,11 @@ def test_rank_repos_refreshes_stash_across_tickets_on_one_instance():
     assert d.retrieve(RepoRef("r"), "q") == ["crash:r"]
     d.rank_repos(Signals(), [RepoRef("r")])                          # ticket 2 (same instance): no-anchor
     assert d.retrieve(RepoRef("r"), "q") == ["func:r"]               # must re-route, not stay crash
+
+
+def test_argparse_accepts_localize_dispatch():
+    from groundloop.cli import build_parser
+    ns = build_parser().parse_args(
+        ["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
+         "--index-db", "a.db", "--out", "o", "--repos", "r", "--localize", "dispatch"])
+    assert ns.localize == "dispatch"
