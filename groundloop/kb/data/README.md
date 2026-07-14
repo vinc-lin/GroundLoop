@@ -50,10 +50,7 @@ Predicate firing over the eval datasets (via the real `AndroidSignalExtractor` +
 These Skills are **`candidate` tier**: authored (cold-start), leak-safe, and grounded to fire on real
 cases — but with **no measured effectiveness yet**. "Validated" requires the SP3 measured arm + the
 two-sided fix-eval A/B (`Δpatch_applies`/`Δrequired_api`/`Δresolved` with **no** `Δfabrication_rate`
-regression), on a **held-out / temporal split** so lift means lift-on-unseen. Any future
-*distilled/harvested* Skill additionally re-earns the lift after leak-scrub before it is canonical — the
-distiller must be oracle-blind and split-firewalled (harvest/distill from the calib/train split only,
-never the eval/holdout split), or it launders the oracle into loop-visible KB text.
+regression), on a **held-out / temporal split** so lift means lift-on-unseen.
 
 `provenance` today names each Skill's real basis. The eventual per-entry provenance sidecar (for the
 lifecycle/tiering) records: source lineage, the `validating_case_ids` (split-tagged), the `measured_lift`

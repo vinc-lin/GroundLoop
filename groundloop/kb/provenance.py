@@ -7,7 +7,7 @@ corpus TOML as JSON (`groundloop/kb/data/provenance.json`) so authoring the leak
 stays separate from the mutable lifecycle *bookkeeping* — the TOML is human-authored + regression
 checked (`groundloop/kb/validate.py`), this sidecar is machine-updated by the lifecycle.
 
-GATING: Phase B (this sidecar + `lifecycle.py` + `harvest/` + `distill/`) is gated on a positive
+GATING: Phase B (this sidecar + `lifecycle.py`) is gated on a positive
 Phase-A `accept()` (`groundloop/kb/accept.strengthened_accept(...) -> {"accepted": True, ...}`): the
 KB arm must first show a two-sided A/B lift over the placebo control before we invest in tiering the
 corpus that produced it. This module ships the frozen record + JSON I/O only; tier transitions live

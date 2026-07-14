@@ -240,8 +240,6 @@ def _load_skills(kind: str, seed: str | None, embedder):
         path = seed or KB_SEED
     elif kind == "placebo":
         path = seed or str(Path(KB_SEED).parent / "placebo.toml")
-    elif kind == "distilled":
-        path = seed or str(Path(KB_SEED).parent / "distilled.toml")   # produced by `gloop kb-distill`
     else:
         raise ValueError(f"unknown --skills kind: {kind!r}")
     return MockSkillRegistry.load(path, embedder=embedder)
@@ -530,209 +528,6 @@ def _run_kb_promote(args) -> int:
     for sid, before, after in transitions:
         note = f"{before}->{after}" if before != after else f"{after} (hold)"
         print(f"  {sid}: {note}")
-    return 0
-
-
-# Split firewall (mirrors groundloop.kb.harvest.cluster._MINING_SPLITS): only calib/train cases may
-# author a distilled playbook that is later scored — eval/holdout cases must never launder into the KB.
-_ALL_SPLITS = ("calib", "train", "eval", "holdout")
-_MINING_SPLITS = frozenset({"calib", "train"})
-
-
-def _case_split(case_id: str) -> str:
-    """Deterministic per-case split from the opaque loop-visible case id (oracle-blind). ~1/2 mining."""
-    import hashlib
-    h = int(hashlib.sha1(case_id.encode("utf-8")).hexdigest(), 16)
-    return _ALL_SPLITS[h % len(_ALL_SPLITS)]
-
-
-def _signals_dict(signals) -> dict:
-    """Frozen Signals -> the {family: [tokens]} dict cluster_by_signature keys on."""
-    return {"errors": list(signals.errors), "libraries": list(signals.libraries),
-            "symbols": list(signals.symbols), "classes": list(signals.classes),
-            "methods": list(signals.methods), "packages": list(signals.packages)}
-
-
-def _dump_corpus(skills: list[dict]) -> str:
-    """Serialize skill dicts to a `[[skill]]` corpus TOML (round-trips through kb.validate.load_corpus;
-    no tomli_w in the venv). Guidance rides a multiline literal ('''...''') so it needs no escaping."""
-    def b(v: object) -> str:                     # TOML basic string
-        return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-    def arr(xs) -> str:
-        return "[" + ", ".join(b(x) for x in xs) + "]"
-
-    chunks: list[str] = []
-    for sk in skills:
-        lines = [
-            "[[skill]]",
-            f"id = {b(sk['id'])}",
-            f"provenance = {b(sk['provenance'])}",
-            f"signals = {arr(sk.get('signals', []))}",
-            f"hint_apis = {arr(sk.get('hint_apis', []))}",
-            "guidance = '''\n" + sk["guidance"] + "\n'''",
-            "",
-            "[skill.match]",
-        ]
-        for key, val in (sk.get("match") or {}).items():
-            lines.append(f"{key} = {arr(val)}")
-        chunks.append("\n".join(lines))
-    return "\n\n".join(chunks) + "\n"
-
-
-def _build_distill_run_fn(args, candidate: dict):
-    """Return the C2/C3 lift probe `run_fn(guidance) -> float` for ONE candidate: a run_ab-style A/B that
-    re-runs the whole fix-loop with THIS candidate's match + the passed guidance injected as the sole KB
-    skill, and reports the eval-arm resolved_rate lift over the skills=none baseline. Built per candidate
-    so the closure carries the candidate's predicate (lofo/revalidate only ever hand it a guidance str).
-    Hermetic tests monkeypatch this symbol to a scripted stub (no atlas / no model)."""
-    import json
-    import os
-    import tempfile
-    from pathlib import Path
-
-    from groundloop.adapters.estate import GitFixtureEstate
-    from groundloop.adapters.index.atlas import AtlasIndex
-    from groundloop.adapters.mock.jira import MockJira
-    from groundloop.adapters.skills.mock import MockSkillRegistry
-    from groundloop.core.types import RepoRef
-    from groundloop.eval.arms import build_arms
-    from groundloop.eval.dataset import load_cases, load_eval_oracle
-    from groundloop.fixeval.runner import FixEvalRunner
-    from groundloop.fixeval.scorecard import grade_fix_all
-    from groundloop.kb.ab import _make_fixer
-
-    catalog_path = os.path.join(args.dataset, "catalog.json")
-    catalog = [RepoRef(r["name"]) for r in json.loads(Path(catalog_path).read_text())]
-    cases = load_cases(args.dataset)
-    oracle_by_case = {c.case_id: load_eval_oracle(c) for c in cases}   # OFFLINE grade — sole oracle read
-    eval_arm = getattr(args, "eval_arm", None) or "membership+logs"
-
-    embedder = None
-    if os.environ.get("KLOOP_EMBED_BASE_URL", "").strip():
-        from groundloop.config.settings import Settings
-        from groundloop.engines.atlas.embed import GatewayEmbedder
-        st = Settings.load()
-        embedder = GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
-
-    def _resolved_rate(skills, work_suffix: str) -> float:
-        estate = GitFixtureEstate(args.repos, args.dataset + f"/_work-distill-{work_suffix}")
-        runner = FixEvalRunner(issues=MockJira(args.dataset), estate=estate, catalog=catalog,
-                               tau_margin=0.0, tau_score=0.0, skills=skills)
-        records = runner.run(cases, build_arms(membership_index=AtlasIndex(args.index_db)),
-                             fixer=_make_fixer())
-        card = grade_fix_all(records, oracle_by_case=oracle_by_case)
-        return (card["arms"][eval_arm]["resolved_rate"]["value"] or 0.0)
-
-    baseline_rate = _resolved_rate(None, "none")
-
-    def run_fn(guidance: str) -> float:
-        probe = dict(candidate)
-        probe["guidance"] = guidance
-        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as fh:
-            fh.write(_dump_corpus([probe]))
-            probe_path = fh.name
-        try:
-            skills = MockSkillRegistry.load(probe_path, embedder=embedder)
-            return _resolved_rate(skills, "kb") - baseline_rate
-        finally:
-            os.unlink(probe_path)
-
-    return run_fn
-
-
-def _run_kb_distill(args) -> int:
-    """GATED Phase B/C driver: harvest -> distill -> lofo -> revalidate, then promote. Dormant unless the
-    kb-ab Phase-A verdict ACCEPTED the KB over placebo. Split-firewalled to calib/train ONLY; oracle-blind
-    (distill_guidance refuses any trace carrying owning_repo/expected_files). Only a re-validated distilled
-    form re-enters the corpus (distilled.toml beside the sidecar) + earns an apply_verdict tier bump."""
-    import json
-    from pathlib import Path
-
-    from groundloop.adapters.mock.jira import MockJira
-    from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
-    from groundloop.eval.dataset import load_cases
-    from groundloop.kb.distill.extract import distill_guidance
-    from groundloop.kb.distill.lofo import lofo_fragments
-    from groundloop.kb.distill.revalidate import revalidate
-    from groundloop.kb.harvest.cluster import candidate_from_cluster, cluster_by_signature
-    from groundloop.kb.lifecycle import apply_verdict
-    from groundloop.kb.provenance import (
-        SIDECAR_PATH,
-        ProvenanceRecord,
-        load_sidecar,
-        save_sidecar,
-    )
-
-    verdict = json.loads(Path(args.verdict).read_text())
-    if not verdict.get("kb_vs_placebo", {}).get("accepted"):
-        print("kb-distill: Phase-A not passed — skip (kb_vs_placebo not accepted)")
-        return 0
-
-    prov_path = args.provenance or SIDECAR_PATH
-    distilled_path = Path(prov_path).with_name("distilled.toml")
-
-    # Build split-firewalled, loop-visible per-case signals (calib/train ONLY — the mining feedstock).
-    issues = MockJira(args.dataset)
-    extractor = AndroidSignalExtractor()
-    signals_by_case: dict[str, dict] = {}
-    summary_by_case: dict[str, str] = {}
-    mining_cases: list[dict] = []
-    for case in load_cases(args.dataset):
-        if _case_split(case.case_id) not in _MINING_SPLITS:
-            continue
-        ticket = issues.fetch(case.case_id)                     # loop-visible only
-        sig = _signals_dict(extractor.extract(ticket.logs, ticket))
-        signals_by_case[case.case_id] = sig
-        summary_by_case[case.case_id] = ticket.summary
-        mining_cases.append({"case_id": case.case_id, "signals": sig})
-
-    clusters = cluster_by_signature(mining_cases)
-
-    records = load_sidecar(prov_path)
-    promoted: list[dict] = []
-    for signature, case_ids in clusters.items():
-        candidate = candidate_from_cluster(signature, case_ids, split_tag="train")
-        if candidate is None:                                   # firewall / empty / leaky signature
-            continue
-        run_fn = _build_distill_run_fn(args, candidate)
-        baseline_lift = run_fn(candidate["guidance"])           # form-A lift
-        if baseline_lift <= 0:                                  # the candidate guidance did not help
-            continue
-        # loop-visible traces for the cluster (NO oracle keys -> distill_guidance stays oracle-blind)
-        traces = [{"ticket_summary": summary_by_case[cid], "signals": signals_by_case[cid],
-                   "injected_guidance": candidate["guidance"], "patch_diff": "", "helped": True}
-                  for cid in case_ids]
-        distilled = distill_guidance(traces)                    # C1: verbatim extract + leak-scrub
-        if not distilled.strip():
-            continue
-        load_bearing = lofo_fragments(distilled, run_fn)        # C2: prune inert fragments
-        distilled_final = "\n".join(load_bearing)
-        if not distilled_final.strip():
-            continue
-        if not revalidate(distilled_final, baseline_lift, run_fn, margin=args.margin):   # C3 gate
-            continue
-        skill = dict(candidate)
-        skill["guidance"] = distilled_final
-        skill["provenance"] = (f"distilled+revalidated (harvest->distill->lofo->revalidate) from "
-                               f"{candidate['provenance']}")
-        promoted.append(skill)
-        records.setdefault(skill["id"], ProvenanceRecord(
-            id=skill["id"], tier="candidate",
-            lineage="distilled (harvest->distill->revalidate)",
-            validating_case_ids=tuple(sorted(case_ids)),
-            measured_lift={"baseline_lift": baseline_lift}, evidence_context={}))
-        records[skill["id"]] = apply_verdict(records[skill["id"]], True, hysteresis=2)
-
-    if not promoted:
-        print("kb-distill: 0 distilled skills promoted (none cleared lofo + re-validation)")
-        return 0
-
-    distilled_path.write_text(_dump_corpus(promoted))
-    save_sidecar(prov_path, records)
-    print(f"kb-distill: promoted {len(promoted)} distilled skill(s) -> {distilled_path}")
-    for sk in promoted:
-        print(f"  {sk['id']}: {records[sk['id']].tier}")
     return 0
 
 
@@ -1117,9 +912,8 @@ def build_parser() -> argparse.ArgumentParser:
     fx.add_argument("--out", required=True, help="fix-scorecard.json output path (a .md twin is written too)")
     fx.add_argument("--tau-margin", type=float, default=1.0)
     fx.add_argument("--tau-score", type=float, default=1.0)
-    fx.add_argument("--skills", choices=["none", "mock", "kb", "placebo", "distilled"], default="none",
-                    help="dev-experience KB arm: none | mock | kb (raw corpus) | placebo | "
-                         "distilled (the kb-distill output, distilled.toml)")
+    fx.add_argument("--skills", choices=["none", "mock", "kb", "placebo"], default="none",
+                    help="raw-Skill baseline arm (UNDISTILLED source): none | mock | kb | placebo")
     fx.add_argument("--skills-seed", dest="skills_seed", default=None,
                     help="override the KB/placebo corpus TOML path (default: the packaged seed)")
     fx.add_argument("--skills-inject", dest="skills_inject", choices=["both", "fix-only"], default="both",
@@ -1184,19 +978,6 @@ def build_parser() -> argparse.ArgumentParser:
     kpr.add_argument("--verdict", required=True, help="path to a kb-ab verdict.json")
     kpr.add_argument("--provenance", default=None,
                      help="provenance sidecar path (default: groundloop/kb/data/provenance.json)")
-
-    kds = sub.add_parser("kb-distill",
-                         help="GATED harvest->distill->revalidate driver (dormant unless kb-ab accepted)")
-    kds.add_argument("--verdict", required=True, help="path to a kb-ab verdict.json (the Phase-A gate)")
-    kds.add_argument("--dataset", required=True, help="dataset root (case dirs + catalog.json)")
-    kds.add_argument("--index-db", required=True, help="path to atlas.db (membership AtlasIndex)")
-    kds.add_argument("--repos", required=True, help="fixtures/repos root for @base materialization")
-    kds.add_argument("--provenance", default=None,
-                     help="provenance sidecar path (default: groundloop/kb/data/provenance.json); "
-                          "the distilled corpus is written as distilled.toml beside it")
-    kds.add_argument("--margin", type=float, default=0.0,
-                     help="re-validation slack: distilled form must clear form-A lift within this "
-                          "(0.0 = demand the full baseline lift)")
 
     kex = sub.add_parser("kb-extract",
                          help="decompose feedstock Skills -> candidate Knowledge (LLM propose + ground-check)")
@@ -1527,8 +1308,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_kb_ab(args)
     if args.cmd == "kb-promote":
         return _run_kb_promote(args)
-    if args.cmd == "kb-distill":
-        return _run_kb_distill(args)
     if args.cmd == "kb-extract":
         return _run_kb_extract(args)
     if args.cmd == "kb-attribute":
