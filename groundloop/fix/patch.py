@@ -86,7 +86,13 @@ def canonical_path(p: str) -> str:
     """Grading-only: reduce a repo-relative path to its package-qualified suffix so the same file
     matches across differing source roots (atlas 'app/src/main/java/…' vs oracle 'src/java/…'). Strips
     through the source-root marker; keeps the FULL package path so distinct same-basename files in
-    different packages do NOT collide. NOT used in the loop — scoring only."""
+    different packages do NOT collide. NOT used in the loop — scoring only.
+
+    Assumes inputs carry a source root (apply exactly once — not idempotent if re-applied to an
+    already-bare package path with a `java`/`kotlin` package segment). Residual: two files sharing
+    package + basename but differing only in source root (e.g. src/main vs src/test, or two modules)
+    collapse to one key — acceptable here (oracle expected_files carry source roots; test classes
+    usually differ in basename)."""
     p = norm_path(p)
     for marker in ("/src/main/java/", "/src/main/kotlin/", "/src/java/", "/src/kotlin/",
                    "/java/", "/kotlin/", "/src/main/", "/src/"):
