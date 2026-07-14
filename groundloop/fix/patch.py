@@ -82,6 +82,24 @@ def norm_path(p: str) -> str:
     return re.sub(r"/+", "/", p)
 
 
+def canonical_path(p: str) -> str:
+    """Grading-only: reduce a repo-relative path to its package-qualified suffix so the same file
+    matches across differing source roots (atlas 'app/src/main/java/…' vs oracle 'src/java/…'). Strips
+    through the source-root marker; keeps the FULL package path so distinct same-basename files in
+    different packages do NOT collide. NOT used in the loop — scoring only."""
+    p = norm_path(p)
+    for marker in ("/src/main/java/", "/src/main/kotlin/", "/src/java/", "/src/kotlin/",
+                   "/java/", "/kotlin/", "/src/main/", "/src/"):
+        i = p.find(marker)
+        if i != -1:
+            return p[i + len(marker):]
+    for pref in ("src/main/java/", "src/main/kotlin/", "src/java/", "src/kotlin/",
+                 "java/", "kotlin/", "src/main/", "src/"):
+        if p.startswith(pref):
+            return p[len(pref):]
+    return p
+
+
 def patch_applies(diff: str, worktree_path: str) -> bool:
     """True iff `diff` applies cleanly against the tree at worktree_path (git apply --check).
     Empty diff => False. LF + --whitespace=nowarn (WSL-safe). git-only, oracle-free."""

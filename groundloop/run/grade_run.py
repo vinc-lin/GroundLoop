@@ -10,7 +10,7 @@ from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.core.types import RepoRef
 from groundloop.eval.dataset import load_cases, load_eval_oracle
 from groundloop.eval.metrics import recall_at_k, repo_rank
-from groundloop.fixeval.patch import norm_path
+from groundloop.fix.patch import canonical_path
 from groundloop.fixeval.runner import FixRecord
 from groundloop.fixeval.scorecard import grade_fix_all
 from groundloop.run.record import RunRecordIO
@@ -62,8 +62,8 @@ def _localize_as_run(rows):
     def fk(k):
         if not n:
             return None
-        return sum(recall_at_k([norm_path(x) for x in r["locations"]],
-                               {norm_path(e) for e in r["expected"]}, k) for r in loc) / n
+        return sum(recall_at_k([canonical_path(x) for x in r["locations"]],
+                               {canonical_path(e) for e in r["expected"]}, k) for r in loc) / n
     return {f"file@{k}": fk(k) for k in _KS}
 
 
@@ -77,17 +77,17 @@ def _localize_isolated(rows):
     def fk(k):
         if not n:
             return None
-        return sum(recall_at_k([norm_path(x) for x in r["retrieved"]],
-                               {norm_path(e) for e in r["expected"]}, k) for r in loc) / n
+        return sum(recall_at_k([canonical_path(x) for x in r["retrieved"]],
+                               {canonical_path(e) for e in r["expected"]}, k) for r in loc) / n
     return {f"file@{k}": fk(k) for k in _KS}
 
 
 def _case_row(row):
-    exp = {norm_path(e) for e in row["expected"]}
-    as_run1 = recall_at_k([norm_path(x) for x in row["locations"]], exp, 1) if exp else None
+    exp = {canonical_path(e) for e in row["expected"]}
+    as_run1 = recall_at_k([canonical_path(x) for x in row["locations"]], exp, 1) if exp else None
     iso1 = None
     if "retrieved" in row and exp:
-        iso1 = recall_at_k([norm_path(x) for x in row["retrieved"]], exp, 1)
+        iso1 = recall_at_k([canonical_path(x) for x in row["retrieved"]], exp, 1)
     present = row["doc"].materialize.present
     fix = "ungradeable(no_source)" if not present else (
         "applies" if row["doc"].patch_applies else "unappliable")
