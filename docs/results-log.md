@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-14 | localize dispatch **prod-fixes A/B** (Bugs 1/2/3) | `[proxy]` | 212 functional cases, isolated + canonical grading: fixed dispatch **file@1 0.010→0.161** (+0.151). **Entirely from Bug 2** (code-tokens-in-FTS5): carplay (log carries fault class) **0→0.494**; the semantic branch (Bug 1) is neutral-to-negative (audio/ui_text ~0 either way). ⇒ **Bug 2 is the lever; make tokens-in-query the default; demote semantic.** Re-run GEI to resolve `[production]` |
 | 2026-07-14 | functional localize dispatch — **`[production]` = INERT** (+ non-representative proxy) | `[production]` | **GEI run: `file@1 = 0/10`** — dispatch's semantic branch **never engages** under `--match-arm component` (real tickets carry logcat → `AndroidSignalExtractor` fills `classes` → `is_functional_localize`=False → FTS5, always). The earlier `[proxy]` "file@5 +0.021" was on **prose-only (`logs=[]`) cases** where the discriminator fires — NOT representative of production. Also: grading path-prefix mismatch (`app/src/main/java` vs `src/java`) marks rank-1 hits as misses (score understated). Bugs confirmed in code |
 | 2026-07-14 | KB rename `Claim`→`Knowledge` + Lane-A removal | governance | vocabulary + surface correction only: distilled unit renamed (`--knowledge`, `knowledge.json`), Skill is input-only, Lane A (harvest→distill) removed, `kb-ab` gates on Knowledge — **no efficacy change**, KB stays Candidate/unproven |
 | 2026-07-13 | labs arms run-reachable + functional-arm A/B | `[proxy]` | experimental arms wired into `gloop run` + `KLOOP_LABS` switch (Core default unchanged); functional recall@1 **0.68** vs flood 0.32 (+0.36) on 212 functional bugs via the built `textprofile-9.db`; stays Candidate |
@@ -18,6 +19,30 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-07 | claim-centric KB (Phase D) | `[proxy]` | retain-loop validated **0/60** claims; no-injection 0.51 > placebo 0.37 > raw Skills 0.22 |
 | 2026-07-06 | first cross-stage evaluation | `[proxy]` | match recall@1 **0.60** synth / 0.02–0.23 real; localize 0.85@1 (oracle repo); fix/KB gated |
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
+
+---
+
+## 2026-07-14 · localize dispatch prod-fixes A/B (Bugs 1/2/3) · `[proxy]`
+
+After the `[production]` INERT read (below), fixed all three bugs (branch `localize-dispatch-prod-fixes`):
+Bug 1 = frame-evidence discriminator (`methods`/native-`symbols` ⇒ crash, else functional — fires even
+when a logcat fills `classes`); Bug 2 = the crash/FTS5 branch queries the extracted code tokens
+(`code_query`) not the summary; Bug 3 = grading `canonical_path` reconciles source-root prefixes.
+Re-ran the A/B on the **representative** substrate — all 212 `functional-clean` cases (74 `ui_text` +
+69 `audio` + 69 `carplay`; carplay/audio carry logcats), `--match-arm flood`, isolated + canonical grading.
+
+- **Overall isolated `file@1` 0.010 → 0.161 (+0.151), `file@5` 0.019 → 0.209 `[proxy]`.** Routing: audio+ui_text
+  (146) → semantic; carplay (66) → crash-FTS5(tokens).
+- **The win is ENTIRELY Bug 2.** Per-class `file@1`: **carplay 0.000 → 0.494 `[proxy]`** (log carries the
+  fault class in an `at …(` frame → `code_query` includes it → FTS5 exact-matches — the extracted-tokens
+  lever), audio 0.017 → 0.001, ui_text 0.014 → 0.000 (**semantic branch neutral-to-negative** — bge-m3 on
+  symptom prose retrieves the neighborhood, not rank-1).
+- **Verdict:** Bug 2 (code-tokens-in-FTS5) is the file@1 lever — it fires on all real **crash** tickets
+  (stacks name the fault class) and carplay-shape functional tickets. The **semantic routing (Bug 1) does
+  not earn its place** at file@1. Recommend: promote tokens-in-query to the **default** localize; demote/drop
+  the semantic branch. Caveat: carplay 0.494 is synth-inflated (fault class planted in the log) but realistic
+  for real crash stacks. GEI re-run is the `[production]` resolver (the tested GEI cases were *functional* — the
+  fix helps them only if their logcats carry fault-class frames). Artifacts: `/home/vinc/gl-eval/loca-ab2/`.
 
 ---
 
