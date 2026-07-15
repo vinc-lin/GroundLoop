@@ -758,13 +758,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="core (default) | labs (experimental defaults: routing match + semantic localize; "
                         "also KLOOP_LABS=1). Explicit --match-arm/--localize always override the profile.")
     r.add_argument("--match-arm",
-                   choices=["flood", "routing", "component", "semantic", "judge", "functional", "dispatch"],
+                   choices=["flood", "routing", "component", "semantic", "functional", "dispatch"],
                    default=None,
                    help="Stage-1 match index (default resolved by --profile: component in core, routing in "
                         "labs): component (affinity prior via --affinity/KLOOP_AFFINITY, RRF-fused onto "
                         "AtlasIndex; falls back to flood if no affinity artifact) | flood (AtlasIndex "
                         "baseline) | routing (FaultRoutingIndex) | semantic (bge-m3 vector, needs "
-                        "KLOOP_EMBED_BASE_URL) | judge (LLM rerank, needs creds) | functional "
+                        "KLOOP_EMBED_BASE_URL) | functional "
                         "(FunctionalTextIndex, needs embedder + repo-text profile) | dispatch "
                         "(FaultRouting+FunctionalText, needs embedder + profile)")
     r.add_argument("--affinity", default="",
@@ -1123,15 +1123,6 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
                 from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
                 index = SemanticAtlasIndex(args.index_db, emb)
-            elif arm_req == "judge":
-                if not os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
-                    print("gloop run --match-arm judge: no judge creds — set KLOOP_PRODUCE_API_KEY.")
-                    return 2
-                from groundloop.adapters.index.atlas_judge import GatewayJudge, LLMJudgeIndex
-                from groundloop.config.settings import Settings as _S
-                s = _S.load()
-                index = LLMJudgeIndex(AtlasIndex(args.index_db), GatewayJudge(
-                    s.produce_base_url, s.produce_api_key, s.produce_main_model))
             elif arm_req in ("functional", "dispatch"):
                 emb = _build_embedder()
                 profile_db = args.functional_profile or os.environ.get("KLOOP_FUNCTIONAL_PROFILE", "").strip()

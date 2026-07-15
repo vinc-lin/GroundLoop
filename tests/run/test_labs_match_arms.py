@@ -1,4 +1,4 @@
-"""Selectable experimental match arms on `gloop run` (Task 2: semantic | judge). The arms are opt-in
+"""Selectable experimental match arms on `gloop run` (semantic | functional | dispatch). The arms are opt-in
 Candidates; they fail-closed with a clear message when their gateway creds are absent. Composition-root
 tests via main() — no live gateway (the autouse KLOOP_DEV fixture is active suite-wide)."""
 from __future__ import annotations
@@ -10,14 +10,6 @@ def test_semantic_arm_fail_closed_without_embedder(monkeypatch, capsys):
     rc = main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
                "--index-db", "a.db", "--out", "o", "--repos", "r", "--match-arm", "semantic"])
     assert rc == 2 and "embedder" in capsys.readouterr().out.lower()
-
-
-def test_judge_arm_fail_closed_without_creds(monkeypatch, capsys):
-    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
-    from groundloop.cli import main
-    rc = main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
-               "--index-db", "a.db", "--out", "o", "--repos", "r", "--match-arm", "judge"])
-    assert rc == 2 and "judge" in capsys.readouterr().out.lower()
 
 
 def test_semantic_arm_builds_index_when_embedder_present(monkeypatch):
