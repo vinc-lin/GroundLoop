@@ -10,10 +10,11 @@ def test_localize_index_for_reads_manifest_arm(tmp_path):
     assert isinstance(idx, AtlasIndex) and arm == "atlas"
 
 
-def test_localize_index_for_dispatch_without_embedder_degrades(tmp_path):
+def test_localize_index_for_dispatch_is_retired_to_atlas(tmp_path):
+    """localize `dispatch` was archived (2026-07-16): a historical dispatch run grades on the FTS5 floor."""
     (tmp_path / "manifest.json").write_text(json.dumps({"localize": "dispatch"}))
     idx, arm = _localize_index_for(str(tmp_path), "unused.db", None)
-    assert isinstance(idx, AtlasIndex) and "atlas" in arm   # no embedder -> FTS5 fallback
+    assert isinstance(idx, AtlasIndex) and arm == "dispatch->atlas(retired)"
 
 
 def test_localize_index_for_missing_manifest_defaults_atlas(tmp_path):
@@ -35,12 +36,11 @@ def test_signals_from_doc_handles_missing_signals():
 
 
 def test_signals_from_doc_preserves_prose_mark():
-    from groundloop.domains.android_ivi.functional_signals import PROSE_MARK, is_functional_localize
+    from groundloop.domains.android_ivi.functional_signals import PROSE_MARK
     class _Doc:
         signals = {"symbols": [PROSE_MARK + "wrong ui label"]}   # JSON round-trip = list of str
     sig = _signals_from_doc(_Doc())
     assert sig.symbols[0].startswith(PROSE_MARK)
-    assert is_functional_localize(sig) is True                    # would route to the functional retriever
 
 
 def test_localize_index_for_tokens_needs_no_embedder(tmp_path):

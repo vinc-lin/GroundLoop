@@ -772,17 +772,15 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "semantic", "dispatch", "tokens"], default=None,
+    r.add_argument("--localize", choices=["atlas", "semantic", "tokens"], default=None,
                    help="localize retriever, chosen independently of --match-arm (default resolved by "
-                        "--profile: tokens in core (Provisional-Core, no embedder), semantic in labs): "
-                        "atlas (FTS5, prose query — the reversible opt-out) | semantic (bge-m3 vector, "
-                        "needs KLOOP_EMBED_BASE_URL) | dispatch (per-ticket: prose-only/no-anchor -> bge-m3 "
-                        "vector, crash/anchored -> FTS5; needs KLOOP_EMBED_BASE_URL) | tokens (signal-aware "
-                        "FTS5: query the extracted code tokens, fallback prose; no embedder — the validated "
-                        "file@1 lever). When it differs from the "
-                        "match arm's native retrieve, the index is wrapped (SplitIndex / LocalizeDispatchIndex). "
-                        "A labs-DEFAULTED semantic/dispatch localize degrades to atlas (warn) without an "
-                        "embedder; explicit --localize semantic/dispatch fails closed.")
+                        "--profile: atlas in core, semantic in labs): "
+                        "atlas (FTS5 prose query — the [production]-validated default) | semantic (bge-m3 "
+                        "vector, needs KLOOP_EMBED_BASE_URL) | tokens (signal-aware FTS5: query the extracted "
+                        "code tokens, fallback prose; no embedder — the [proxy] file@1 lever). When it differs "
+                        "from the match arm's native retrieve, the index is wrapped (SplitIndex). A "
+                        "labs-DEFAULTED semantic localize degrades to atlas (warn) without an embedder; "
+                        "explicit --localize semantic fails closed.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1175,22 +1173,6 @@ def main(argv: list[str] | None = None) -> int:
             elif localize_req == "atlas" and arm_req == "semantic":
                 from groundloop.adapters.index.split import SplitIndex
                 index = SplitIndex(index, AtlasIndex(args.index_db))
-            elif localize_req == "dispatch":
-                emb = _build_embedder()
-                if emb is None:
-                    if localize_explicit:
-                        print("gloop run --localize dispatch: no embedder — set KLOOP_EMBED_BASE_URL "
-                              "(bge-m3 gateway). The functional branch needs the vector index.")
-                        return 2
-                    # labs-DEFAULTED dispatch localize: degrade to atlas FTS5 (warn), record honestly.
-                    print("gloop run (labs): --localize dispatch wanted but no embedder — falling back "
-                          "to atlas FTS5 localize. Set KLOOP_EMBED_BASE_URL to engage dispatch localize.")
-                    localize_req = "atlas"
-                else:
-                    from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-                    from groundloop.adapters.index.localize_dispatch import LocalizeDispatchIndex
-                    index = LocalizeDispatchIndex(index, AtlasIndex(args.index_db),
-                                                  SemanticAtlasIndex(args.index_db, emb))
             elif localize_req == "tokens":
                 from groundloop.adapters.index.signal_query import SignalQueryIndex
                 index = SignalQueryIndex(index, AtlasIndex(args.index_db))

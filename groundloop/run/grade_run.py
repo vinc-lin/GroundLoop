@@ -40,14 +40,12 @@ def _localize_index_for(runs_dir, index_db, embedder):
     if arm == "tokens":
         from groundloop.adapters.index.signal_query import SignalQueryIndex
         return SignalQueryIndex(AtlasIndex(index_db), AtlasIndex(index_db)), arm
-    if arm in ("semantic", "dispatch") and embedder is not None:
+    if arm == "semantic" and embedder is not None:
         from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-        sem = SemanticAtlasIndex(index_db, embedder)
-        if arm == "semantic":
-            return sem, arm
-        from groundloop.adapters.index.localize_dispatch import LocalizeDispatchIndex
-        return LocalizeDispatchIndex(AtlasIndex(index_db), AtlasIndex(index_db), sem), arm
-    fell_back = arm in ("semantic", "dispatch")     # wanted embedder, none available
+        return SemanticAtlasIndex(index_db, embedder), arm
+    if arm == "dispatch":     # localize dispatch retired (archived 2026-07-16) -> grade on the FTS5 floor
+        return AtlasIndex(index_db), "dispatch->atlas(retired)"
+    fell_back = arm == "semantic"     # wanted embedder, none available
     return AtlasIndex(index_db), (f"{arm}->atlas(no-embedder)" if fell_back else "atlas")
 
 
