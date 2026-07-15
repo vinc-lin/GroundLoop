@@ -8,6 +8,79 @@
 
 ---
 
+## The JIRA-to-commit workflow — the end-to-end concept
+
+GroundLoop's reason to exist is a single **closed loop**: from a **JIRA Bug ticket + its failure logs** to a
+**bound Gerrit change**, with a **traceable JIRA↔commit chain** — automating the manual "which of the 130+
+repos owns this defect, and where is the fix" triage. Three properties define it:
+
+1. **A deterministic control plane owns the flow.** `core/run_ticket` sequences the eight stages as ordinary
+   Python; the model only supplies *content* at each step (the extracted signals, the repo ranking, the
+   proposed patch) — it never decides what happens next.
+2. **The loop is oracle-blind.** The owning repo is a *predicted output*, **never an input**; `run_ticket`
+   has no oracle parameter, so grading is a strictly **separate offline pass** — one execution is at once a
+   real fix attempt and a scored benchmark case, and the benchmark cannot contaminate the attempt.
+3. **The two ends are still mocked.** JIRA intake (`IssueSource`) and Gerrit submit/bind (`ChangeSink`) are
+   `MockJira`/`MockGerrit` today; the *middle* (match → localize → fix) runs on real infrastructure.
+
+### The eight stages, end to end
+
+```
+ ┌───────────────────────── JIRA end · IssueSource  (MockJira today) ─────────────────────────┐
+ │  Bug ticket = summary + description + FAILURE LOGS  (logcat / stack / native #00 pc … )     │
+ │                                    the logs are the primary evidence                        │
+ └────────────────────────────────────────────┬───────────────────────────────────────────────┘
+                                               │  ① intake      issues.fetch(ticket_id)
+                                               ▼
+                                     ② extract     → Signals (exception · stack frame · class ·
+                                               │                 method · .so · error code)
+                                               ▼
+                            ③ MATCH   index.rank_repos → owning repo     ◄════ THE GATE
+                                               │      top-1 = prediction        (a predicted output +
+                                               ▼                                 hidden-oracle field,
+                            ④ materialize   estate.materialize → work-tree       NEVER a loop input)
+                                               │      (checkout the chosen repo)
+                                               ▼
+                            ⑤ localize   index.retrieve → suspicious files       (plain FTS5 keyword)
+                                               │
+                                               ▼
+                            ⑥ fix   fixer.propose → Patch   — or ABSTAIN         (never fabricate)
+                                               │
+                                               ▼
+ ┌───────────────────────── Gerrit end · ChangeSink  (MockGerrit today) ──────────────────────┐
+ │  ⑦ submit   changes.submit → Change   (Change-Id + JIRA key in the subject)                 │
+ │  ⑧ bind     changes.bind → link Change ↔ ticket  +  transition the ticket (write-back)      │
+ │             ▶ the append-only, auditable chain: discovery → logs → repo → localization →     │
+ │               fix → commit ↔ ticket   (the traceable JIRA↔commit chain)                     │
+ └─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ ┄┄┄ separate offline pass · ORACLE-BLIND ┄┄►  grade(RunRecord, hidden oracle) → scorecard
+      the loop emits its prediction with NO ground truth in scope; the grader reads the oracle after.
+```
+
+- **JIRA end (intake + write-back).** A ticket enters via `IssueSource.fetch`; on completion the bind stage
+  links the change to the ticket and transitions it (`IssueSource.transition` / `post_comment` are the
+  write-back surface). Today `MockJira` reads tickets from the filesystem — **no live REST fetch or
+  write-back yet**.
+- **The middle (the real work, on real infra).** `extract` → **`MATCH`** the owning repo (the gate — top-1
+  of `rank_repos`, via the component-affinity prior over a real cross-repo atlas) → `materialize` (real
+  checkout with `--repos`) → `localize` (plain FTS5 `retrieve`) → `fix` (`PlanningFixEngine` proposes a
+  grounded patch or **abstains** rather than fabricate).
+- **Gerrit end (submit + bind).** The patch becomes a `Change` and is bound to the ticket. Today
+  `MockGerrit` synthesizes a content-hashed Change-Id + a local ledger — **no live Gerrit push yet**.
+
+### What this means for the current state
+
+On the single `[production]` run to date the loop executed **all 8 stages to a *mock* bound change** (the
+manifest records `change_sink=mock`): the JIRA↔commit chain is demonstrated *mechanically* end-to-end, but
+because the two ends are mocked it is **not yet a real, live traceable link**. Closing that gap is the
+remaining net-new build to a fully real Core — a live JIRA REST `IssueSource` (fetch + comment/transition
+write-back) and a live Gerrit `ChangeSink` (a real change + a verifiable JIRA↔commit binding); both are the
+`[to build]` rows in the per-stage map below. Everything *between* the ends is Core or Core-when-configured
+and has run on real GEI data.
+
+---
+
 ## Production workflow
 
 **What Production is:** the smallest Core system run against **real GEI data** to a graded, traceable
@@ -42,11 +115,11 @@ mechanism + safety argument, its *effectiveness* still production-gated).
 - [ ] Load creds (NOT autoloaded): `set -a; . ./.env; set +a`
 - [ ] **`KLOOP_DEV` must be UNSET** — it is the dev-gate that unlocks the hermetic fixtures (`--index`/`--fixer
   canned`/`--case`); a production run leaves it off (only hermetic/Type-1 runs set `KLOOP_DEV=1`)
-- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`tokens`/`plan`). Set
+- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`atlas`/`plan`). Set
   `KLOOP_LABS=1` (or `--profile labs`) ONLY in a **production-*test*** deployment to default the experimental
-  stack (routing match + semantic localize) and earn its `[production]` read; the manifest records `profile=labs`
-  so the two are never confused. Individual arms are also runnable explicitly (`--match-arm {semantic,judge,
-  functional,dispatch}`, `--localize {semantic,dispatch}`) — each fail-closes without its creds/artifact.
+  stack (routing match; localize/fix stay Core) and earn its `[production]` read; the manifest records
+  `profile=labs` so the two are never confused. Individual Candidate arms are also runnable explicitly
+  (`--match-arm {semantic,functional,dispatch}`) — each fail-closes without its creds/artifact.
 - [ ] Readiness: `gloop doctor --atlas-db $KLOOP_ATLAS_DB` → **READY** (repo/unit counts as expected)
 - [ ] Hermetic gate green (no gateway needed): `.venv/bin/python -m pytest -q`
 - [ ] Run **off real ext4** (`/home/vinc` directly, `/var/tmp`, `/dev/shm`) — never the v9fs mount (sqlite over the multi-GB atlas)
@@ -139,16 +212,16 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | | `FunctionalTextIndex` (bge-m3 repo-text) | Candidate | `gloop run --match-arm functional` (needs embedder + `--functional-profile`) / funceval | `[proxy]` 0.68 vs flood 0.32 | a `[production]` read (now run-reachable) | `adapters/index/functional_text.py` |
 | | `DispatchIndex` (crash\|functional router) | Candidate | `gloop run --match-arm dispatch` (needs embedder + `--functional-profile`) / funceval | `[proxy]` 0.94 on crash (no regression) | a `[production]` read (now run-reachable) | `adapters/index/functional_text.py` |
 | | `SemanticAtlasIndex` (bge-m3 vector) | Candidate | `gloop run --match-arm semantic` (needs `KLOOP_EMBED_BASE_URL`) / `gloop eval --semantic` | `[proxy]` recall 0.02→0.23 | a `[production]` read (now run-reachable) | `adapters/index/atlas_semantic.py` |
-| | `LLMJudgeIndex` (LLM rerank) | Candidate | `gloop run --match-arm judge` (needs creds) / `gloop eval --judge` | none logged | a `[production]` read (now run-reachable) | `adapters/index/atlas_judge.py` |
+| | `LLMJudgeIndex` (LLM rerank) | Candidate (eval-only) | `gloop eval --judge` (removed from run `--match-arm` 2026-07-16 — zero measured recall) | none logged | a `[production]` read via eval | `adapters/index/atlas_judge.py` |
 | | `TokenIndex` (M0 stub) | Fixture | `--index <json>` | none (returns `[]` on retrieve) | (never) | `adapters/index/simple.py` |
 | **4 materialize** (RepoEstate) | `CheckoutEstate` (real owner checkout) | Core\* | `--repos` | `[production]`-intended (prod run passed none) | default it / require `--repos` | `adapters/estate.py:87` |
 | | `RecordingEstate` (outcome decorator) | Core | batch `--out` (default) | `[production]` (batch path) | — | `adapters/estate.py:57` |
 | | `MockEstate` (empty worktree) | Fixture | default w/o `--repos` | `[production]` → fix ungradeable | (never) | `adapters/estate.py:13` |
 | | `GitFixtureEstate` (@base snapshot) | Dev-Labs Infra | fixeval | `[proxy]` harness | — (not a loop role) | `adapters/estate.py:29` |
-| **5 localize** (`retrieve`) | `AtlasIndex.retrieve` (FTS5 keyword) | Core | the FTS5 substrate + the **reversible opt-out** (`--localize atlas`); `SignalQueryIndex` wraps it as the run default since 2026-07-15 | `[production]` **7/10 file@5** | — | `adapters/index/atlas.py:30` |
-| | `SemanticAtlasIndex.retrieve` (bge-m3 vector) | Candidate | `gloop run --localize semantic` (via `SplitIndex`; needs `KLOOP_EMBED_BASE_URL`) | none (unmeasured *for localize*) | a `[production]` read (now run-reachable) | `adapters/index/atlas_semantic.py:50` |
-| | `LocalizeDispatchIndex` (per-ticket FTS5⇄bge-m3 router) | Candidate | `gloop run --localize dispatch` (needs `KLOOP_EMBED_BASE_URL`) | `[proxy]` functional `file@1` 0.010→0.161 — but the win is entirely the FTS5-tokens branch; the bge-m3 branch is neutral-to-negative | superseded by `tokens` (drop the embedder) | `adapters/index/localize_dispatch.py` |
-| | `SignalQueryIndex` (signal-aware FTS5: query the extracted code tokens, fallback prose) | **Provisional-Core (default; effectiveness production-gated)** | `--localize tokens` (**run default** since 2026-07-15; **no embedder** — pure FTS5; `--localize atlas` opts out) | `[proxy]` functional isolated `file@1` 0.010→**0.166** (16×) ≈ dispatch, ≥ dispatch per class (carplay 0→0.494; ui_text 0.014); no new failure mode vs `atlas` | a `[production]` GEI `file@1` read → confirm Core / revert to `atlas` | `adapters/index/signal_query.py` |
+| **5 localize** (`retrieve`) | `AtlasIndex.retrieve` (FTS5 keyword) | Core | **the run default** (`--localize atlas`, restored 2026-07-16); `--localize tokens` wraps it as a reachable opt-in | `[production]` **7/10 file@5** | — | `adapters/index/atlas.py:30` |
+| | `SemanticAtlasIndex.retrieve` (bge-m3 vector) | Candidate (parked 2026-07-16) | removed from `--localize` (measured negative at `file@1`); `SemanticAtlasIndex` retained for `--match-arm semantic` | `[proxy]` negative for localize | a real reason + a `[production]` read | `adapters/index/atlas_semantic.py:50` |
+| | `LocalizeDispatchIndex` (per-ticket FTS5⇄bge-m3 router) | **Archived 2026-07-16** | — (removed from `--localize`; module + tests deleted, recoverable from git) | `[production]` measured null `file@1 0/10` (inert under `ComponentExtractor`) | archived — the win was entirely the FTS5-tokens branch, kept as `--localize tokens` | *(git history)* |
+| | `SignalQueryIndex` (signal-aware FTS5: query the extracted code tokens, fallback prose) | **Candidate** (reverted from Provisional-Core 2026-07-16) | `--localize tokens` (reachable opt-in, **no embedder** — pure FTS5; the default is `atlas`) | `[proxy]` functional isolated `file@1` 0.010→**0.166** (16×); one class regresses (`audio −0.017`); **no `[production]` read** | a `[production]` GEI `file@1` read → promote to default if it wins | `adapters/index/signal_query.py` |
 | **6 fix** (FixEngine) | `PlanningFixEngine` — **"Bug Plan Mode"** (plan→gate→re-plan→abstain→execute; the executed diff is re-gated to candidate scope) | **Provisional-Core (default; effectiveness production-gated)** | `--fixer plan` (**run default**) | `[proxy]` plan recall@1 0.48/@5 0.68, groundedness 0.56, **fab 0.0** (safety proven; resolution never gradeable) | a `[production]` `resolved_rate` read (grade-run promotion note) → confirm Core / revert | `adapters/fix/planning.py` |
 | | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (**opt-out**) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
 | | `CannedFixEngine` (hermetic stub) | Fixture | `--fixer canned` | — | (never) | `adapters/fix/canned.py` |
@@ -175,15 +248,18 @@ production shell — Type-1 arms it via an autouse fixture (`cli/__init__.py`, `
 the plan/patch primitives were relocated to **`groundloop/fix/`** so Core no longer imports the Dev-Labs
 `fixeval/` package (`groundloop/fix/{plan,patch}.py`).
 
-**Labs switch + SplitIndex (cross-cutting, 2026-07-13) — Core:** the experimental match arms
-(`--match-arm {semantic,judge,functional,dispatch}`) and `--localize semantic` are now **selectable from
-`gloop run`** (opt-in Candidates — fail-closed without their creds/artifacts), so each can earn its
-`[production]` read. **`KLOOP_LABS=1` / `--profile labs`** is a per-environment switch (the analogue of
-`KLOOP_DEV`) that flips the run *defaults* to the experimental stack (routing match + semantic localize; fix
-stays `plan`) — **explicit flags always override it**, and with it **unset the defaults are Core-identical**
-(`component`/`tokens`/`plan`; asserted by `tests/run/test_core_defaults_unchanged.py`). `SplitIndex`
-(`adapters/index/split.py`) lets `--localize` differ from `--match-arm` (rank from one index, retrieve from
-another). The manifest records `profile`/`localize` so a labs run can never be misread as a Core production run.
+**Labs switch + SplitIndex (cross-cutting; updated 2026-07-16) — Core:** the experimental match arms
+(`--match-arm {semantic,functional,dispatch}`) are **selectable from `gloop run`** (opt-in Candidates —
+fail-closed without their creds/artifacts), so each can earn its `[production]` read. *(The 2026-07-16
+workflow-simplification removed run `--match-arm judge` → eval-only, and pruned the localize menu to
+`{atlas, tokens}` — `--localize {semantic,dispatch}` were parked/archived.)* **`KLOOP_LABS=1` / `--profile
+labs`** is a per-environment switch (the analogue of `KLOOP_DEV`) that flips the run *defaults* to the
+experimental stack (routing match; localize + fix stay the Core `atlas`/`plan`) — **explicit flags always
+override it**, and with it **unset the defaults are Core-identical** (`component`/`atlas`/`plan`; asserted by
+`tests/run/test_core_defaults_unchanged.py`). `SplitIndex` (`adapters/index/split.py`) lets `--localize`
+differ from `--match-arm` (rank from one index, retrieve from another — used when `--match-arm semantic` runs
+with `atlas` localize). The manifest records `profile`/`localize` so a labs run can never be misread as a
+Core production run.
 
 ---
 
