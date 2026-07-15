@@ -1,22 +1,14 @@
-"""`gloop run --localize {atlas,semantic}` chooses the localize retriever independently of --match-arm.
+"""`gloop run --localize {atlas,tokens}` chooses the localize retriever independently of --match-arm.
 When localize differs from the match arm's native retrieve, the built index is wrapped in a SplitIndex
 (rank from the match index, retrieve from the localize index). Composition-root tests via main() — no
 live gateway (the autouse KLOOP_DEV fixture is active suite-wide)."""
 from __future__ import annotations
 
 
-def test_localize_semantic_fail_closed_without_embedder(monkeypatch, capsys):
-    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)
-    from groundloop.cli import main
-    rc = main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
-               "--index-db", "a.db", "--out", "o", "--repos", "r", "--localize", "semantic"])
-    assert rc == 2 and "embedder" in capsys.readouterr().out.lower()
-
-
-def test_localize_semantic_wraps_in_split_index(monkeypatch):
-    """--localize semantic with a non-semantic match wraps the built index in a SplitIndex whose retrieve
-    is a SemanticAtlasIndex. We stub the embedder + SemanticAtlasIndex + capture the estate wiring; assert
-    the composed index is a SplitIndex."""
+def test_semantic_match_atlas_localize_wraps_in_split_index(monkeypatch):
+    """`--match-arm semantic` (vector match) with the default `atlas` localize wraps the built index in a
+    SplitIndex whose retrieve is the FTS5 AtlasIndex — so localize stays FTS5 under a vector match. We stub
+    the embedder + SemanticAtlasIndex; assert the composed index is a SplitIndex."""
     monkeypatch.setattr("groundloop.cli._build_embedder", lambda: object())
     import groundloop.adapters.index.atlas_semantic as sem
     monkeypatch.setattr(sem, "SemanticAtlasIndex", lambda db, emb: ("sem", db))
@@ -32,11 +24,11 @@ def test_localize_semantic_wraps_in_split_index(monkeypatch):
     try:
         main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
               "--index-db", "a.db", "--out", "o", "--repos", "r", "--fixer", "canned",
-              "--localize", "semantic", "--match-arm", "flood"])
+              "--match-arm", "semantic", "--localize", "atlas"])
     except Exception:
         pass
     from groundloop.adapters.index.split import SplitIndex
-    assert isinstance(seen.get("index"), SplitIndex)   # localize was split onto SemanticAtlasIndex
+    assert isinstance(seen.get("index"), SplitIndex)   # semantic match, FTS5 localize -> split
 
 
 def _captured_index(monkeypatch, extra):

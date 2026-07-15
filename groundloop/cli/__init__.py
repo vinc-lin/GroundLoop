@@ -772,15 +772,13 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "semantic", "tokens"], default=None,
-                   help="localize retriever, chosen independently of --match-arm (default resolved by "
-                        "--profile: atlas in core, semantic in labs): "
-                        "atlas (FTS5 prose query — the [production]-validated default) | semantic (bge-m3 "
-                        "vector, needs KLOOP_EMBED_BASE_URL) | tokens (signal-aware FTS5: query the extracted "
-                        "code tokens, fallback prose; no embedder — the [proxy] file@1 lever). When it differs "
-                        "from the match arm's native retrieve, the index is wrapped (SplitIndex). A "
-                        "labs-DEFAULTED semantic localize degrades to atlas (warn) without an embedder; "
-                        "explicit --localize semantic fails closed.")
+    r.add_argument("--localize", choices=["atlas", "tokens"], default=None,
+                   help="localize retriever, chosen independently of --match-arm (default atlas in both "
+                        "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
+                        "(signal-aware FTS5: query the extracted code tokens, fallback prose; no embedder — "
+                        "the [proxy] file@1 lever). When it differs from the match arm's native retrieve "
+                        "(a vector --match-arm semantic), the index is wrapped in a SplitIndex so localize "
+                        "still runs FTS5.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1000,7 +998,7 @@ def _resolve_arms(args):
     profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile)."""
     labs = args.profile == "labs" or _env_flag("KLOOP_LABS")
     match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
-    localize = args.localize if args.localize is not None else ("semantic" if labs else "atlas")
+    localize = args.localize if args.localize is not None else "atlas"
     return match_arm, localize, ("labs" if labs else "core")
 
 
@@ -1092,7 +1090,6 @@ def main(argv: list[str] | None = None) -> int:
         # Resolve the requested arms from flags + the labs profile (--profile labs / KLOOP_LABS=1 flips the
         # defaults to routing match + semantic localize); explicit --match-arm/--localize always win.
         arm_req, localize_req, profile = _resolve_arms(args)
-        localize_explicit = args.localize is not None
         match_arm = arm_req            # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
         affinity_path = ""             # set only on the component path; kept in scope for the manifest
         if args.index_db:
@@ -1154,23 +1151,9 @@ def main(argv: list[str] | None = None) -> int:
                     from groundloop.funceval.arms import _FAULT_SCALE   # tuned fault/functional scale (SSOT)
                     index = DispatchIndex(FaultRoutingIndex(args.index_db), ftext, fault_scale=_FAULT_SCALE)
                     extractor = DispatchExtractor()
-            # localize retriever, independent of the match arm (semantic-match already retrieves via vectors)
-            if localize_req == "semantic" and arm_req != "semantic":
-                emb = _build_embedder()
-                if emb is None:
-                    if localize_explicit:
-                        print("gloop run --localize semantic: no embedder — set KLOOP_EMBED_BASE_URL.")
-                        return 2
-                    # labs-DEFAULTED semantic localize: degrade to atlas FTS5 (warn) rather than fail closed;
-                    # record the localize that ACTUALLY ran (atlas) in the manifest below.
-                    print("gloop run (labs): --localize semantic wanted but no embedder — falling back to "
-                          "atlas FTS5 localize. Set KLOOP_EMBED_BASE_URL to engage semantic localize.")
-                    localize_req = "atlas"
-                else:
-                    from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-                    from groundloop.adapters.index.split import SplitIndex
-                    index = SplitIndex(index, SemanticAtlasIndex(args.index_db, emb))
-            elif localize_req == "atlas" and arm_req == "semantic":
+            # localize retriever, independent of the match arm. A vector --match-arm semantic is split so
+            # localize still runs FTS5 (atlas); --localize tokens rewrites the FTS5 query to code tokens.
+            if localize_req == "atlas" and arm_req == "semantic":
                 from groundloop.adapters.index.split import SplitIndex
                 index = SplitIndex(index, AtlasIndex(args.index_db))
             elif localize_req == "tokens":
