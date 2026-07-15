@@ -76,6 +76,9 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
 - `docs/roadmap.md` — mining, the two-stage matcher, milestone tracks, downstream phasing.
 - `docs/results-log.md` — chronological, `[proxy]`/`[production]`-tagged log of every eval result.
 - `docs/STATUS.md` — current state, blockers, next steps (read first when resuming).
+- `docs/stakeholder-overview.md` — **confidence-first technical briefing for management stakeholders** (a
+  reader-facing synthesis, **not itself SSOT**): principle-per-stage, the modules, the improvement/governance
+  engine, testing + scoring — every efficacy number `[proxy]`/`[production]`-tagged; links down into the docs above.
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
