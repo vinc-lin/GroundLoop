@@ -1002,7 +1002,7 @@ def _resolve_arms(args):
     profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile)."""
     labs = args.profile == "labs" or _env_flag("KLOOP_LABS")
     match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
-    localize = args.localize if args.localize is not None else ("semantic" if labs else "tokens")
+    localize = args.localize if args.localize is not None else ("semantic" if labs else "atlas")
     return match_arm, localize, ("labs" if labs else "core")
 
 

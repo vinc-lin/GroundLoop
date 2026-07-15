@@ -63,9 +63,19 @@ def test_localize_atlas_explicit_no_wrap(monkeypatch):
     assert not isinstance(idx, (SplitIndex, SignalQueryIndex))
 
 
-def test_localize_tokens_is_core_default_wraps_signalquery(monkeypatch):
-    """Core default (no --localize) is now `tokens` (Provisional-Core): the index is wrapped in
-    SignalQueryIndex so the localize FTS5 query uses the extracted code tokens."""
+def test_localize_default_is_atlas_unwrapped(monkeypatch):
+    """Core default (no --localize) is `atlas` — the [production]-validated FTS5 floor — so the index is
+    left unwrapped (neither a SignalQueryIndex nor a SplitIndex). `tokens` was reverted from the default to
+    a reachable opt-in on 2026-07-15 (the workflow-simplification pass)."""
+    from groundloop.adapters.index.split import SplitIndex
     from groundloop.adapters.index.signal_query import SignalQueryIndex
-    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = tokens
+    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = atlas (unwrapped)
+    assert not isinstance(idx, (SplitIndex, SignalQueryIndex))
+
+
+def test_localize_tokens_explicit_wraps_signalquery(monkeypatch):
+    """`--localize tokens` (now an opt-in, no longer the default) still wraps the index in SignalQueryIndex
+    so the localize FTS5 query uses the extracted code tokens."""
+    from groundloop.adapters.index.signal_query import SignalQueryIndex
+    idx = _captured_index(monkeypatch, ["--localize", "tokens"])
     assert isinstance(idx, SignalQueryIndex)
