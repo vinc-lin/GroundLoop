@@ -81,7 +81,7 @@ only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanis
 | `AndroidSignalExtractor` / `ComponentExtractor` — the domain **extract** stage (`domains/android_ivi/`) | Ran in the `[production]` loop; `ComponentExtractor` wraps the base extractor to add the `Ticket.component` join the affinity prior needs. `AndroidSignalExtractor` = the domain adapter (prod == dev). |
 | `GatewayModel` — the live `Model` port (`adapters/model/gateway.py`) | Cross-cutting Core: underlies `--fixer plan`/`model` and any eval rerank, and self-tracks `cost`/`tokens`/`calls` (the run-record data plane reads it). `CannedModel` is the Fixture double. |
 | `SplitIndex` (`adapters/index/split.py`) — 2026-07-13 | Composition-root composite: `rank_repos` from the match index, `retrieve` from the localize index — lets `--localize` differ from `--match-arm` (`run_ticket` uses one `CodeIndex` for both). No `core/` edit. |
-| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 | A per-environment switch (the analogue of `KLOOP_DEV`): flips the run defaults to the experimental stack (routing match + semantic localize; fix stays `plan`) **only where enabled**. Explicit flags override it; with it **unset the defaults are Core-identical** (`component`/`tokens`/`plan`). The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — the arms it selects are still Candidate until each earns a `[production]` read. |
+| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 | A per-environment switch (the analogue of `KLOOP_DEV`): flips the run defaults to the experimental stack (routing match + atlas localize; fix stays `plan`) **only where enabled**. Explicit flags override it; with it **unset the defaults are Core-identical** (`component`/`atlas`/`plan`). The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — the arms it selects are still Candidate until each earns a `[production]` read. |
 
 ### Core-when-configured — production-validated, engaged when their artifact/flags are supplied
 These have real `[production]` validation. **§4 re-points the default *selection*** so a correctly-configured
@@ -100,19 +100,32 @@ The **affinity miner** `gloop mine-affinity` is the *offline build step* that pr
 production build step feeding Core, like `gloop index`; it is **not** a `run_ticket` stage and the re-point
 does not touch it.
 
-### Provisional-Core — default-on on a fail-safe/safety argument, effectiveness production-gated (2)
+### Provisional-Core — default-on on a fail-safe/safety argument, effectiveness production-gated (1 active)
 `PlanningFixEngine` is admitted under the strict §2 criteria (fail-safe mechanism + charter-aligned safety +
-a scheduled production read). **`SignalQueryIndex` is admitted as a documented EXCEPTION to §2 criterion (1)
-— it is NOT abstain-fail-safe** (see its row): it is default-on by an explicit operator decision on strong
-`[proxy]` evidence + reversibility, not by meeting the letter of the fail-safe rule. Both are default-on
-with the *effectiveness* claim production-gated and bounded — each **must** be resolved by the next
-instrumented `[production]` run or it reverts.
+a scheduled production read). It is default-on with the *effectiveness* claim production-gated and bounded —
+it **must** be resolved by the next instrumented `[production]` run or it reverts.
+
+> **Amendment 2026-07-16 (workflow-simplification).** `SignalQueryIndex` (`--localize tokens`) was
+> **removed from Provisional-Core and reverted to a Candidate**: the localize default went `tokens → atlas`
+> (the `[production]`-validated FTS5 floor). It had been default-on on `[proxy]`-only evidence as a §2
+> *exception* (not abstain-fail-safe); the simplification stops defaulting on an unproven arm. `--localize
+> tokens` stays selectable. See `docs/superpowers/specs/2026-07-15-workflow-overdesign-audit-and-simplification.md`.
 | Capability | Why default-on (the safety half — proven) | The gate that resolves it (the effectiveness half — open) |
 |---|---|---|
 | **`PlanningFixEngine`** — "Bug Plan Mode" (plan→gate→re-plan→abstain→execute); `--fixer plan`, **the run default** since 2026-07-13 | Fail-safe by construction: the in-world gate scope-checks every target *before any disk read*, and the executed diff is **re-gated** against candidate scope, so it **abstains** (empty patch) rather than emit an out-of-scope or ungrounded fix. Measured `fabrication_rate = 0.0` `[proxy]`, with a recorded case of it abstaining where the direct fixer fabricated. That honesty *is* a charter-aligned production improvement and reduces incorrect-run risk (Ask-3). | **No measured resolution lift** over `ModelPatchEngine` yet — `resolved_rate` was never gradeable (`[proxy]` ungradeable 2026-07-07; 0-floor 2026-07-13). The next instrumented `[production]` run measures `resolved_rate` (grade-run emits a promotion-eligibility note) → **confirm Core** if it clears the bar with `fabrication_rate ≤ 0`, else **revert** to `--fixer model`. Until then it is bounded: it reverts on governance debt. |
-| **`SignalQueryIndex`** — signal-aware FTS5 localize; `--localize tokens`, **the run default** since 2026-07-15 (was `atlas`) — **admitted as a §2 EXCEPTION, not a fail-safe admission** | **NOT abstain-fail-safe — this is a deliberate, recorded relaxation of §2(1), not compliance.** Its worst case is a *worse-ranked file list*, not an abstain — the disclosed `audio −0.017` is exactly such a wrong-output case — so by the letter of §2 it would "stay Candidate". It is default-on anyway on an **operator decision (2026-07-15)** backed by: (a) strong `[proxy]` evidence — functional isolated `file@1` **0.010→0.166 (16×)**, ≥ the atlas/dispatch arms per class; (b) **no gateway dependency** (pure FTS5), so no new production fragility; (c) **no *categorical* new failure mode** vs the `atlas` default it replaces — a token-less ticket falls back byte-identical to `atlas`, and a token-bearing ticket only rewrites the FTS5 query string (not the ranking algorithm — it is not an aggressive re-ranker); (d) **trivially reversible** (`--localize atlas`). The regression surface is *bounded per-ticket*, not categorical. | **Only `[proxy]` evidence; no `[production]` read yet, AND it does not meet strict §2 — so the production read is load-bearing, not a formality.** Bounded per-ticket regression: a ticket whose extracted tokens localize *worse* than its summary (measured `audio −0.017`, ~1/69 — a weak `.so`-only signal). The next instrumented `[production]` GEI run measures `--localize tokens` vs `atlas` `file@1` (`canonical_path` grading) → **confirm Core** if it wins, else **revert** to `--localize atlas`. Reverts on governance debt. |
+| **`SignalQueryIndex`** — signal-aware FTS5 localize; `--localize tokens` — **REVERTED to a Candidate 2026-07-16** (was the run default 2026-07-15→16; localize default back to `atlas`, see the amendment above). Historical rationale retained: | **NOT abstain-fail-safe — this is a deliberate, recorded relaxation of §2(1), not compliance.** Its worst case is a *worse-ranked file list*, not an abstain — the disclosed `audio −0.017` is exactly such a wrong-output case — so by the letter of §2 it would "stay Candidate". It is default-on anyway on an **operator decision (2026-07-15)** backed by: (a) strong `[proxy]` evidence — functional isolated `file@1` **0.010→0.166 (16×)**, ≥ the atlas/dispatch arms per class; (b) **no gateway dependency** (pure FTS5), so no new production fragility; (c) **no *categorical* new failure mode** vs the `atlas` default it replaces — a token-less ticket falls back byte-identical to `atlas`, and a token-bearing ticket only rewrites the FTS5 query string (not the ranking algorithm — it is not an aggressive re-ranker); (d) **trivially reversible** (`--localize atlas`). The regression surface is *bounded per-ticket*, not categorical. | **Only `[proxy]` evidence; no `[production]` read yet, AND it does not meet strict §2 — so the production read is load-bearing, not a formality.** Bounded per-ticket regression: a ticket whose extracted tokens localize *worse* than its summary (measured `audio −0.017`, ~1/69 — a weak `.so`-only signal). The next instrumented `[production]` GEI run measures `--localize tokens` vs `atlas` `file@1` (`canonical_path` grading) → **confirm Core** if it wins, else **revert** to `--localize atlas`. Reverts on governance debt. |
 
 ### Candidate — Dev-Labs research, blocked on a first `[production]` read (6)
+
+> **Amendment 2026-07-16 (workflow-simplification, see the plan spec).** Four run-menu arms were pruned:
+> **`LocalizeDispatchIndex` (localize `dispatch`) → Archived** (removed from `--localize`; measured null
+> `file@1 0/10 [production]`); the **bge-m3 localize retrieve** (semantic localize) **parked** (removed from
+> `--localize`; `SemanticAtlasIndex` is retained for `--match-arm semantic`); **`LLMJudgeIndex` (match
+> `judge`) is now eval-only** (removed from `--match-arm`; still reachable via `gloop eval --judge`); and
+> **`SignalQueryIndex` (`--localize tokens`) reverted here from Provisional-Core** (still selectable). The
+> run localize menu is now `{atlas, tokens}`; the run match menu drops `judge`. The historical prose below
+> predates this pruning.
+
 `FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · the bge-m3 vector **localize** retrieve
 (`SemanticAtlasIndex.retrieve`, unmeasured for localize; there is **no** LLM/qwen-rerank localize —
@@ -165,7 +178,10 @@ verdict, and reporting-only **promotion-eligibility notes**, 2026-07-13) · `syn
 legacy `grade()`. **The trap that §4 closes: several of these were the production *defaults*.**
 
 ### Archived — measured NULL, stop investing
-*Currently empty.* The dev-experience KB track was **reclassified Archived → Candidate (2026-07-13)**: its
+**`LocalizeDispatchIndex`** (localize `dispatch`) — **Archived 2026-07-16** (workflow-simplification): a
+`[production]` measured null (`file@1 0/10`, inert under the `ComponentExtractor` default); removed from the
+`--localize` menu + wiring, module + tests deleted (recoverable from git history). *(This section was
+previously "currently empty".)* The dev-experience KB track was **reclassified Archived → Candidate (2026-07-13)**: its
 null was measured on the wrong metric (`plan_target_recall`, not `resolved_rate`) and rode a localize-query
 pollution confound (reproduced: Δ−0.10 file@1), and the fair `resolved_rate` re-test was inconclusive (a
 0-resolution floor on a synth slice — the wrong substrate). So the null is **not** validly established and
@@ -216,5 +232,5 @@ validated components (the affinity prior engaged whenever its artifact is config
 - Never let a Fixture (or an unvalidated Candidate) become a default (CI/regression should assert the
   production defaults are **Core- or Provisional-Core-aligned**, and that `KLOOP_DEV` **and `KLOOP_LABS`** are
   off in the production config — `tests/run/test_core_defaults_unchanged.py` locks the labs half:
-  no-profile/no-env → `component`/`tokens`/`plan`).
+  no-profile/no-env → `component`/`atlas`/`plan`).
 - When in doubt between Candidate and Fixture: *is anyone trying to promote it?* If no, it's a Fixture.

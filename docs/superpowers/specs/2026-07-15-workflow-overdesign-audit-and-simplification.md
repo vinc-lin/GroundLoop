@@ -87,11 +87,11 @@ each cut**.
   a default until a `[production]` read pulls on it.
 
 ## 5. Execution log
-- [ ] Cut 1 — revert core localize default `tokens`→`atlas` (+ tests + `CLAUDE.md`)
-- [ ] Cut 2 — archive `--localize dispatch` + dead routing helpers
-- [ ] Cut 3 — park `--localize semantic` (+ labs default → `atlas`)
-- [ ] Cut 4 — park `--match-arm judge`
-- [ ] Cut 5 — reconcile `capabilities.md` governance states
-- (deferred to DO-NEXT: functional sub-stack park; arm-registry consolidation)
+- [x] Cut 1 — revert core localize default `tokens`→`atlas` (+ tests + `CLAUDE.md`) — committed `488c3a1`
+- [x] Cut 2 — archive `--localize dispatch` (delete module/tests, drop `is_functional_localize`) — `3f1f0ab`
+- [x] Cut 3 — park `--localize semantic` (+ labs localize default → `atlas`) — `905e94e`
+- [x] Cut 4 — park run `--match-arm judge` (eval `--judge` kept) — `2b20870`
+- [x] Cut 5 — reconcile `capabilities.md` governance states (this commit)
+- (deferred to DO-NEXT: functional sub-stack park; arm-registry consolidation; stakeholder-doc arm-list sync)
 
 Each cut lands only with the full suite green + ruff clean, `core/` and the atlas schema untouched.
