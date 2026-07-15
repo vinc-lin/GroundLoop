@@ -79,6 +79,8 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
 - `docs/stakeholder-overview.md` — **confidence-first technical briefing for management stakeholders** (a
   reader-facing synthesis, **not itself SSOT**): principle-per-stage, the modules, the improvement/governance
   engine, testing + scoring — every efficacy number `[proxy]`/`[production]`-tagged; links down into the docs above.
+- `docs/stages-concept.md` — the **concept behind the three working stages** (Match · Localize · Fix): the
+  core idea and *why* each is shaped that way (companion deep-dive to `stakeholder-overview.md` §5; synthesis, not SSOT).
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
