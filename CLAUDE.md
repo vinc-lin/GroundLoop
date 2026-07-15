@@ -86,10 +86,14 @@ GL-M1 plan (for provenance):
 - Tests: `.venv/bin/python -m pytest -q`  ·  Lint: `.venv/bin/ruff check groundloop tests` (line 110).
   Single test: `.venv/bin/python -m pytest tests/test_atlas_index.py -q` (or `-k <pattern>`).
   Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/build-setup.md`.
-- CLI: `.venv/bin/gloop {run,grade-run,index,produce,doctor,build-atlas,mine,mine-affinity,eval,fixeval,funceval,faulteval,synth,combine-oracle,compare}`.
+- CLI: `.venv/bin/gloop {run,grade-run,index,produce,doctor,build-atlas,build-textprofile,mine,mine-affinity,eval,label-bugkind,fixeval,funceval,faulteval,synth,combine-oracle,compare,kb-ab,kb-extract,kb-attribute}`.
   `gloop run` defaults (Core-aligned): match `component` arm + **`--fixer plan`** (the Provisional-Core
   `PlanningFixEngine` "Bug Plan Mode", default since 2026-07-13; `--fixer` = `canned|model|plan`; safety default —
-  abstains not fabricates, effectiveness production-gated), fail-closed without gateway creds / a valid `--repos`.
+  abstains not fabricates, effectiveness production-gated) + localize `tokens` (the Provisional-Core
+  `SignalQueryIndex` default since 2026-07-15; `atlas` is the reversible opt-out), fail-closed without
+  gateway creds / a valid `--repos`. Experimental Candidate arms are opt-in, never the silent default:
+  `--match-arm {semantic,judge,functional,dispatch}`, `--localize {atlas,semantic,dispatch}`,
+  `--profile labs`/`KLOOP_LABS` (reachable ≠ default — see `docs/capabilities.md`).
 - **Two test surfaces** (`docs/evaluation.md` §14 + `docs/environments.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in
   `tests/conftest.py`, anti-leak invariants in `tests/test_invariants.py`) and **Type-2 (Test 2)** live
