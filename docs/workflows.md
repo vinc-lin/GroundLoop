@@ -42,7 +42,7 @@ mechanism + safety argument, its *effectiveness* still production-gated).
 - [ ] Load creds (NOT autoloaded): `set -a; . ./.env; set +a`
 - [ ] **`KLOOP_DEV` must be UNSET** — it is the dev-gate that unlocks the hermetic fixtures (`--index`/`--fixer
   canned`/`--case`); a production run leaves it off (only hermetic/Type-1 runs set `KLOOP_DEV=1`)
-- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`atlas`/`plan`). Set
+- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`tokens`/`plan`). Set
   `KLOOP_LABS=1` (or `--profile labs`) ONLY in a **production-*test*** deployment to default the experimental
   stack (routing match + semantic localize) and earn its `[production]` read; the manifest records `profile=labs`
   so the two are never confused. Individual arms are also runnable explicitly (`--match-arm {semantic,judge,
@@ -181,7 +181,7 @@ the plan/patch primitives were relocated to **`groundloop/fix/`** so Core no lon
 `[production]` read. **`KLOOP_LABS=1` / `--profile labs`** is a per-environment switch (the analogue of
 `KLOOP_DEV`) that flips the run *defaults* to the experimental stack (routing match + semantic localize; fix
 stays `plan`) — **explicit flags always override it**, and with it **unset the defaults are Core-identical**
-(`component`/`atlas`/`plan`; asserted by `tests/run/test_core_defaults_unchanged.py`). `SplitIndex`
+(`component`/`tokens`/`plan`; asserted by `tests/run/test_core_defaults_unchanged.py`). `SplitIndex`
 (`adapters/index/split.py`) lets `--localize` differ from `--match-arm` (rank from one index, retrieve from
 another). The manifest records `profile`/`localize` so a labs run can never be misread as a Core production run.
 

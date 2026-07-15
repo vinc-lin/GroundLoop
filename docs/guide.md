@@ -270,13 +270,14 @@ production-validated affinity arm; falls back loudly to the `flood` `AtlasIndex`
 engages the affinity prior. The four **experimental** arms are opt-in Candidates that fail-closed without their
 deps: `semantic`/`judge` need gateway creds (`KLOOP_EMBED_BASE_URL` / `KLOOP_PRODUCE_API_KEY`);
 `functional`/`dispatch` additionally need a repo-text profile (`--functional-profile` / `KLOOP_FUNCTIONAL_PROFILE`,
-built by `gloop build-textprofile`). `--localize {atlas,semantic}` (default `atlas`) chooses the localize
-retriever independently of the match arm (semantic localize needs `KLOOP_EMBED_BASE_URL`).
+built by `gloop build-textprofile`). `--localize {atlas,semantic,dispatch,tokens}` (default `tokens` — Provisional-Core, signal-aware FTS5,
+no embedder; `--localize atlas` is the reversible opt-out) chooses the localize retriever independently of
+the match arm (semantic/dispatch localize needs `KLOOP_EMBED_BASE_URL`).
 
 **Labs profile.** `--profile labs` (or `KLOOP_LABS=1`) flips the run *defaults* to the experimental stack
 (`routing` match + `semantic` localize; fix stays `plan`) for a production-*test* deployment — explicit
 `--match-arm`/`--localize` flags override it, and with it unset the defaults are Core-identical
-(`component`/`atlas`/`plan`). The batch `manifest.json` records `profile`/`localize`.
+(`component`/`tokens`/`plan`). The batch `manifest.json` records `profile`/`localize`.
 
 ### 5.2 Batch + offline grade (`gloop run --out` → `gloop grade-run`)
 Omit `--case` and pass `--out` to run the whole `--dataset`, writing one **oracle-free** run-record per case
