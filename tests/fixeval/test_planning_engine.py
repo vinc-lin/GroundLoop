@@ -75,3 +75,30 @@ def test_model_abstain_short_circuits(tmp_path):
 def test_satisfies_fixengine_propose(tmp_path):
     patch = PlanningFixEngine(SeqModel([_GOOD_PLAN, _DIFF])).propose(_wt(tmp_path), _ticket(), ["src/F.java"])
     assert patch.diff.startswith("--- a/src/F.java")
+
+
+class RecModel(SeqModel):
+    """SeqModel that also records every prompt (for asserting where a preamble lands)."""
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.prompts = []
+
+    def complete(self, prompt):
+        self.prompts.append(prompt)
+        return super().complete(prompt)
+
+
+def test_execute_prepends_preamble_when_set(tmp_path):
+    # a code-understanding preamble (skills/knowledge/CodeWiki/CBM) must reach PATCH-WRITING, not just plan.
+    m = RecModel([_GOOD_PLAN, _DIFF])
+    PlanningFixEngine(m, preamble="# FIXCTX injected").propose_with_plan(
+        _wt(tmp_path), _ticket(), ["src/F.java"])
+    assert len(m.prompts) == 2                       # [0]=plan, [1]=execute
+    assert m.prompts[0].startswith("# FIXCTX injected")   # plan prompt (existing behavior)
+    assert m.prompts[1].startswith("# FIXCTX injected")   # execute prompt (NEW: patch-writing sees it)
+
+
+def test_execute_no_preamble_by_default(tmp_path):
+    m = RecModel([_GOOD_PLAN, _DIFF])
+    PlanningFixEngine(m).propose_with_plan(_wt(tmp_path), _ticket(), ["src/F.java"])
+    assert m.prompts[1].startswith("Bug:")           # no preamble -> execute prompt unchanged

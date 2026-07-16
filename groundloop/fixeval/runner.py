@@ -68,7 +68,7 @@ class FixEvalRunner:
     def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float,
                  max_refine: int = 1, skills=None, knowledge=None, knowledge_tier_floor: str = "validated",
                  skill_inject: str = "both", base_checkout: bool = False, repos_root: str | None = None,
-                 base_work_root: str | None = None):
+                 base_work_root: str | None = None, fix_context=None):
         self.issues = issues
         self.estate = estate                     # materialize only
         self.catalog = list(catalog)             # list[RepoRef] for rank_repos
@@ -77,6 +77,10 @@ class FixEvalRunner:
         self.max_refine = max_refine
         self.skills = skills                     # a SkillRegistry or None (the `--skills` arm knob)
         self.knowledge = knowledge               # a KnowledgeRegistry or None (the `--knowledge` arm knob)
+        # OPT-IN Dev-Labs code-understanding fix context: a FixContextProvider (CodeWiki module summaries +
+        # live CBM call-graph) or None. Injected as a fix-prompt preamble AFTER localize (it keys on the
+        # localized files). Default None -> byte-identical to today; oracle-blind (loop-visible only).
+        self.fix_context = fix_context
         self.knowledge_tier_floor = knowledge_tier_floor  # TIERS floor: `candidate` in eval, `validated` prod
         self.skill_inject = skill_inject         # both (localize query + fix prompt) | fix-only (fix prompt only)
         # OPT-IN Dev-Labs @base=fix^ substrate: per-case checkout of the pre-fix source so the fix
@@ -141,6 +145,17 @@ class FixEvalRunner:
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
                        cost_usd=self._cost(fixer) - c0, fired_skills=fired, fired_knowledge=fired_knowledge)
+        # CODE-UNDERSTANDING FIX CONTEXT (post-localize: keys on the localized files + signals). Re-clone
+        # from the ORIGINAL fixer with the FULL preamble (skills+knowledge+codewiki+cbm). Fail-safe + opt-in:
+        # fix_context=None -> byte-identical; empty context -> preamble unchanged.
+        if self.fix_context is not None:
+            try:
+                codewiki_pre, cbm_pre = self.fix_context.preambles(predicted, locations, signals)
+            except Exception:      # noqa: BLE001 — enrichment is best-effort, never sink the fix
+                codewiki_pre, cbm_pre = "", ""
+            full = preamble + codewiki_pre + cbm_pre
+            if full:
+                f = fixer.with_preamble(full)
         plan_dict, patch, meta = _do_propose(f, wt, ticket, locations)
         applies = patch_applies(patch.diff, wt.path)
         iters = 0

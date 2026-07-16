@@ -71,6 +71,8 @@ class PlanningFixEngine:
                   f"Required APIs: {', '.join(plan.required_apis)}\n\n"
                   f"Fault-site context:\n{ctx}\n\n"
                   "Reply ONLY with a unified diff (```diff fenced) implementing this plan, or empty.")
+        if self.preamble:                                 # so injected context (skills/knowledge/CodeWiki/
+            prompt = self.preamble + "\n\n" + prompt       # CBM) reaches PATCH-WRITING, not just planning
         diff = extract_unified_diff(self.model.complete(prompt) or "")
         return Patch(diff=diff, files=tuple(touched_files(diff)))
 

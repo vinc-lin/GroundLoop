@@ -295,13 +295,15 @@ def _run_fixeval(args) -> int:
     skills = _load_skills(args.skills, args.skills_seed, embedder)
     knowledge, knowledge_tier_floor = _load_knowledge(args.knowledge, embedder,
                                                       store_path=args.knowledge_store)
+    fix_context = _build_fix_context(args)
     runner = FixEvalRunner(issues=MockJira(args.dataset),
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
                            skills=skills, knowledge=knowledge, knowledge_tier_floor=knowledge_tier_floor,
                            skill_inject=args.skills_inject,
                            base_checkout=getattr(args, "base_checkout", False),
-                           repos_root=args.repos, base_work_root=args.dataset + "/_base")
+                           repos_root=args.repos, base_work_root=args.dataset + "/_base",
+                           fix_context=fix_context)
     if getattr(args, "fixer", "direct") == "plan":
         from groundloop.adapters.fix.planning import PlanningFixEngine
         fixer = PlanningFixEngine(model, max_replan=args.max_replan)
@@ -983,6 +985,13 @@ def build_parser() -> argparse.ArgumentParser:
                          "using the case's oracle fix SHA) so the fix stage is gradeable. Default OFF -> "
                          "today's behavior (empty worktree -> ungradeable). Oracle-side substrate, never "
                          "fed to the matcher; fail-safe (any miss falls back to the empty worktree).")
+    fx.add_argument("--fix-context", dest="fix_context", default="",
+                    help="opt-in Candidate: enrich the FIX prompt with grounded code-understanding "
+                         "context. Comma list of {codewiki,cbm}: codewiki = the localized files' CodeWiki "
+                         "module summaries (needs KLOOP_REGISTRY entity_maps + atlas doc units); cbm = the "
+                         "live CBM call-graph for the localized symbols (needs a running CBM over "
+                         "<--repos>/<repo>). Default OFF -> byte-identical; fail-safe (a missing dep "
+                         "degrades to no context).")
 
     sy = sub.add_parser("synth", help="synthesize AAOS failure-log tickets from a mined dataset")
     sy.add_argument("--src", required=True, help="mined dataset root (case dirs + catalog.json)")
@@ -1157,6 +1166,60 @@ def _entity_map_provider(registry_path: str):
         except Exception:      # noqa: BLE001
             return None
     return _provider
+
+
+def _cbm_provider(repos_root: str):
+    """Callable repo_name -> a live CBMLiveGraph | None over <repos_root>/<repo> (opt-in `--fix-context
+    cbm`). Caches one facade per repo. Fail-safe: no repos root / no clone / CBM down -> None. Only built
+    when the caller opts into cbm context, so a hermetic fixeval never spins up a CBM subprocess."""
+    if not repos_root:
+        return None
+    from pathlib import Path
+    from groundloop.adapters.graph.cbm_live import open_cbm
+    cache: dict[str, object] = {}
+
+    def _provider(repo_name: str):
+        if repo_name in cache:
+            return cache[repo_name]
+        src = Path(repos_root) / repo_name
+        graph = None
+        if src.is_dir():
+            try:
+                graph = open_cbm(str(src))
+            except Exception:  # noqa: BLE001 — CBM is best-effort enrichment
+                graph = None
+        cache[repo_name] = graph
+        return graph
+    return _provider
+
+
+def _build_fix_context(args):
+    """Compose the opt-in `--fix-context {codewiki,cbm}` FixContextProvider for fixeval. Returns None when
+    the flag is empty (default) or nothing is buildable -> the runner stays byte-identical. Fail-safe: the
+    atlas store + entity_map (KLOOP_REGISTRY) feed CodeWiki; a live per-repo CBM feeds the graph context;
+    a missing dependency simply drops that block."""
+    import os
+    want = {t.strip() for t in getattr(args, "fix_context", "").split(",") if t.strip()}
+    if not want:
+        return None
+    unknown = want - {"codewiki", "cbm"}
+    if unknown:
+        print(f"gloop fixeval --fix-context: ignoring unknown context kind(s): {sorted(unknown)}")
+    store = entity_map = cbm = None
+    if "codewiki" in want:
+        from groundloop.engines.atlas.store import Store
+        store = Store(args.index_db)
+        registry_path = os.environ.get("KLOOP_REGISTRY", "").strip()
+        entity_map = _entity_map_provider(registry_path)
+        if entity_map is None:
+            print("gloop fixeval --fix-context codewiki: KLOOP_REGISTRY unset / no entity_maps — "
+                  "no file->module bridge, CodeWiki context will be empty (fail-safe).")
+    if "cbm" in want:
+        cbm = _cbm_provider(args.repos)
+    if store is None and cbm is None:
+        return None
+    from groundloop.fix.context import FixContextProvider
+    return FixContextProvider(store=store, entity_map=entity_map, cbm=cbm)
 
 
 def _build_rerank_localize(match_index, args, embedder):
