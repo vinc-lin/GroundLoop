@@ -736,6 +736,7 @@ def _bridge_cbm_map(entry, wiki, repo_head):
     import asyncio
     import os
 
+    from groundloop.config.settings import Settings
     from groundloop.engines.lore.bridge.build import apply_cbm_nodes, build_entity_map
     from groundloop.engines.lore.deploy import resolve_launch_spec
     from groundloop.engines.lore.graph import forward
@@ -749,7 +750,10 @@ def _bridge_cbm_map(entry, wiki, repo_head):
 
     async def _go():
         spec = resolve_launch_spec(environ=os.environ)
-        client = CBMClient(spec.command, env=spec.env, cwd=spec.cwd)
+        # index_repository builds the whole symbol graph — minutes on the v9fs mount. The CBMClient
+        # 30s default would trip mid-build and hang forever (see index.py); use the generous ceiling.
+        client = CBMClient(spec.command, env=spec.env, cwd=spec.cwd,
+                           call_timeout=Settings.load().cbm_index_timeout)
         try:
             await client.start()
             idx = await forward.index_repository(client, repo_path=entry.repo_path)
