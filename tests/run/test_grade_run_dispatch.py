@@ -50,3 +50,13 @@ def test_localize_index_for_tokens_needs_no_embedder(tmp_path):
     (tmp_path / "manifest.json").write_text(_json.dumps({"localize": "tokens"}))
     idx, arm = _localize_index_for(str(tmp_path), "unused.db", None)   # embedder=None
     assert isinstance(idx, SignalQueryIndex) and arm == "tokens"
+
+
+def test_localize_index_for_rerank_builds_reranklocalizeindex(tmp_path):
+    """A `--localize rerank` run grades on the reranker's grounded candidate POOL (judge=None offline):
+    the isolated diagnostic reconstructs a RerankLocalizeIndex labelled `rerank(no-judge:pool)`."""
+    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+    (tmp_path / "manifest.json").write_text(json.dumps({"localize": "rerank"}))
+    idx, arm = _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), None)   # embedder=None
+    assert isinstance(idx, RerankLocalizeIndex) and arm == "rerank(no-judge:pool)"
+    assert idx.judge is None      # no LLM judge offline -> pool order is the graded ceiling

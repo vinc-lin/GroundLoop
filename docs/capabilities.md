@@ -115,7 +115,7 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 | **`PlanningFixEngine`** — "Bug Plan Mode" (plan→gate→re-plan→abstain→execute); `--fixer plan`, **the run default** since 2026-07-13 | Fail-safe by construction: the in-world gate scope-checks every target *before any disk read*, and the executed diff is **re-gated** against candidate scope, so it **abstains** (empty patch) rather than emit an out-of-scope or ungrounded fix. Measured `fabrication_rate = 0.0` `[proxy]`, with a recorded case of it abstaining where the direct fixer fabricated. That honesty *is* a charter-aligned production improvement and reduces incorrect-run risk (Ask-3). | **No measured resolution lift** over `ModelPatchEngine` yet — `resolved_rate` was never gradeable (`[proxy]` ungradeable 2026-07-07; 0-floor 2026-07-13). The next instrumented `[production]` run measures `resolved_rate` (grade-run emits a promotion-eligibility note) → **confirm Core** if it clears the bar with `fabrication_rate ≤ 0`, else **revert** to `--fixer model`. Until then it is bounded: it reverts on governance debt. |
 | **`SignalQueryIndex`** — signal-aware FTS5 localize; `--localize tokens` — **REVERTED to a Candidate 2026-07-16** (was the run default 2026-07-15→16; localize default back to `atlas`, see the amendment above). Historical rationale retained: | **NOT abstain-fail-safe — this is a deliberate, recorded relaxation of §2(1), not compliance.** Its worst case is a *worse-ranked file list*, not an abstain — the disclosed `audio −0.017` is exactly such a wrong-output case — so by the letter of §2 it would "stay Candidate". It is default-on anyway on an **operator decision (2026-07-15)** backed by: (a) strong `[proxy]` evidence — functional isolated `file@1` **0.010→0.166 (16×)**, ≥ the atlas/dispatch arms per class; (b) **no gateway dependency** (pure FTS5), so no new production fragility; (c) **no *categorical* new failure mode** vs the `atlas` default it replaces — a token-less ticket falls back byte-identical to `atlas`, and a token-bearing ticket only rewrites the FTS5 query string (not the ranking algorithm — it is not an aggressive re-ranker); (d) **trivially reversible** (`--localize atlas`). The regression surface is *bounded per-ticket*, not categorical. | **Only `[proxy]` evidence; no `[production]` read yet, AND it does not meet strict §2 — so the production read is load-bearing, not a formality.** Bounded per-ticket regression: a ticket whose extracted tokens localize *worse* than its summary (measured `audio −0.017`, ~1/69 — a weak `.so`-only signal). The next instrumented `[production]` GEI run measures `--localize tokens` vs `atlas` `file@1` (`canonical_path` grading) → **confirm Core** if it wins, else **revert** to `--localize atlas`. Reverts on governance debt. |
 
-### Candidate — Dev-Labs research, blocked on a first `[production]` read (6)
+### Candidate — Dev-Labs research, blocked on a first `[production]` read (7)
 
 > **Amendment 2026-07-16 (workflow-simplification, see the plan spec).** Four run-menu arms were pruned:
 > **`LocalizeDispatchIndex` (localize `dispatch`) → Archived** (removed from `--localize`; measured null
@@ -123,13 +123,27 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 > `--localize`; `SemanticAtlasIndex` is retained for `--match-arm semantic`); **`LLMJudgeIndex` (match
 > `judge`) is now eval-only** (removed from `--match-arm`; still reachable via `gloop eval --judge`); and
 > **`SignalQueryIndex` (`--localize tokens`) reverted here from Provisional-Core** (still selectable). The
-> run localize menu is now `{atlas, tokens}`; the run match menu drops `judge`. The historical prose below
-> predates this pruning.
+> run localize menu is now `{atlas, tokens}` (superseded — `{atlas, tokens, rerank}` after the follow-on
+> below); the run match menu drops `judge`. The historical prose below predates this pruning.
+
+> **Follow-on 2026-07-16 (`feat/codewiki-cbm-localize-fix`).** A NEW `--localize rerank` arm
+> (`RerankLocalizeIndex`) was added as an opt-in **Candidate**, so the run localize menu is now
+> `{atlas, tokens, rerank}` and the "there is **no** LLM/qwen-rerank localize" statement in the prose
+> below no longer holds (it does now). It is a grounded LLM file-reranker over an RRF hybrid candidate
+> pool (symbol+doc), enriched per candidate with the source snippet + the CodeWiki module summary + the
+> **live per-repo CBM graph** (engaged when `--repos` points at a clone root; the same lazy `_cbm_provider`
+> as `--fix-context cbm`), that may only REORDER the pool — never fabricate a path (grounded to real
+> source files). Fail-safe throughout: no gateway judge → the grounded pool order; a CBM/map/model error
+> drops that context block, never sinks localize. The judge's `cost_usd` is summed into the run cost
+> plane (`$/ticket`). `[proxy]`-**unmeasured** — **no `[production]` read yet** (blocked on a first
+> isolated `file@1` A/B vs `atlas`/`tokens`); opt-in, defaults unchanged.
 
 `FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · the bge-m3 vector **localize** retrieve
-(`SemanticAtlasIndex.retrieve`, unmeasured for localize; there is **no** LLM/qwen-rerank localize —
-`LLMJudgeIndex.retrieve` delegates to plain FTS5) · the functional/no-crash **localize dispatch**
+(`SemanticAtlasIndex.retrieve`, unmeasured for localize; ~~there is **no** LLM/qwen-rerank localize —
+`LLMJudgeIndex.retrieve` delegates to plain FTS5~~ — **superseded 2026-07-16:** `RerankLocalizeIndex` /
+`--localize rerank` IS an LLM file-reranker localize, see the follow-on note above) · the
+functional/no-crash **localize dispatch**
 (`LocalizeDispatchIndex`, 2026-07-14 — reachable via `gloop run --localize dispatch`; per-ticket localize
 routing: prose-only/no-anchor tickets → the bge-m3 semantic retriever, crash/anchored tickets → the FTS5
 retriever, byte-identical to `atlas`; a composition-root class, no `core/`/schema edit; needs an embedder

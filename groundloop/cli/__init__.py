@@ -865,8 +865,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
                         "(signal-aware FTS5: query the extracted code tokens, fallback prose; no embedder — "
                         "the [proxy] file@1 lever) | rerank (opt-in Candidate: hybrid candidate pool + "
-                        "per-candidate code-understanding context (source + CodeWiki + live CBM) reranked by "
-                        "an LLM judge, grounded to real source files — targets the rank-1 precision gap; "
+                        "per-candidate code-understanding context (source + CodeWiki + live CBM when "
+                        "reachable, i.e. --repos points at a clone root) reranked by an LLM judge, grounded "
+                        "to real source files — targets the rank-1 precision gap; "
                         "degrades to the pool order without a judge). When it differs from the match arm's "
                         "native retrieve (a vector --match-arm semantic), the index is wrapped in a "
                         "SplitIndex so localize still runs FTS5.")
@@ -1226,7 +1227,8 @@ def _build_rerank_localize(match_index, args, embedder):
     """Compose the opt-in `--localize rerank` RerankLocalizeIndex around the built match index. Fail-safe:
     no gateway creds -> judge=None (degrades to the grounded candidate-pool order, never fabricates); the
     doc→source entity_map + source_reader come from KLOOP_REGISTRY + --repos when available, else degrade.
-    Live per-repo CBM enrichment is a deferred follow-up (cbm=None here)."""
+    Live per-repo CBM enrichment engages when --repos is a clone root (the SAME lazy per-repo `_cbm_provider`
+    as --fix-context cbm); with no --repos the provider is None and the reranker drops the CBM block."""
     import os
     from groundloop.adapters.index.rerank_localize import GatewayFileJudge, RerankLocalizeIndex
     from groundloop.engines.atlas.store import Store
@@ -1239,9 +1241,41 @@ def _build_rerank_localize(match_index, args, embedder):
         print("gloop run --localize rerank: KLOOP_PRODUCE_API_KEY unset — no LLM judge, degrading to the "
               "grounded candidate-pool order (opt-in Candidate; set gateway creds to engage the reranker).")
     registry_path = os.environ.get("KLOOP_REGISTRY", "").strip()
+    # cbm: the per-repo lazy provider (None when --repos is unset -> no CBM block); gated exactly like
+    # --fix-context cbm so a run without a clone root never spins up a CBM subprocess.
     return RerankLocalizeIndex(
-        match_index, store=Store(args.index_db), embedder=embedder, judge=judge, cbm=None,
+        match_index, store=Store(args.index_db), embedder=embedder, judge=judge,
+        cbm=_cbm_provider(args.repos),
         entity_map=_entity_map_provider(registry_path), source_reader=_source_reader(args.repos))
+
+
+class _CombinedCostModel:
+    """Live-summing cost view over multiple cost sources (the fixer GatewayModel + the `--localize rerank`
+    file-judge) so the batch driver's per-case snapshot counts BOTH toward $/ticket. The batch driver reads
+    `.cost_usd/.input_tokens/.output_tokens/.calls`; a source missing a counter (the judge tracks only
+    `.cost_usd`/`.calls`, not tokens) reads as 0 — its cost_usd still contributes. Residual gap: the judge's
+    tokens are not itemized, so the run-record `tokens` may undercount while `cost_usd` is complete."""
+    def __init__(self, *sources):
+        self._sources = [s for s in sources if s is not None]
+
+    def _sum(self, attr: str) -> float:
+        return sum(getattr(s, attr, 0) or 0 for s in self._sources)
+
+    @property
+    def cost_usd(self) -> float:
+        return float(self._sum("cost_usd"))
+
+    @property
+    def input_tokens(self) -> int:
+        return int(self._sum("input_tokens"))
+
+    @property
+    def output_tokens(self) -> int:
+        return int(self._sum("output_tokens"))
+
+    @property
+    def calls(self) -> int:
+        return int(self._sum("calls"))
 
 
 def _build_run_fixer(kind: str, max_replan: int = 1):
@@ -1322,6 +1356,7 @@ def main(argv: list[str] | None = None) -> int:
         arm_req, localize_req, profile = _resolve_arms(args)
         match_arm = arm_req            # the arm that ACTUALLY runs (honest run-record); "flood" on any fallback
         affinity_path = ""             # set only on the component path; kept in scope for the manifest
+        localize_reranker = None       # captured on --localize rerank so its judge cost joins the cost plane
         if args.index_db:
             index = AtlasIndex(args.index_db)
             if arm_req == "routing":
@@ -1383,7 +1418,8 @@ def main(argv: list[str] | None = None) -> int:
                 index = SignalQueryIndex(index, AtlasIndex(args.index_db))
             elif localize_req == "rerank":
                 from groundloop.adapters.index.split import SplitIndex
-                index = SplitIndex(index, _build_rerank_localize(index, args, _build_embedder()))
+                localize_reranker = _build_rerank_localize(index, args, _build_embedder())
+                index = SplitIndex(index, localize_reranker)
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
@@ -1418,6 +1454,11 @@ def main(argv: list[str] | None = None) -> int:
             inner = (CheckoutEstate(args.catalog, args.repos, args.work) if args.repos
                      else MockEstate(args.catalog, args.work))
             fixer, cost_model = _build_run_fixer(args.fixer, args.max_replan)
+            # Count the localize reranker's LLM file-judge spend toward the per-case cost snapshot. When
+            # `--localize rerank` engaged a real judge, wrap the fixer cost_model (or None) so the batch
+            # driver's before/after delta captures the judge cost incurred during localize.
+            if localize_reranker is not None and getattr(localize_reranker, "judge", None) is not None:
+                cost_model = _CombinedCostModel(cost_model, localize_reranker)
             n = run_dataset(args.dataset, issues=issues, extractor=extractor,
                             estate=RecordingEstate(inner), index=index,
                             fixer=fixer,

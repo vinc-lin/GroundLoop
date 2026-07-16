@@ -170,6 +170,70 @@ def test_source_reader_and_cbm_feed_context(atlas):
     assert "Neighbor" in ctx[ALPHA]                        # call-graph neighbors fed the block
 
 
+def test_callable_cbm_resolves_per_repo(atlas):
+    """`cbm` may be a callable repo_name -> CBMLiveGraph|None (a CBMLiveGraph is bound to ONE repo, but the
+    index spans repos). The reranker resolves it per candidate repo and the resolved graph's context reaches
+    the candidate blocks the judge sees — exactly like the callable entity_map path. No real CBM is opened."""
+    seen = {}
+    resolved_for: list[str] = []
+
+    class _CapJudge:
+        def rerank(self, query, candidates):
+            seen["candidates"] = candidates
+            return [p for p, _ in candidates]
+
+    class _StubCBM:
+        def __init__(self, repo_name):
+            self._repo = repo_name
+
+        def snippet(self, qn):
+            return f"cbmsnip::{self._repo}::{qn}"
+
+        def call_neighbors(self, qn, **kw):
+            return ["com.foo.Neighbor"]
+
+    def cbm_provider(repo_name):
+        resolved_for.append(repo_name)
+        return _StubCBM(repo_name)
+
+    idx = _rerank(atlas, judge=_CapJudge(), entity_map=_entity_map(), cbm=cbm_provider)
+    idx.retrieve(RepoRef(REPO), QUERY)
+    assert resolved_for and resolved_for[0] == REPO      # the provider was called with the candidate repo
+    ctx = dict(seen["candidates"])
+    assert f"cbmsnip::{REPO}::com.foo.Alpha" in ctx[ALPHA]   # the per-repo graph fed the ALPHA block
+    assert "Neighbor" in ctx[ALPHA]
+
+
+def test_cbm_for_resolves_callable_and_object(atlas):
+    """_cbm_for mirrors _entity_map_for: a callable is invoked with the repo name; a plain object passes
+    through; a raising provider fails safe to None (no CBM context, never a crash)."""
+    sentinel = object()
+    idx = _rerank(atlas, judge=None, cbm=lambda repo: (sentinel if repo == REPO else None))
+    assert idx._cbm_for(REPO) is sentinel
+    assert idx._cbm_for("other") is None
+    # a plain (non-callable) object passes through unchanged
+    assert _rerank(atlas, judge=None, cbm=sentinel)._cbm_for(REPO) is sentinel
+
+    def _boom(repo):
+        raise RuntimeError("cbm provider down")
+
+    assert _rerank(atlas, judge=None, cbm=_boom)._cbm_for(REPO) is None
+
+
+def test_cost_usd_reads_judge(atlas):
+    """cost_usd surfaces the judge's cumulative spend (0.0 without a gateway judge) so the run cost plane
+    can count the reranker toward $/ticket."""
+    assert _rerank(atlas, judge=None).cost_usd == 0.0
+
+    class _PaidJudge:
+        cost_usd = 0.0042
+
+        def rerank(self, query, candidates):
+            return [p for p, _ in candidates]
+
+    assert _rerank(atlas, judge=_PaidJudge()).cost_usd == 0.0042
+
+
 def test_note_signals_drives_code_query(atlas):
     """note_signals seeds the stashed signals so candidate-gen keys on the extracted code tokens
     (the grade-run isolated-diagnostic path), independent of the prose retrieve query."""

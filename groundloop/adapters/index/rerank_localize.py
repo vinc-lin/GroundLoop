@@ -103,6 +103,8 @@ class RerankLocalizeIndex:
         self.store = store
         self.embedder = embedder
         self.judge = judge
+        # cbm: a live graph object (single-repo, `.snippet`/`.call_neighbors`) OR a callable
+        # repo_name -> CBMLiveGraph|None (multi-repo, resolved per candidate repo like entity_map).
         self.cbm = cbm
         # entity_map: an EntityMap (single-repo) OR a callable repo_name -> EntityMap|None (multi-repo).
         self.entity_map = entity_map
@@ -123,6 +125,12 @@ class RerankLocalizeIndex:
         """Seed the stashed signals for out-of-loop callers (grade-run's isolated diagnostic)."""
         self._last_signals = signals
 
+    @property
+    def cost_usd(self) -> float:
+        """Cumulative USD spent by the LLM file-judge (0.0 when there is no gateway judge). The run cost
+        plane sums this alongside the fixer model's cost so the reranker's spend counts toward $/ticket."""
+        return float(getattr(self.judge, "cost_usd", 0.0) or 0.0)
+
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         try:
             return self._retrieve(repo, query)
@@ -141,7 +149,8 @@ class RerankLocalizeIndex:
             return self._fallback(repo, query)
         if self.judge is None or len(pool) <= 1:
             return pool
-        candidates = [(f, self._context_for(repo.name, f, qns_by_file, snip_by_file, wiki_by_file))
+        cbm = self._cbm_for(repo.name)     # resolve the per-repo live graph once (a CBMLiveGraph is 1-repo)
+        candidates = [(f, self._context_for(repo.name, f, qns_by_file, snip_by_file, wiki_by_file, cbm))
                       for f in pool]
         try:
             order = self.judge.rerank(query, candidates)
@@ -209,7 +218,7 @@ class RerankLocalizeIndex:
                 _add(f)
         return pool[: self.k], qns_by_file, snip_by_file, wiki_by_file
 
-    def _context_for(self, repo_name, file, qns_by_file, snip_by_file, wiki_by_file) -> str:
+    def _context_for(self, repo_name, file, qns_by_file, snip_by_file, wiki_by_file, cbm=None) -> str:
         parts: list[str] = []
         src = None
         if self.source_reader is not None:
@@ -224,17 +233,17 @@ class RerankLocalizeIndex:
         wiki = wiki_by_file.get(file, "")
         if wiki:
             parts.append("WIKI:\n" + wiki[: self._ctx])
-        if self.cbm is not None:
+        if cbm is not None:
             cbm_bits: list[str] = []
             for qn in qns_by_file.get(file, [])[:2]:
                 try:
-                    snip = self.cbm.snippet(qn)
+                    snip = cbm.snippet(qn)
                 except Exception:  # noqa: BLE001
                     snip = ""
                 if snip:
                     cbm_bits.append(snip[: self._ctx])
                 try:
-                    neigh = self.cbm.call_neighbors(qn)
+                    neigh = cbm.call_neighbors(qn)
                 except Exception:  # noqa: BLE001
                     neigh = []
                 if neigh:
@@ -291,6 +300,18 @@ class RerankLocalizeIndex:
             except Exception:  # noqa: BLE001
                 return None
         return em
+
+    def _cbm_for(self, repo_name: str):
+        """Resolve the live CBM graph for a candidate repo. A `CBMLiveGraph` is bound to ONE repo, but the
+        index spans repos, so `cbm` may be a callable repo_name -> CBMLiveGraph|None (mirrors entity_map).
+        Fail-safe: a raising/absent provider -> None -> the reranker simply drops the CBM context block."""
+        cbm = self.cbm
+        if callable(cbm):
+            try:
+                return cbm(repo_name)
+            except Exception:  # noqa: BLE001
+                return None
+        return cbm
 
     @staticmethod
     def _ground(order, pool) -> list[str]:

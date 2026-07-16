@@ -136,6 +136,30 @@ def test_run_dataset_records_per_case_cost_delta_not_cumulative(tmp_path):
     assert d1.model_calls == 1 and d2.model_calls == 1
 
 
+def test_combined_cost_model_sums_fixer_and_reranker_judge():
+    """_CombinedCostModel presents the batch driver's 4-attr cost surface as the LIVE SUM of its sources
+    (the fixer GatewayModel + the `--localize rerank` reranker), so the reranker's LLM file-judge spend
+    counts toward $/ticket. A source missing a counter (the reranker exposes only cost_usd) reads 0; None
+    sources are skipped."""
+    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+    from groundloop.cli import _CombinedCostModel
+
+    class _PaidJudge:
+        cost_usd = 0.02
+
+        def rerank(self, query, candidates):
+            return [p for p, _ in candidates]
+
+    fixer = _FakeCost()
+    fixer.cost_usd, fixer.input_tokens, fixer.output_tokens, fixer.calls = 0.10, 100, 20, 1
+    reranker = RerankLocalizeIndex(None, store=None, judge=_PaidJudge())
+    combined = _CombinedCostModel(fixer, None, reranker)     # None is skipped (canned-fixer case)
+    assert abs(combined.cost_usd - 0.12) < 1e-9              # fixer 0.10 + reranker judge 0.02
+    assert combined.input_tokens == 100                     # reranker has no token counter -> 0
+    assert combined.output_tokens == 20
+    assert combined.calls == 1                              # reranker index exposes no .calls -> 0 (documented gap)
+
+
 def test_run_dataset_cost_zero_without_cost_model(tmp_path):
     """Canned/no-cost-model path: cost keys are present but zero (never None)."""
     from groundloop.adapters.extractor_recording import RecordingExtractor
