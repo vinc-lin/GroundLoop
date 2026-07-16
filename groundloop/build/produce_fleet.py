@@ -6,6 +6,7 @@ DeepSeek requests ~= jobs * concurrency.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -26,8 +27,18 @@ class ProduceResult:
 
 
 def _wiki_ready(wiki_dir: str) -> bool:
-    """produce always writes metadata.json on success (its reliable deliverable)."""
-    return (Path(wiki_dir) / "metadata.json").is_file()
+    """True only if metadata.json lists at least one generated file.
+
+    An EMPTY produce run also writes metadata.json ({"files_generated": []}), so mere
+    presence over-counts the empty fleet wikis as "built" and wrongly skips them. Require a
+    non-empty files_generated list; treat a missing/unreadable/malformed metadata.json as
+    not-ready (never raises)."""
+    meta = Path(wiki_dir) / "metadata.json"
+    try:
+        data = json.loads(meta.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and bool(data.get("files_generated"))
 
 
 def _default_runner(entry: RepoEntry, *, concurrency: int,

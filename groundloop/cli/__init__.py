@@ -728,6 +728,86 @@ def _run_build_textprofile(args) -> int:
     return 0
 
 
+def _bridge_cbm_map(entry, wiki, repo_head):
+    """Gated/live: build the entity map WITH a CBM join for one repo, in a single event loop.
+
+    Mirrors index.py's CBM client lifecycle (resolve launch spec -> start -> index_repository ->
+    project). Defensive: any CBM failure degrades to the module_tree-only map (file_only entries)."""
+    import asyncio
+    import os
+
+    from groundloop.engines.lore.bridge.build import apply_cbm_nodes, build_entity_map
+    from groundloop.engines.lore.deploy import resolve_launch_spec
+    from groundloop.engines.lore.graph import forward
+    from groundloop.engines.lore.graph.client import CBMClient
+    from groundloop.engines.lore.graph.nodes import enumerate_nodes_for_files
+
+    em = build_entity_map(wiki, repo_head=repo_head)      # module_tree-only base
+    files = sorted({e.file for m in em.modules for e in m.entries})
+    if not files:
+        return em
+
+    async def _go():
+        spec = resolve_launch_spec(environ=os.environ)
+        client = CBMClient(spec.command, env=spec.env, cwd=spec.cwd)
+        try:
+            await client.start()
+            idx = await forward.index_repository(client, repo_path=entry.repo_path)
+            project = idx.get("project") if isinstance(idx, dict) else None
+            if not project:
+                return []
+            return await enumerate_nodes_for_files(client, files, project=project)
+        finally:
+            await client.aclose()
+
+    try:
+        nodes = asyncio.run(_go())
+    except Exception as exc:  # noqa: BLE001 — CBM optional; keep file_only on any failure
+        print(f"bridge {entry.name}: CBM join failed ({type(exc).__name__}: {exc}) — file_only")
+        nodes = []
+    apply_cbm_nodes(em.modules, nodes)
+    return em
+
+
+def _run_bridge(args) -> int:
+    """Build a doc->source entity_map.json for each registry repo from its CodeWiki module_tree.
+
+    module_tree-only by default (no CBM); --cbm opts into the gated/live CBM node join. Empty wikis
+    (module_tree == {}) are skipped with a note."""
+    import os
+    from pathlib import Path
+
+    from groundloop.config.settings import Settings
+    from groundloop.engines.atlas.registry import load_registry
+    from groundloop.engines.lore.bridge.build import build_entity_map
+    from groundloop.engines.lore.bridge.schema import save_entity_map
+    from groundloop.engines.lore.repo_head import _resolve_repo_head
+    from groundloop.engines.lore.wiki.loader import load_wiki
+
+    registry_path = args.registry or Settings.load().registry
+    if not registry_path:
+        print("gloop bridge: --registry is required (or set KLOOP_REGISTRY)")
+        return 2
+
+    for e in load_registry(registry_path):
+        try:
+            wiki = load_wiki(e.wiki_dir)
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            print(f"bridge {e.name}: SKIP (wiki unreadable: {exc})")
+            continue
+        if not wiki.module_tree:
+            print(f"bridge {e.name}: SKIP (empty wiki — no module_tree)")
+            continue
+        repo_head = _resolve_repo_head(e.repo_path, os.environ) or ""
+        em = (_bridge_cbm_map(e, wiki, repo_head) if getattr(args, "cbm", False)
+              else build_entity_map(wiki, repo_head=repo_head))
+        out_path = e.entity_map or str(Path(e.wiki_dir) / "entity_map.json")
+        save_entity_map(em, out_path)
+        n_entries = sum(len(m.entries) for m in em.modules)
+        print(f"bridge {e.name}: {len(em.modules)} modules, {n_entries} entries -> {out_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="gloop")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -791,6 +871,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     ix = sub.add_parser("index", help="build atlas.db from a registry")
     ix.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
+
+    br = sub.add_parser("bridge", help="build doc->source entity_map.json for each registry repo")
+    br.add_argument("--registry", default="", help="path to atlas.toml (overrides KLOOP_REGISTRY)")
+    br.add_argument("--cbm", action="store_true",
+                    help="gated/live: join CBM graph nodes (exact/qualified line spans); the default "
+                         "is module_tree-only and needs no CBM")
 
     doc = sub.add_parser("doctor", help="check index readiness")
     doc.add_argument("--atlas-db", default="",
@@ -1205,6 +1291,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_grade_run(args)
     if args.cmd == "index":
         return _run_index(args)
+    if args.cmd == "bridge":
+        return _run_bridge(args)
     if args.cmd == "doctor":
         return _run_doctor(args)
     if args.cmd == "produce":

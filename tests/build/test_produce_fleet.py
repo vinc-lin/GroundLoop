@@ -5,7 +5,7 @@ import subprocess
 import threading
 
 from groundloop.engines.atlas.registry import RepoEntry
-from groundloop.build.produce_fleet import produce_fleet, ProduceResult
+from groundloop.build.produce_fleet import produce_fleet, ProduceResult, _wiki_ready
 
 
 def _entry(tmp_path, name):
@@ -31,9 +31,9 @@ def test_runs_each_repo_and_reports_ok(tmp_path):
 
 def test_skips_already_built_wiki(tmp_path):
     e = _entry(tmp_path, "a")
-    # A wiki is "built" when metadata.json exists.
+    # A wiki is "built" only when metadata.json lists at least one generated file.
     (tmp_path / "_wiki" / "a").mkdir(parents=True)
-    (tmp_path / "_wiki" / "a" / "metadata.json").write_text("{}")
+    (tmp_path / "_wiki" / "a" / "metadata.json").write_text('{"files_generated": ["overview.md"]}')
     called = []
 
     def fake_runner(entry, *, concurrency, env):
@@ -110,3 +110,30 @@ def test_respects_jobs_ceiling(tmp_path):
 
     assert state["peak"] <= 2
     assert state["peak"] == 2
+
+
+def test_wiki_ready_requires_nonempty_files_generated(tmp_path):
+    """An empty produce run still writes metadata.json ({"files_generated": []}); it must NOT
+    count as built. Only a non-empty files_generated list is 'ready'."""
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    meta = wiki / "metadata.json"
+
+    # No metadata.json at all -> not ready.
+    assert _wiki_ready(str(wiki)) is False
+
+    # metadata.json with an empty files_generated (the empty-produce footprint) -> not ready.
+    meta.write_text('{"files_generated": []}')
+    assert _wiki_ready(str(wiki)) is False
+
+    # metadata.json with a bare {} (no files_generated key) -> not ready.
+    meta.write_text("{}")
+    assert _wiki_ready(str(wiki)) is False
+
+    # metadata.json with at least one generated file -> ready.
+    meta.write_text('{"files_generated": ["a.md"]}')
+    assert _wiki_ready(str(wiki)) is True
+
+    # Unreadable / malformed JSON -> not ready (never raises).
+    meta.write_text("{ not json")
+    assert _wiki_ready(str(wiki)) is False
