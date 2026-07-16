@@ -71,3 +71,17 @@ def test_localize_tokens_explicit_wraps_signalquery(monkeypatch):
     from groundloop.adapters.index.signal_query import SignalQueryIndex
     idx = _captured_index(monkeypatch, ["--localize", "tokens"])
     assert isinstance(idx, SignalQueryIndex)
+
+
+def test_localize_rerank_wraps_split_over_reranker(monkeypatch):
+    """`--localize rerank` (opt-in Candidate) wraps the match index in a SplitIndex whose retrieve side is
+    the grounded RerankLocalizeIndex — rank stays with the match arm. Hermetic: no gateway creds ->
+    judge=None (the reranker degrades to the candidate-pool order); the construction must not crash."""
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
+    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)
+    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.split import SplitIndex
+    idx = _captured_index(monkeypatch, ["--localize", "rerank"])
+    assert isinstance(idx, SplitIndex)
+    assert isinstance(idx._localize, RerankLocalizeIndex)
+    assert idx._localize.judge is None       # no creds -> degrade to the grounded pool order

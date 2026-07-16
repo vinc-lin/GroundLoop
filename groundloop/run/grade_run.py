@@ -43,6 +43,14 @@ def _localize_index_for(runs_dir, index_db, embedder):
     if arm == "semantic" and embedder is not None:
         from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
         return SemanticAtlasIndex(index_db, embedder), arm
+    if arm == "rerank":
+        # The offline grader has no LLM judge, so the reranker degrades to its grounded candidate POOL
+        # (find_related_units symbol+doc, or keyword-only without an embedder). That measures the arm's
+        # rank-1 ceiling honestly — the LLM reorder cannot be reproduced offline.
+        from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+        from groundloop.engines.atlas.store import Store
+        return (RerankLocalizeIndex(AtlasIndex(index_db), store=Store(index_db),
+                                    embedder=embedder, judge=None), "rerank(no-judge:pool)")
     if arm == "dispatch":     # localize dispatch retired (archived 2026-07-16) -> grade on the FTS5 floor
         return AtlasIndex(index_db), "dispatch->atlas(retired)"
     fell_back = arm == "semantic"     # wanted embedder, none available

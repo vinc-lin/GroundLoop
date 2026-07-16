@@ -856,13 +856,16 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "tokens"], default=None,
+    r.add_argument("--localize", choices=["atlas", "tokens", "rerank"], default=None,
                    help="localize retriever, chosen independently of --match-arm (default atlas in both "
                         "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
                         "(signal-aware FTS5: query the extracted code tokens, fallback prose; no embedder — "
-                        "the [proxy] file@1 lever). When it differs from the match arm's native retrieve "
-                        "(a vector --match-arm semantic), the index is wrapped in a SplitIndex so localize "
-                        "still runs FTS5.")
+                        "the [proxy] file@1 lever) | rerank (opt-in Candidate: hybrid candidate pool + "
+                        "per-candidate code-understanding context (source + CodeWiki + live CBM) reranked by "
+                        "an LLM judge, grounded to real source files — targets the rank-1 precision gap; "
+                        "degrades to the pool order without a judge). When it differs from the match arm's "
+                        "native retrieve (a vector --match-arm semantic), the index is wrapped in a "
+                        "SplitIndex so localize still runs FTS5.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1104,6 +1107,73 @@ def _build_embedder():
     return GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
 
 
+def _source_reader(repos_root: str):
+    """Callable (repo_name, file) -> source text | None over <repos_root>/<repo>/<file>. The retrieve
+    contract carries no worktree, so the reranker reads real source through this fail-safe reader (None
+    when no repos root, or the file is missing/unreadable)."""
+    if not repos_root:
+        return None
+    from pathlib import Path
+
+    def _read(repo_name: str, file: str):
+        try:
+            fp = Path(repos_root) / repo_name / file
+            if fp.is_file():
+                return fp.read_text(encoding="utf-8", errors="replace")
+        except Exception:      # noqa: BLE001 — source read is best-effort context
+            return None
+        return None
+    return _read
+
+
+def _entity_map_provider(registry_path: str):
+    """Callable repo_name -> EntityMap | None from the registry's per-repo entity_map.json (the doc→source
+    bridge from `gloop bridge`). None when there is no registry or no map — the reranker degrades to
+    symbol-only candidates (doc hits dropped)."""
+    if not registry_path:
+        return None
+    from pathlib import Path
+    from groundloop.engines.atlas.registry import load_registry
+    from groundloop.engines.lore.bridge.schema import load_entity_map
+    try:
+        paths = {e.name: (e.entity_map or str(Path(e.wiki_dir) / "entity_map.json"))
+                 for e in load_registry(registry_path)}
+    except Exception:          # noqa: BLE001 — no registry -> no doc context, never crash the run
+        return None
+
+    def _provider(repo_name: str):
+        p = paths.get(repo_name)
+        if not p or not Path(p).is_file():
+            return None
+        try:
+            return load_entity_map(p)
+        except Exception:      # noqa: BLE001
+            return None
+    return _provider
+
+
+def _build_rerank_localize(match_index, args, embedder):
+    """Compose the opt-in `--localize rerank` RerankLocalizeIndex around the built match index. Fail-safe:
+    no gateway creds -> judge=None (degrades to the grounded candidate-pool order, never fabricates); the
+    doc→source entity_map + source_reader come from KLOOP_REGISTRY + --repos when available, else degrade.
+    Live per-repo CBM enrichment is a deferred follow-up (cbm=None here)."""
+    import os
+    from groundloop.adapters.index.rerank_localize import GatewayFileJudge, RerankLocalizeIndex
+    from groundloop.engines.atlas.store import Store
+    judge = None
+    if os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
+        from groundloop.config.settings import Settings
+        s = Settings.load()
+        judge = GatewayFileJudge(s.produce_base_url, s.produce_api_key, s.produce_main_model)
+    else:
+        print("gloop run --localize rerank: KLOOP_PRODUCE_API_KEY unset — no LLM judge, degrading to the "
+              "grounded candidate-pool order (opt-in Candidate; set gateway creds to engage the reranker).")
+    registry_path = os.environ.get("KLOOP_REGISTRY", "").strip()
+    return RerankLocalizeIndex(
+        match_index, store=Store(args.index_db), embedder=embedder, judge=judge, cbm=None,
+        entity_map=_entity_map_provider(registry_path), source_reader=_source_reader(args.repos))
+
+
 def _build_run_fixer(kind: str, max_replan: int = 1):
     """Returns (FixEngine, cost_model|None). cost_model is the GatewayModel whose .cost_usd the batch
     driver snapshots per case; None for the canned stub. `main` fail-closes on a missing key BEFORE this
@@ -1233,13 +1303,17 @@ def main(argv: list[str] | None = None) -> int:
                     index = DispatchIndex(FaultRoutingIndex(args.index_db), ftext, fault_scale=_FAULT_SCALE)
                     extractor = DispatchExtractor()
             # localize retriever, independent of the match arm. A vector --match-arm semantic is split so
-            # localize still runs FTS5 (atlas); --localize tokens rewrites the FTS5 query to code tokens.
+            # localize still runs FTS5 (atlas); --localize tokens rewrites the FTS5 query to code tokens;
+            # --localize rerank wraps the match index in a grounded LLM file-reranker (rank from the match).
             if localize_req == "atlas" and arm_req == "semantic":
                 from groundloop.adapters.index.split import SplitIndex
                 index = SplitIndex(index, AtlasIndex(args.index_db))
             elif localize_req == "tokens":
                 from groundloop.adapters.index.signal_query import SignalQueryIndex
                 index = SignalQueryIndex(index, AtlasIndex(args.index_db))
+            elif localize_req == "rerank":
+                from groundloop.adapters.index.split import SplitIndex
+                index = SplitIndex(index, _build_rerank_localize(index, args, _build_embedder()))
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
