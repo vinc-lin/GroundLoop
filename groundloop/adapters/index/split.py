@@ -12,6 +12,12 @@ class SplitIndex:
         self._localize = localize
 
     def rank_repos(self, signals: Signals, catalog) -> list[RepoScore]:
+        # Propagate signals to a localize side that keys candidate-gen on them (e.g. RerankLocalizeIndex):
+        # run_ticket calls rank_repos then retrieve on this SplitIndex, so without this the localize
+        # stash never fires and retrieve falls back to the prose query. No-op for plain retrievers.
+        note = getattr(self._localize, "note_signals", None)
+        if callable(note):
+            note(signals)
         return self._match.rank_repos(signals, catalog)
 
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:

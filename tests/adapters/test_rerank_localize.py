@@ -66,6 +66,19 @@ def _rerank(atlas, **kw):
     return RerankLocalizeIndex(AtlasIndex(atlas), store=store, embedder=None, **kw)
 
 
+def test_splitindex_fires_reranker_signal_stash(atlas):
+    """End-to-end: RerankLocalizeIndex runs wrapped in SplitIndex(match, rerank), and run_ticket calls
+    rank_repos then retrieve on the SplitIndex. SplitIndex.rank_repos must propagate the signals into the
+    reranker (note_signals) so retrieve keys candidate-gen on the extracted code tokens, not the prose."""
+    from groundloop.adapters.index.split import SplitIndex
+    from groundloop.core.types import Signals
+    rer = _rerank(atlas, judge=None, entity_map=_entity_map())
+    split = SplitIndex(AtlasIndex(atlas), rer)
+    sig = Signals(classes=("com.foo.Alpha",), methods=("play",))
+    split.rank_repos(sig, [RepoRef(REPO)])
+    assert rer._last_signals == sig     # SplitIndex propagated note_signals into the reranker
+
+
 def test_grounded_reorder(atlas):
     """The reranker returns the StubFileJudge's order, filtered to the real candidate pool."""
     order = [GAMMA, BETA, ALPHA, AUDIO_SRC]
