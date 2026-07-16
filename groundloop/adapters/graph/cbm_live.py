@@ -79,9 +79,10 @@ class CBMLiveGraph:
                  client_factory: Optional[Callable[[], object]] = None):
         self._repo_path = repo_path
         self._call_timeout = call_timeout
-        # generous ceiling for the sync .result() wait so a busy CBM call never spuriously trips it;
-        # the CBMClient enforces its own per-call read timeout underneath.
-        self._result_timeout = call_timeout + 15.0
+        # generous ceiling for the sync .result() wait — must exceed the CBMClient's own retry
+        # worst-case (call_tool_with_restart ~ (max_restarts+1) x call_timeout + backoff) so we never
+        # trip while the client is still retrying (which would orphan the task).
+        self._result_timeout = call_timeout * 4 + 15.0
         self._client_factory = client_factory
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
@@ -226,11 +227,16 @@ class CBMLiveGraph:
                          call_timeout=self._call_timeout)
 
     def _submit(self, coro):
-        """Run a coroutine on the background loop and block for its result."""
+        """Run a coroutine on the background loop and block for its result. Cancel the future on
+        timeout/error so an orphaned task cannot keep running on the loop and race the shared client."""
         if self._loop is None:
             raise CBMBridgeError("CBM loop not running")
         fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return fut.result(timeout=self._result_timeout)
+        try:
+            return fut.result(timeout=self._result_timeout)
+        except Exception:
+            fut.cancel()
+            raise
 
     def _start_loop_thread(self) -> None:
         self._loop = asyncio.new_event_loop()
@@ -253,7 +259,10 @@ class CBMLiveGraph:
             except Exception:
                 pass
         if thread is not None:
-            thread.join(timeout=5.0)
+            try:
+                thread.join(timeout=5.0)
+            except Exception:
+                pass
         if loop is not None:
             try:
                 loop.close()
