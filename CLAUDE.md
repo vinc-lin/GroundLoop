@@ -63,6 +63,8 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
   **Dev** inner-loop/Candidate→Core promotion) + the **per-stage feature map** (stage × feature × state).
 - `docs/charter.md` — mission, FR-1..8 / NFR-1..8, the four stages, metrics, glossary, non-goals.
 - `docs/architecture.md` — hexagonal ports & adapters, the deterministic control plane, atlas internals, migration.
+- `docs/data-flow.md` — **module & data-flow map** (two ASCII planes: BUILD `atlas.db`/CodeWiki/CBM/entity_map ·
+  RUNTIME the 8-stage loop) + the dual-role table (CodeWiki/CBM feed the index at build, live context at query).
 - `docs/guide.md` — how GroundLoop is deployed, run, and migrated (the single how-to; adapter swap map, checklist).
 - `docs/evaluation.md` — **canonical for the evaluation**: Type-2 effectiveness (fleet, dataset, arms,
   metrics/scorecard, harness) **+ the Type-1 hermetic test surface (§14)**.
