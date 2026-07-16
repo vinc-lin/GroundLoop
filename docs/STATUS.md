@@ -1,17 +1,51 @@
 # GroundLoop — Status
 
-**As of 2026-07-04** (blocker re-checked & cleared 2026-07-05). Read this first when resuming; see
+**As of 2026-07-17.** Read this first when resuming; see
 `CLAUDE.md` for durable project context.
 
-**Docs are the single source of truth** (re-consolidated 2026-07-11 → 12 top-level docs, + `capabilities.md`
-2026-07-12; full map in `CLAUDE.md`). Read [`environments.md`](environments.md) first — the canonical dev-box ↔ production split +
+**Docs are the single source of truth** (re-consolidated 2026-07-11 → 13 top-level docs, + `capabilities.md`
+2026-07-12 + `data-flow.md` 2026-07-17; full map in `CLAUDE.md`). Read [`environments.md`](environments.md) first — the canonical dev-box ↔ production split +
 the **`[proxy]`**/**`[production]`** result-tag convention used throughout this file. Core set:
-[`charter.md`](charter.md) · [`architecture.md`](architecture.md) · [`guide.md`](guide.md) ·
+[`charter.md`](charter.md) · [`architecture.md`](architecture.md) · [`data-flow.md`](data-flow.md) · [`guide.md`](guide.md) ·
 [`evaluation.md`](evaluation.md) · [`build-setup.md`](build-setup.md) · [`fix-loop.md`](fix-loop.md) ·
 [`engines.md`](engines.md) · [`production-guide.md`](production-guide.md) · [`roadmap.md`](roadmap.md) ·
 [`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md) · [`workflows.md`](workflows.md).
 
 ## Done
+
+### CodeWiki + CBM in localize & fix — full enablement + live A/B (2026-07-16/17) ✅
+Fully enabled the two under-used code-understanding assets in the read-stages: **CodeWiki** (per-module LLM
+docs) + **CBM** (code-graph) now feed the **localize reranker** (`--localize rerank` — a grounded LLM
+file-judge over a CodeWiki/CBM-enriched hybrid pool) and the **fix prompt** (`--fix-context {codewiki,cbm}`).
+Subagent-driven build (reranker, live `CBMLiveGraph` facade, doc→source `entity_map` bridge + `gloop bridge`,
+fix-context injection, per-case `@base=fix^` checkout, miner `fix_patch`+`required_apis`), then a live A/B on a
+new 6-repo doc atlas — all opt-in **Candidates**, `core/`+atlas-schema **zero-diff**.
+- **Substrate:** `atlas-6-doc.db` (6 repos, 96,654 units incl. **9,665 doc units**; `atlas-9.db` had **0**) +
+  per-repo `entity_map.json` + `mine74` (108 live-`gh` cases / **96 fix-gradeable** with real diffs+`required_apis`).
+  Built off ext4.
+- **cameraview engine bugfix (`1277e9f`):** CodeWiki `produce` crashed (KeyError, aborting a whole repo → 0 md)
+  on a **name-colliding module tree** (a `video_encoding` child under a `video_encoding` parent) — the tree
+  walkers descended into `children` by name-value, not index. Fixed in all 3 walkers + a hermetic regression
+  test; cameraview **0→52 md**.
+- **LOCALIZE A/B `[proxy]`** (isolated ceiling on the oracle repo, **prose-ticket regime**, n=108): FTS5 floor
+  **file@1 0.075 → 0.212** (+0.137, 2.8×; file@5 0.235→0.384). The **LLM judge is the bigger lever (+0.083)**;
+  **CodeWiki-under-judge +0.056** (pool+context *entangled*, one `entity_map` toggle); **CBM marginal (+0.038,
+  within noise**, 26-case subset). ~$0.0014/case. Hybrid pool + CodeWiki-in-pool do ≈0 at rank-1 *without* the
+  judge → recall-alone doesn't move rank-1; the grounded reorder does.
+- **FIX A/B `[proxy]`** (forced oracle repo + forced oracle localization so only context varies, n=29): **no
+  measurable fix-context effect** (resolved 1/29 vs 0/29; **CBM never fired** — 0-signal prose tickets ⇒
+  CodeWiki-only; underpowered). The plan fixer correctly **abstains, not fabricates**. Fix effectiveness is
+  blocked on a **crash-with-fix substrate**, not context — consistent with the KB re-verdict below.
+- **Adversarially verified** (4-lens refutation workflow, all **CAVEATED** — numbers reproduce, no measurement
+  bug): caught the isolated-ceiling framing, the CodeWiki pool+context entanglement, judge-is-the-bigger-lever,
+  the prose-regime confound, CBM-never-fired-in-fix, and the fix underpowering — all folded into the record.
+- **Governance (`capabilities.md`):** `--localize rerank` (+CodeWiki, judge) → promotion **Candidate** (first
+  `[proxy]` file@1 lever); gate = a **`[production]` crash-ticket `file@1`** read + an e2e (match-gated)
+  confirmation. `--localize +CBM` and `--fix-context {codewiki,cbm}` stay **OFF** (no measurable benefit /
+  untested).
+- **Docs:** `results-log.md` 2026-07-16 entry (`ee6440b`) · design-logic
+  `docs/superpowers/specs/2026-07-16-localize-fix-design-logic.md` (`9335421`) · module/data-flow map
+  `docs/data-flow.md` + CLAUDE.md pointer (`62f6035`). Suite **704 passed / 8 skipped, ruff clean.**
 
 ### Production-Core defaults + loop closure — 11-task branch (2026-07-13) ✅
 Branch `prod-core-defaults-loop-closure` (subagent-driven, 11 tasks). Promotes the fix default, closes the
@@ -310,6 +344,13 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
    Mode into Core or revert to `--fixer model`. Still-open Core builds: an ANN vector index, live JIRA/Gerrit
    adapters, Tier-2/3 grading. *(`gloop mine` + the `gloop run` real-fixer default have since shipped — no
    longer next steps.)*
+5. **Resolve `--localize rerank`'s Candidate status — the `[production]` crash-ticket localize `file@1` read.**
+   The `[proxy]` win (CodeWiki-under-judge +0.056 file@1, 2.8× overall) is an *isolated ceiling on prose OSS
+   tickets*; the promotion gate is a `[production]` GEI **crash-ticket** read (where code-token candidate-gen,
+   not the prose fallback, drives the reranker pool) **+** an e2e (match-gated) confirmation. Sub-tasks: a
+   disentangle-CodeWiki arm (`judge + doc→source pool, no wiki-context`); and a **crash-with-fix substrate** so
+   the fix-context question (CBM in fix is genuinely untested — it never fired on signal-less tickets) becomes
+   answerable at all. Detail: `docs/data-flow.md`, `docs/superpowers/specs/2026-07-16-localize-fix-design-logic.md`.
 
 ## Services / environment
 - **LiteLLM gateway** — creds in the gitignored `/mnt/x/code/loop-agent/.env`, reused by
@@ -317,7 +358,7 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
   1024-dim) + `mxbai-embed-large` + `qwen3` (GPU/Ollama-backed — `qwen3` DOWN at last check).
 - **Corpora** — `/mnt/x/code/corpora/` at pinned SHAs (`corpus.toml`): android-gpuimage-plus, libxcam,
   ndk-samples. Registry: `corpora/atlas.toml`. Built atlas.db target: `~/.groundloop/atlas.db`.
-- **Git** — `master` @ `6be1c2a` (self-scoring pipeline merged), pushed to `origin`
+- **Git** — `master` @ `62f6035` (CodeWiki+CBM localize/fix A/B + docs), pushed to `origin`
   (`github.com:vinc-lin/GroundLoop.git`) and in sync. **Local branches pruned 2026-07-11:** the merged
   feature branches (`self-scoring-pipeline` + the 8 older `feat/*`: claim-centric-kb, plan-format-fix-stage,
   type2-{eval-e1c,judge-e3,miner-e1b,semantic-e2,substrate-build,symbols-index}) were deleted with `git
