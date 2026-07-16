@@ -21,6 +21,7 @@ class MinedCase:
     expected_files: list[str]
     required_apis: list[str]
     owning_repo_sha: str = ""
+    fix_patch: str = ""              # gold merge-commit diff; hidden-oracle provenance (dropped by the loader)
     is_answerable: bool = True
     negative_class: str | None = None
     held_out_repo: str | None = None
@@ -56,6 +57,7 @@ def emit_case(root: str, case: MinedCase) -> str:
         "owning_repo": case.owning_repo,
         "expected_files": list(case.expected_files),
         "required_apis": list(case.required_apis),
+        "fix_patch": case.fix_patch,   # extra hidden-oracle key (loader drops it, like owning_repo_sha)
         "owning_repo_sha": case.owning_repo_sha,
         "is_answerable": case.is_answerable,
         "negative_class": case.negative_class,

@@ -68,6 +68,43 @@ def _gql_args(owner: str, name: str, cursor: str | None) -> list[str]:
     return args
 
 
+def _assemble_unified_diff(files: list[dict]) -> str:
+    """Reassemble a unified diff from GitHub commit `files[]` entries (filename/status/patch/
+    previous_filename). The REST commits API's per-file `patch` is the hunk body only (starts at
+    `@@`), WITHOUT the `diff --git`/`---`/`+++` headers — we synthesize them so
+    groundloop.fix.patch's parsers (touched_files/added_lines/git apply) accept the result.
+    Files with no textual `patch` (binary) are skipped."""
+    out: list[str] = []
+    for f in files:
+        patch = f.get("patch")
+        if not patch:
+            continue
+        path = f.get("filename", "")
+        old = f.get("previous_filename", path)
+        status = f.get("status", "modified")
+        out.append(f"diff --git a/{old} b/{path}")
+        out.append("--- /dev/null" if status == "added" else f"--- a/{old}")
+        out.append("+++ /dev/null" if status == "removed" else f"+++ b/{path}")
+        out.append(patch.rstrip("\n"))
+    return "\n".join(out) + ("\n" if out else "")
+
+
+def fetch_commit_diff(slug: str, sha: str, *, gh: Callable[[list[str]], dict] = _default_gh) -> str:
+    """Return the merge commit's unified diff (the fix gold diff) for `sha` in `slug`, or "".
+
+    Uses the gh REST commits endpoint (`gh api repos/{slug}/commits/{sha}`); its JSON payload
+    carries per-file `patch` hunks that we reassemble into a header-complete unified diff
+    (`_assemble_unified_diff`). The raw-diff `Accept: application/vnd.github.diff` header is NOT used
+    because the JSON-decoding gh helper cannot return raw text. `gh` is injectable so tests pass a
+    fake — no network. Fail-safe: a missing slug/sha returns "" WITHOUT calling gh (the caller then
+    leaves fix_patch/required_apis empty → the case is ungradeable, never a crash)."""
+    if not slug or not sha:
+        return ""
+    payload = gh(["api", f"repos/{slug}/commits/{sha}"])
+    files = payload.get("files", []) if isinstance(payload, dict) else []
+    return _assemble_unified_diff(files)
+
+
 def harvest_repo(slug: str, *, gh: Callable[[list[str]], dict] = _default_gh,
                  limit: int = 200) -> list[Candidate]:
     """Return same-repo merged-closer candidates for a repo, deduped per issue."""
