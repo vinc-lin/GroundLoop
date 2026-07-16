@@ -299,7 +299,9 @@ def _run_fixeval(args) -> int:
                            estate=GitFixtureEstate(args.repos, args.dataset + "/_work"),
                            catalog=catalog, tau_margin=args.tau_margin, tau_score=args.tau_score,
                            skills=skills, knowledge=knowledge, knowledge_tier_floor=knowledge_tier_floor,
-                           skill_inject=args.skills_inject)
+                           skill_inject=args.skills_inject,
+                           base_checkout=getattr(args, "base_checkout", False),
+                           repos_root=args.repos, base_work_root=args.dataset + "/_base")
     if getattr(args, "fixer", "direct") == "plan":
         from groundloop.adapters.fix.planning import PlanningFixEngine
         fixer = PlanningFixEngine(model, max_replan=args.max_replan)
@@ -976,6 +978,11 @@ def build_parser() -> argparse.ArgumentParser:
                          "plan (two-phase PlanningFixEngine: plan->gate->re-plan->abstain->patch)")
     fx.add_argument("--max-replan", dest="max_replan", type=int, default=1,
                     help="plan fixer: bounded re-plan attempts before abstaining (default 1)")
+    fx.add_argument("--base-checkout", dest="base_checkout", action="store_true",
+                    help="materialize the REAL @base=fix^ source per case (from <--repos>/<repo> clones, "
+                         "using the case's oracle fix SHA) so the fix stage is gradeable. Default OFF -> "
+                         "today's behavior (empty worktree -> ungradeable). Oracle-side substrate, never "
+                         "fed to the matcher; fail-safe (any miss falls back to the empty worktree).")
 
     sy = sub.add_parser("synth", help="synthesize AAOS failure-log tickets from a mined dataset")
     sy.add_argument("--src", required=True, help="mined dataset root (case dirs + catalog.json)")

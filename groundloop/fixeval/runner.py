@@ -4,12 +4,14 @@ run_ticket (frozen/branchless); never reads _oracle/ (offline grade is the sole 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Sequence
 
-from groundloop.core.types import RepoRef
+from groundloop.core.types import RepoRef, WorkTree
 from groundloop.eval.abstain import decide
 from groundloop.eval.arms import Arm
 from groundloop.eval.dataset import CaseRef, case_catalog
+from groundloop.fixeval.base_checkout import checkout_base
 from groundloop.fixeval.localize import localize
 from groundloop.fixeval.patch import patch_applies
 from groundloop.kb.render import render_knowledge
@@ -65,7 +67,8 @@ class FixRecord:
 class FixEvalRunner:
     def __init__(self, *, issues, estate, catalog, tau_margin: float, tau_score: float,
                  max_refine: int = 1, skills=None, knowledge=None, knowledge_tier_floor: str = "validated",
-                 skill_inject: str = "both"):
+                 skill_inject: str = "both", base_checkout: bool = False, repos_root: str | None = None,
+                 base_work_root: str | None = None):
         self.issues = issues
         self.estate = estate                     # materialize only
         self.catalog = list(catalog)             # list[RepoRef] for rank_repos
@@ -76,6 +79,11 @@ class FixEvalRunner:
         self.knowledge = knowledge               # a KnowledgeRegistry or None (the `--knowledge` arm knob)
         self.knowledge_tier_floor = knowledge_tier_floor  # TIERS floor: `candidate` in eval, `validated` prod
         self.skill_inject = skill_inject         # both (localize query + fix prompt) | fix-only (fix prompt only)
+        # OPT-IN Dev-Labs @base=fix^ substrate: per-case checkout of the pre-fix source so the fix
+        # stage is gradeable (default OFF -> byte-identical to today; oracle-side, never a matcher input).
+        self.base_checkout = base_checkout
+        self.repos_root = repos_root             # root of local repo clones: <repos_root>/<repo>
+        self.base_work_root = base_work_root     # where per-case @base work-trees are checked out
 
     def run(self, cases: Sequence[CaseRef], arms: Sequence[Arm], *, fixer) -> list[FixRecord]:
         records: list[FixRecord] = []
@@ -128,7 +136,7 @@ class FixEvalRunner:
             f = fixer.with_preamble(preamble)
         fired_knowledge = tuple(getattr(k, "id", "") for k in selected_knowledge)
         c0 = self._cost(fixer)
-        wt = self.estate.materialize(RepoRef(predicted))
+        wt = self._materialize(case, predicted)
         locations = localize(arm.index, predicted, signals, ticket.summary, skill_query=skill_query)
         if not locations:                                     # SECONDARY: localize abstain
             return rec(predicted_repo=predicted, abstain_reason="no_localization",
@@ -149,6 +157,43 @@ class FixEvalRunner:
                          locations=locations, patch_diff=patch.diff, patch_files=list(patch.files),
                          patch_emitted=True, patch_applies=True, abstained=False, abstain_reason=None,
                          refine_iters=iters, cost_usd=self._cost(fixer) - c0, **pmeta)
+
+    def _materialize(self, case, predicted: str) -> WorkTree:
+        """Estate materialize by default. When --base-checkout is ON, replace the (empty/name-keyed)
+        worktree with a per-case checkout of @base=fix^ so the fix stage runs on the real buggy source.
+        Fail-safe: any miss (no SHA / no clone / checkout failure) falls back to today's estate worktree."""
+        wt = self.estate.materialize(RepoRef(predicted))
+        if not self.base_checkout:
+            return wt
+        base = self._base_worktree(case, predicted)
+        return WorkTree(RepoRef(predicted), base) if base is not None else wt
+
+    def _base_worktree(self, case, predicted: str) -> str | None:
+        """Check out @base=fix^ for this case's predicted repo -> a per-case worktree path, or None."""
+        if not self.repos_root:
+            return None
+        sha = self._case_fix_sha(case)
+        if not sha:
+            return None
+        src = Path(self.repos_root) / predicted
+        if not src.is_dir():
+            return None
+        root = Path(self.base_work_root) if self.base_work_root else (Path(self.repos_root).parent / "_base")
+        return checkout_base(str(src), sha, str(root / case.case_id / predicted))
+
+    @staticmethod
+    def _case_fix_sha(case) -> str | None:
+        """Read owning_repo_sha from the case's hidden oracle. Gated by base_checkout (opt-in), so the
+        DEFAULT runner path never touches _oracle/ — the oracle-blind invariant holds. Oracle-side use
+        only: the SHA builds the downstream fix substrate, never feeds the matcher."""
+        import json
+        p = Path(case.case_dir) / "_oracle" / "oracle.json"
+        if not p.is_file():
+            return None
+        try:
+            return json.loads(p.read_text()).get("owning_repo_sha") or None
+        except (OSError, ValueError):
+            return None
 
     @staticmethod
     def _cost(fixer) -> float:
