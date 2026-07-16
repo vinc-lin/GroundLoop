@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-16 | CodeWiki + CBM in localize & fix (new 6-repo doc atlas) | `[proxy]` | **LOCALIZE** (isolated ceiling, prose-ticket regime, n=108): CodeWiki-under-judge **narrows** rank-1 — file@1 **0.075→0.212** (+0.137 abs, 2.8×; ~60% judge / ~40% CodeWiki, and CodeWiki's share is pool+context entangled); CBM marginal (+0.038, noise). **FIX** (n=29, floor): CodeWiki-only fix-context **no measurable effect** (**CBM never fired** — 0-signal tickets); resolved ≤1/29. → `--localize rerank` a **Candidate** (gate = `[production]` crash-ticket file@1); `--fix-context` stays OFF |
 | 2026-07-15 | **`--localize tokens` PROMOTED to Provisional-Core default** (was `atlas`) | governance | Core-default localize flipped `atlas`→`tokens` (`_resolve_arms`); recorded as **Provisional-Core** with an honest fail-safe-adjacent caveat (no *new* failure mode vs `atlas`: token-less ⇒ byte-identical; token-bearing ⇒ more grounded, within FTS5 envelope). No embedder ⇒ no new prod dependency. `--localize atlas` = reversible opt-out. **`[production]` GEI `file@1` read is the resolver** → confirm Core / revert |
 | 2026-07-15 | **`--localize tokens`** (signal-aware FTS5) 3-arm A/B | `[proxy]` | 212 functional cases, isolated + canonical: **tokens file@1 0.166 ≈ dispatch 0.161 but with NO embedder** (pure FTS5), and ≥ dispatch per class (ui_text 0.014 vs dispatch 0.000 — tokens falls back to atlas, dispatch to worse semantic). ⇒ the semantic branch adds an embedder dep for negative file@1 value; **`tokens` → PROMOTED to the Provisional-Core default** (see the row above; `[production]` GEI read pending) |
 | 2026-07-14 | localize dispatch **prod-fixes A/B** (Bugs 1/2/3) | `[proxy]` | 212 functional cases, isolated + canonical grading: fixed dispatch **file@1 0.010→0.161** (+0.151). **Entirely from Bug 2** (code-tokens-in-FTS5): carplay (log carries fault class) **0→0.494**; the semantic branch (Bug 1) is neutral-to-negative (audio/ui_text ~0 either way). ⇒ **Bug 2 is the lever; make tokens-in-query the default; demote semantic.** Re-run GEI to resolve `[production]` |
@@ -23,6 +24,47 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
+
+## 2026-07-16 · CodeWiki + CBM in localize & fix — full A/B · `[proxy]`
+
+Fully enabled CodeWiki (per-module LLM docs) + CBM (code-graph) in the localize reranker
+(`--localize rerank`, grounded LLM file-judge over a CodeWiki-enriched pool) and the fix prompt
+(`--fix-context {codewiki,cbm}`), then measured both. NEW substrate: a 6-repo doc atlas
+(`atlas-6-doc.db` — repos 6, units 96,654 incl. **9,665 doc units**; atlas-9.db had 0) + doc→source
+`entity_maps` (`gloop bridge`) + a live-`gh` mined slice `mine74` (108 cases / **96 fix-gradeable** with
+real diffs+`required_apis`, 5 repos). **Read the tags:** every number below is **isolated** (retrieve
+forced onto the ORACLE repo — match-independent, an upper bound, NOT end-to-end) and on **prose
+GitHub-issue tickets** (~0 logs/crash signals) — a *specific* regime, the opposite of GEI crash tickets;
+adversarially verified (4 lenses, all CAVEATED — numbers reproduce, no measurement bug).
+
+- **LOCALIZE — CodeWiki *narrows* the rank-1 gap, and only via the LLM judge (isolated ceiling, n=108):**
+  atlas FTS5 **file@1 0.075** → hybrid pool 0.073 → +CodeWiki-in-pool 0.074 (both ≈0 at rank-1) →
+  +LLM judge / no CW **0.157** → +CodeWiki-under-judge **0.212** (+0.137 abs, 2.8×; file@5 0.235→0.384).
+  The **judge is the bigger lever (+0.083)**; **CodeWiki-under-judge adds +0.056 file@1 / +0.108 file@5**
+  on top — but the toggle (`entity_map`) changes *both* the candidate pool (doc→source files) *and* the
+  judge's context block, so it is CodeWiki **pool+context entangled**, not context alone. +0.056 ≈ 6 net
+  cases on n=108 (borderline at rank-1; the +0.108 file@5 is the more robust signal). Winning arm still
+  gets rank-1 right only ~21%. Cost ~$0.0014/case. **Regime caveat:** on these 0-signal tickets
+  candidate-gen falls back to `ticket.summary` and the judge ranks on prose — transfer to log-bearing
+  crash tickets (where code-token candidate-gen drives the pool) is untested. `gloop grade-run --index`
+  reports only the judge-*less* pool (~0.074); the 0.212 needs a live `gloop run --localize rerank`.
+- **LOCALIZE — CBM marginal:** disjoint 26-case subset, +CBM file@1 **+0.038** (0 at file@5) — within noise.
+  Live call-graph context adds no measurable localize benefit beyond CodeWiki+judge.
+- **FIX — no measurable fix-context effect (underpowered floor substrate; n=29, CodeWiki-only):** stock
+  `gloop fixeval` can't reach the fix stage here (prose tickets → match scores 0 → 100% abstain at the
+  gate), so a forced-repo (`base=fix_sha^`) + forced-oracle-localization harness isolated the fix-prompt
+  effect. **CBM never fired** (0/31 cases had any CBM symbol — empty signals) ⇒ the arm is CodeWiki-only,
+  CBM **untested**. Baseline resolved 1/29 vs +CodeWiki 0/29; patch_apply 0.27→0.23 — one ~2-case coverage
+  flip cascading through nested metrics, within LLM sampling noise (data consistent with *no* effect). The
+  plan fixer rarely reproduces exact PR fixes (resolved floor ≤1/29). Consistent with the prior KB
+  re-verdict ("real-crash-with-fix substrate needed"; distrust-unverified-context).
+- **Governance:** `--localize rerank` (+CodeWiki, judge) → promotion **Candidate** — the first `[proxy]`
+  file@1 lever — but the evidence is a *single, isolated, OSS, prose-ticket* read; the promotion gate is a
+  `[production]` **crash-ticket** file@1 read + an e2e (match-gated) confirmation. `--localize rerank +CBM`
+  and `--fix-context {codewiki,cbm}` stay **OFF** (no measurable benefit / untested). Follow-up to
+  disentangle CodeWiki pool-vs-context: add a `judge + doc→source pool but no wiki-context` arm. Incidental
+  tooling: fixed a CodeWiki produce crash on name-colliding module trees (commit `1277e9f`; cameraview
+  0→52 md) — not in mine74, so it backs **no** efficacy number.
 
 ## 2026-07-15 · `--localize tokens` (signal-aware FTS5) 3-arm A/B · `[proxy]`
 
