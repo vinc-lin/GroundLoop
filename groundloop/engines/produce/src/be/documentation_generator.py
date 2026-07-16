@@ -290,9 +290,9 @@ class DocumentationGenerator:
         
         processed_module_tree = deepcopy(module_tree)
         module_info = processed_module_tree
-        for path_part in module_path:
+        for i, path_part in enumerate(module_path):
             module_info = module_info[path_part]
-            if path_part != module_path[-1]:
+            if i != len(module_path) - 1:   # compare by INDEX (a child may share the last part's name)
                 module_info = module_info.get("children", {})
             else:
                 module_info["is_target_for_overview_generation"] = True
@@ -392,9 +392,9 @@ class DocumentationGenerator:
     def _navigate(tree: Dict[str, Any], module_path: List[str]) -> Dict[str, Any]:
         """Return the node at *module_path* (mirrors the sequential loop's navigation)."""
         node = tree
-        for path_part in module_path:
+        for i, path_part in enumerate(module_path):
             node = node[path_part]
-            if path_part != module_path[-1]:
+            if i != len(module_path) - 1:   # descend into children for every non-last INDEX
                 node = node.get("children", {})
         return node
 
@@ -507,9 +507,9 @@ class DocumentationGenerator:
                     
                     # Get the module info from the tree
                     module_info = module_tree
-                    for path_part in module_path:
+                    for i, path_part in enumerate(module_path):
                         module_info = module_info[path_part]
-                        if path_part != module_path[-1]:  # Not the last part
+                        if i != len(module_path) - 1:  # Not the last part (compare by INDEX)
                             module_info = module_info.get("children", {})
                     
                     # Skip if already processed
