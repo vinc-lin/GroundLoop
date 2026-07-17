@@ -54,9 +54,19 @@ def test_localize_index_for_tokens_needs_no_embedder(tmp_path):
 
 def test_localize_index_for_rerank_builds_reranklocalizeindex(tmp_path):
     """A `--localize rerank` run grades on the reranker's grounded candidate POOL (judge=None offline):
-    the isolated diagnostic reconstructs a RerankLocalizeIndex labelled `rerank(no-judge:pool)`."""
+    with an embedder present the isolated diagnostic reconstructs a RerankLocalizeIndex labelled
+    `rerank(no-judge:pool)`."""
     from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
     (tmp_path / "manifest.json").write_text(json.dumps({"localize": "rerank"}))
-    idx, arm = _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), None)   # embedder=None
+    idx, arm = _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), object())  # embedder present
     assert isinstance(idx, RerankLocalizeIndex) and arm == "rerank(no-judge:pool)"
     assert idx.judge is None      # no LLM judge offline -> pool order is the graded ceiling
+
+
+def test_localize_index_for_rerank_fail_fast_without_embedder(tmp_path):
+    """A `--localize rerank` run grades its vector candidate-gen — no embedder must fail-fast (same as the
+    live run's guard) so the isolated diagnostic can't silently degrade to a keyword-only reranker."""
+    import pytest
+    (tmp_path / "manifest.json").write_text(json.dumps({"localize": "rerank"}))
+    with pytest.raises(RuntimeError, match="embedder"):
+        _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), None)   # embedder=None

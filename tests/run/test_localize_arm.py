@@ -75,10 +75,11 @@ def test_localize_tokens_explicit_wraps_signalquery(monkeypatch):
 
 def test_localize_rerank_wraps_split_over_reranker(monkeypatch):
     """`--localize rerank` (opt-in Candidate) wraps the match index in a SplitIndex whose retrieve side is
-    the grounded RerankLocalizeIndex — rank stays with the match arm. Hermetic: no gateway creds ->
-    judge=None (the reranker degrades to the candidate-pool order); the construction must not crash."""
+    the grounded RerankLocalizeIndex — rank stays with the match arm. An embedder must be present (the
+    no-embedder path now fail-fasts, see test_localize_rerank_failfast); with no PRODUCE creds judge=None
+    (the reranker degrades to the candidate-pool order). The construction must not crash."""
     monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
-    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)
+    monkeypatch.setattr("groundloop.cli._build_embedder", lambda: object())   # embedder present -> passes guard
     from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
     from groundloop.adapters.index.split import SplitIndex
     idx = _captured_index(monkeypatch, ["--localize", "rerank"])

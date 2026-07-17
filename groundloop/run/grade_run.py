@@ -45,8 +45,15 @@ def _localize_index_for(runs_dir, index_db, embedder):
         return SemanticAtlasIndex(index_db, embedder), arm
     if arm == "rerank":
         # The offline grader has no LLM judge, so the reranker degrades to its grounded candidate POOL
-        # (find_related_units symbol+doc, or keyword-only without an embedder). That measures the arm's
-        # rank-1 ceiling honestly — the LLM reorder cannot be reproduced offline.
+        # (find_related_units symbol+doc). That measures the arm's rank-1 ceiling honestly — the LLM
+        # reorder cannot be reproduced offline. But the vector candidate-gen still needs an embedder:
+        # fail-fast (same as the live run's `--localize rerank` guard) so the isolated diagnostic cannot
+        # silently diverge into a keyword-only reranker while a rerank scorecard looks valid.
+        if embedder is None:
+            raise RuntimeError(
+                "grade-run localize=rerank: no embedder — set KLOOP_EMBED_BASE_URL (bge-m3 gateway) "
+                "so the isolated diagnostic matches the live rerank run instead of silently degrading "
+                "to a keyword-only reranker.")
         from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
         from groundloop.engines.atlas.store import Store
         return (RerankLocalizeIndex(AtlasIndex(index_db), store=Store(index_db),

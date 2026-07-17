@@ -1418,7 +1418,14 @@ def main(argv: list[str] | None = None) -> int:
                 index = SignalQueryIndex(index, AtlasIndex(args.index_db))
             elif localize_req == "rerank":
                 from groundloop.adapters.index.split import SplitIndex
-                localize_reranker = _build_rerank_localize(index, args, _build_embedder())
+                emb = _build_embedder()
+                if emb is None:
+                    print("gloop run --localize rerank: no embedder — set KLOOP_EMBED_BASE_URL "
+                          "(bge-m3 gateway). The reranker's vector candidate-gen needs it; refusing "
+                          "to build a silent keyword-only reranker (its scorecard would look valid "
+                          "while the vector lane is dead).")
+                    return 2
+                localize_reranker = _build_rerank_localize(index, args, emb)
                 index = SplitIndex(index, localize_reranker)
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
