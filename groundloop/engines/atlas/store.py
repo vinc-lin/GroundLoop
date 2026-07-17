@@ -10,6 +10,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+from groundloop.engines.atlas.tokenize import split_identifier
+
 
 @dataclass
 class Unit:
@@ -173,10 +175,12 @@ def _fts_query(text: str) -> str:
     for tok in raw:
         # Emit the whole token as-is
         toks.append(tok)
-        # Also split camelCase/PascalCase into sub-words
-        parts = re.findall(r"[A-Z]?[a-z0-9]+|[A-Z]+(?=[A-Z]|$)", tok)
-        for p in parts:
-            if p.lower() != tok.lower():
+        # Also split camelCase/PascalCase into sub-words via the shared splitter (lowercased; FTS5 is
+        # case-insensitive). Drop bare-digit and single-char sub-words: they are near-zero-idf noise that
+        # would inflate false cross-repo hits on the shared Match path (split_identifier stays digit-aware
+        # for the future index-time caller).
+        for p in split_identifier(tok):
+            if p != tok.lower() and len(p) >= 2 and not p.isdigit():
                 toks.append(p)
     seen: set[str] = set()
     unique = [t for t in toks if not (t.lower() in seen or seen.add(t.lower()))]  # type: ignore[func-returns-value]
