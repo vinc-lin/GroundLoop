@@ -28,6 +28,23 @@ def test_write_manifest_records_provenance(tmp_path):
     assert m["n_cases"] == 3
 
 
+def test_write_manifest_records_localize_embed_failures(tmp_path):
+    """The `--localize rerank` embed-lane degrade count rides into the batch manifest so a rerank
+    scorecard's provenance shows whether the vector lane silently degraded. Defaults to 0."""
+    from groundloop.run.manifest import write_manifest
+
+    out0 = tmp_path / "out0"
+    write_manifest(str(out0), atlas_db=None, match_arm="flood", fixer="canned", affinity="",
+                   produce_model="deepseek-chat", embed_model="bge-m3", n_cases=0)
+    assert json.loads((out0 / "manifest.json").read_text())["localize_embed_failures"] == 0
+
+    out1 = tmp_path / "out1"
+    write_manifest(str(out1), atlas_db=None, match_arm="flood", fixer="canned", affinity="",
+                   produce_model="deepseek-chat", embed_model="bge-m3", n_cases=2,
+                   localize="rerank", localize_embed_failures=3)
+    assert json.loads((out1 / "manifest.json").read_text())["localize_embed_failures"] == 3
+
+
 def test_write_manifest_empty_atlas_and_affinity(tmp_path):
     from groundloop.run.manifest import write_manifest
 

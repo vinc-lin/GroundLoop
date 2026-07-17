@@ -1478,7 +1478,8 @@ def main(argv: list[str] | None = None) -> int:
             write_manifest(args.out, atlas_db=args.index_db, match_arm=match_arm, fixer=args.fixer,
                            affinity=affinity_path, produce_model=_s.produce_main_model,
                            embed_model=getattr(_s, "embed_model", "bge-m3"), n_cases=n,
-                           profile=profile, localize=localize_req)
+                           profile=profile, localize=localize_req,
+                           localize_embed_failures=getattr(localize_reranker, "embed_failures", 0))
             print(f"runs written: {n} -> {args.out}/runs (+ manifest.json)")
             return 0
         print("gloop run: pass --case <id> (single) or --out <dir> (batch over --dataset)")

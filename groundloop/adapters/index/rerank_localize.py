@@ -24,6 +24,7 @@ file)` (over `<repos_root>/<repo>/<file>`), falling back to the atlas-stored hit
 """
 from __future__ import annotations
 
+import logging
 from typing import Optional, Protocol, Sequence
 
 from groundloop.adapters.index.atlas_judge import _parse_order
@@ -114,6 +115,9 @@ class RerankLocalizeIndex:
         self._ctx = max_context_chars
         self._last_signals: Signals | None = None
         self._lut_cache: dict[int, dict[str, list[str]]] = {}
+        # count of live embed-lane failures that degraded a candidate-gen to keyword-only. Non-zero means
+        # the vector signal was silently missing for some repos — a rerank scorecard is then suspect.
+        self.embed_failures = 0
 
     # -- CodeIndex surface -------------------------------------------------------------------
 
@@ -169,8 +173,10 @@ class RerankLocalizeIndex:
                 return asyncio.run(find_related_units(
                     self.store, self.embedder, query_str, repos=[repo_name],
                     kinds=["symbol", "doc"], k=self.k))
-            except Exception:  # noqa: BLE001 — fall through to keyword-only
-                pass
+            except Exception as e:  # noqa: BLE001 — count+log, then degrade to keyword-only (never silent)
+                self.embed_failures += 1
+                logging.getLogger("groundloop.localize").warning(
+                    "rerank embed lane failed (%s); degrading to keyword-only for repo=%s", e, repo_name)
         return self._keyword_hits(repo_name, query_str)
 
     def _keyword_hits(self, repo_name: str, query_str: str) -> list[dict]:

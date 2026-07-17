@@ -23,7 +23,7 @@ def _affinity_id(affinity) -> object:
 
 def write_manifest(out: str, *, atlas_db, match_arm: str, fixer: str, affinity, produce_model: str,
                    embed_model: str, n_cases: int, change_sink: str = "mock", profile: str = "core",
-                   localize: str = "atlas") -> str:
+                   localize: str = "atlas", localize_embed_failures: int = 0) -> str:
     manifest = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "atlas_db": str(atlas_db) if atlas_db else "",
@@ -31,6 +31,10 @@ def write_manifest(out: str, *, atlas_db, match_arm: str, fixer: str, affinity, 
         "match_arm": match_arm,
         "profile": profile,
         "localize": localize,
+        # count of `--localize rerank` embed-lane failures that degraded a candidate-gen to keyword-only
+        # over the batch (0 unless rerank engaged and its vector lane failed) — makes a silent degrade
+        # visible in the batch's provenance so a rerank scorecard can be trusted or flagged.
+        "localize_embed_failures": int(localize_embed_failures),
         "fixer": fixer,
         "affinity": _affinity_id(affinity),
         "model_pins": {"produce": produce_model, "embed": embed_model},
