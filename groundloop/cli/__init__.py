@@ -1121,7 +1121,10 @@ def _build_embedder():
     from groundloop.config.settings import Settings
     from groundloop.engines.atlas.embed import GatewayEmbedder
     st = Settings.load()
-    return GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model)
+    # Thread the configured input caps (not the library defaults): max_chars truncates each input so an
+    # oversized unit can't 413 -> get swallowed into keyword-only; batch stays under the server BGE_MAX_BATCH.
+    return GatewayEmbedder(st.embed_base_url, st.embed_api_key, st.embed_model,
+                           batch=st.embed_batch, max_chars=st.embed_max_chars)
 
 
 def _source_reader(repos_root: str):
