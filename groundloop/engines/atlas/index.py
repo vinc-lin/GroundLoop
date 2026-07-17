@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+from groundloop.config.settings import Settings
 from groundloop.engines.atlas.chunk import doc_units
 from groundloop.engines.atlas.store import Store, Unit
 from groundloop.engines.atlas.registry import RepoEntry
 from groundloop.engines.atlas.symbol_source import extract_symbol_source
+from groundloop.engines.atlas.tokenize import split_identifier
 
 # CBM's `index_repository` builds the whole symbol graph — seconds on a fast FS, but MINUTES on a
 # slow one (e.g. the /mnt/x v9fs mount) or under contention. The CBMClient default (30s) trips
@@ -16,7 +18,8 @@ from groundloop.engines.atlas.symbol_source import extract_symbol_source
 DEFAULT_CBM_INDEX_TIMEOUT = 1800.0
 
 
-def _symbol_unit(row: dict, *, repo: str, repo_head: Optional[str], source_reader=None) -> Unit:
+def _symbol_unit(row: dict, *, repo: str, repo_head: Optional[str], source_reader=None,
+                 camelcase: bool = False) -> Unit:
     name = row.get("name", "")
     qn = row.get("qualified_name") or name
     label = row.get("label", "")
@@ -29,20 +32,38 @@ def _symbol_unit(row: dict, *, repo: str, repo_head: Optional[str], source_reade
                                            int(row.get("end_line") or 0))
             if enrich:
                 text = text + "\n" + enrich
+    if camelcase:
+        # unicode61 does not split CamelCase, so `ScreenshotUtils` is the atomic token
+        # `screenshotutils`. Append the identifier sub-words (order-preserving, deduped) so a
+        # plain-word query (`screenshot`) matches. Content-only: no new column, no schema change.
+        subwords = split_identifier(qn or name)
+        for p in split_identifier(name):
+            if p not in subwords:
+                subwords.append(p)
+        if subwords:
+            text = text + "\n" + " ".join(subwords)
     return Unit(repo=repo, kind="symbol", name=name, qualified_name=qn, file=file,
                 repo_head=repo_head, text=text, meta={"label": label})
 
 
 def build_units(wiki, symbol_rows: list[dict], *, repo: str,
-                repo_head: Optional[str], source_reader=None) -> list[Unit]:
-    """Pure given the source_reader: wiki + symbol rows -> Units. Tested directly."""
+                repo_head: Optional[str], source_reader=None,
+                camelcase: Optional[bool] = None) -> list[Unit]:
+    """Pure given the source_reader: wiki + symbol rows -> Units. Tested directly.
+
+    `camelcase` gates index-time identifier expansion (KLOOP_INDEX_CAMELCASE); when None it is
+    read from Settings at call time (index time, not import time). Default OFF ⇒ symbol text is
+    byte-identical to today."""
+    if camelcase is None:
+        camelcase = Settings.load().index_camelcase
     units: list[Unit] = []
     docs = getattr(wiki, "docs", {}) or {}
     for fname, text in docs.items():
         module = fname.rsplit(".", 1)[0]
         units += doc_units(text, repo=repo, module=module, file=fname, repo_head=repo_head)
     for row in symbol_rows:
-        units.append(_symbol_unit(row, repo=repo, repo_head=repo_head, source_reader=source_reader))
+        units.append(_symbol_unit(row, repo=repo, repo_head=repo_head,
+                                  source_reader=source_reader, camelcase=camelcase))
     return units
 
 

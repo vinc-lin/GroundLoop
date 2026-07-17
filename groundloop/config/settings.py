@@ -20,6 +20,7 @@ class Settings:
     cbm_index_timeout: float = 1800.0   # per-CBM-call ceiling; must cover a cold graph build
     embed_batch: int = 128              # inputs per embed request (server BGE_MAX_BATCH=256)
     embed_max_chars: int = 2000         # truncate each input (server BGE_MAX_CHARS=100000 → 413)
+    index_camelcase: bool = False       # opt-in: append identifier sub-words to symbol text at index time
 
     @classmethod
     def load(cls, env: dict | None = None) -> "Settings":
@@ -39,7 +40,14 @@ class Settings:
             cbm_index_timeout=_pos_float(e.get("KLOOP_CBM_INDEX_TIMEOUT"), 1800.0),
             embed_batch=int(_pos_float(e.get("KLOOP_EMBED_BATCH"), 128.0)),
             embed_max_chars=int(_pos_float(e.get("KLOOP_EMBED_MAX_CHARS"), 2000.0)),
+            index_camelcase=_bool_env(e.get("KLOOP_INDEX_CAMELCASE")),
         )
+
+
+def _bool_env(raw: str | None) -> bool:
+    """True unless `raw` is missing or an explicit negative ('', '0', 'false', 'no', 'off',
+    case-insensitive) — mirrors cli._env_flag so `KLOOP_X=0` disables rather than enabling."""
+    return (raw or "").strip().lower() not in ("", "0", "false", "no", "off")
 
 
 def _pos_float(raw: str | None, default: float) -> float:
