@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-18 | localize recall — Phase-1 mechanical fixes (vector-lane hardening + CamelCase index) | `[proxy]` | **A1 vector lane now provably fires** (was silently OFF): isolated file@k n=108, `atlas` (FTS5 floor) → `rerank_pool` (hybrid bge-m3∪FTS5): file@1 0.075→0.084, file@5 0.244→**0.267** (+0.023) — modest *standalone* lift (the judge/literal/CamelCase tiers are the real levers, deferred). + fail-fast on missing embedder, counted embed-degrade, opt-in `KLOOP_INDEX_CAMELCASE` (A3 Type-1-proven, efficacy A/B deferred). Opt-in Candidate; `core/`+schema zero-diff; suite 718 green; merged to master. Gate = `[production]` GEI localize file@k with the lane ON |
 | 2026-07-16 | CodeWiki + CBM in localize & fix (new 6-repo doc atlas) | `[proxy]` | **LOCALIZE** (isolated ceiling, prose-ticket regime, n=108): CodeWiki-under-judge **narrows** rank-1 — file@1 **0.075→0.212** (+0.137 abs, 2.8×; ~60% judge / ~40% CodeWiki, and CodeWiki's share is pool+context entangled); CBM marginal (+0.038, noise). **FIX** (n=29, floor): CodeWiki-only fix-context **no measurable effect** (**CBM never fired** — 0-signal tickets); resolved ≤1/29. → `--localize rerank` a **Candidate** (gate = `[production]` crash-ticket file@1); `--fix-context` stays OFF |
 | 2026-07-15 | **`--localize tokens` PROMOTED to Provisional-Core default** (was `atlas`) | governance | Core-default localize flipped `atlas`→`tokens` (`_resolve_arms`); recorded as **Provisional-Core** with an honest fail-safe-adjacent caveat (no *new* failure mode vs `atlas`: token-less ⇒ byte-identical; token-bearing ⇒ more grounded, within FTS5 envelope). No embedder ⇒ no new prod dependency. `--localize atlas` = reversible opt-out. **`[production]` GEI `file@1` read is the resolver** → confirm Core / revert |
 | 2026-07-15 | **`--localize tokens`** (signal-aware FTS5) 3-arm A/B | `[proxy]` | 212 functional cases, isolated + canonical: **tokens file@1 0.166 ≈ dispatch 0.161 but with NO embedder** (pure FTS5), and ≥ dispatch per class (ui_text 0.014 vs dispatch 0.000 — tokens falls back to atlas, dispatch to worse semantic). ⇒ the semantic branch adds an embedder dep for negative file@1 value; **`tokens` → PROMOTED to the Provisional-Core default** (see the row above; `[production]` GEI read pending) |
@@ -24,6 +25,45 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
+
+## 2026-07-18 · Localize recall — Phase-1 mechanical fixes · `[proxy]`
+
+Shipped the Phase-1 mechanical layer of the recall-first localize redesign
+(`docs/superpowers/specs/2026-07-17-localize-recall-cascade-design.md`, **Option B**): make the
+`--localize rerank` bge-m3 vector lane provably fire and fail **LOUD**, and split CamelCase identifiers so a
+plain-word query can match a compound symbol. All opt-in Candidate, `core/` + atlas-schema **zero-diff**,
+full Type-1 suite green (**718**). Commits `084252a`, `54aae79`, `5c89bfc`, `19cc853`, `5457e77` (merged to master).
+
+- **Why the re-scope:** the prior pool-widening experiment ran with the vector lane **silently OFF**
+  (`_build_embedder()` returns `None` when `KLOOP_EMBED_BASE_URL` is unset; `_gen_hits` swallowed live embed
+  errors with `except: pass`) — so its "retrieval is exhausted" conclusion was measured on a mis-wired config.
+  A first-principles review (5-frame panel) re-scoped the work: **Localize is necessary as a *concept*, not as a
+  *hard gate* (verified: `workflow.py:35` hands fix the full worktree — the gate is a fix-adapter convention) nor
+  as a *file@1 target* (the loss is recall, not mis-ranking). Its real job is recall.**
+- **A1 — vector-lane hardening (the read):** isolated file@k on the ORACLE repo (match-independent), n=108
+  `mine74` prose tickets, on `atlas-6-doc.db` (has vectors), live bge-m3:
+
+  | arm | file@1 | file@3 | file@5 |
+  |---|---|---|---|
+  | `atlas` (FTS5 keyword floor = lane **OFF**) | 0.075 | 0.203 | 0.244 |
+  | `rerank_pool` (hybrid bge-m3∪FTS5 = lane **ON**) | 0.084 | 0.202 | **0.267** |
+
+  The lane now **provably fires** (numbers diverge from the floor — the exact bug A1 fixed), but its *standalone*
+  lift is **modest** (+0.009 file@1, +0.023 file@5). Consistent with the design: the vector lane is **not** the
+  lever — the grounded LLM judge (**0.212** file@1 in the 2026-07-16 read) and the deferred literal-anchor +
+  CamelCase tiers are. **A1's primary value is correctness** — a rerank scorecard can no longer silently reflect a
+  dead vector lane (`--localize rerank` now `return 2` / raises without an embedder; per-case embed failures
+  counted into the manifest `localize_embed_failures`).
+- **A3 — index-time CamelCase (`KLOOP_INDEX_CAMELCASE`, default OFF):** mechanism **Type-1-proven**
+  (`screenshot`→`ScreenshotUtils` findable with the flag ON; byte-identical atlas with it OFF; the shared
+  `split_identifier` also fixed a query-side match-noise regression caught in adversarial review — bare-digit /
+  single-char sub-words are filtered out of the FTS query). Efficacy A/B needs a re-indexed atlas + a
+  **match-regression check** (index-time expansion changes the *shared* atlas) — **deferred** to the runbook.
+- **Governance:** Phase-1 is Core-*safe* hardening (the Core-default localize is unchanged; rerank + the CamelCase
+  atlas stay opt-in Candidates). Promotion to Core still needs the `[production]` GEI localize file@k read with the
+  lane ON. **Deferred / next:** Phase 2 (literal-anchor cascade + RRF union + abstain), Phase 3 (soft-gate fix),
+  the benchmark re-point (`bug_kind` split + `localize_hit` counter), and the `[production]` read + A3
+  CamelCase-atlas rebuild + match-regression.
 
 ## 2026-07-16 · CodeWiki + CBM in localize & fix — full A/B · `[proxy]`
 

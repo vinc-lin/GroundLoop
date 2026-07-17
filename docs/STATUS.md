@@ -1,6 +1,6 @@
 # GroundLoop — Status
 
-**As of 2026-07-17.** Read this first when resuming; see
+**As of 2026-07-18.** Read this first when resuming; see
 `CLAUDE.md` for durable project context.
 
 **Docs are the single source of truth** (re-consolidated 2026-07-11 → 13 top-level docs, + `capabilities.md`
@@ -12,6 +12,27 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 [`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md) · [`workflows.md`](workflows.md).
 
 ## Done
+
+### Localize recall — first-principles re-scope + Phase-1 mechanical fixes shipped (2026-07-18) ✅
+A first-principles review ("is the Localize stage even necessary?") re-scoped the pending pool-widening plan.
+Verdict (verified against code): Localize is necessary as a **concept**, **not** as a **hard gate** (`workflow.py:35`
+hands fix the full worktree — the gate is a fix-adapter convention, relaxable without touching `core/`) and **not**
+as a **file@1 target** (the loss is recall, not mis-ranking). Design = **Option B** recall-first cascade
+(`docs/superpowers/specs/2026-07-17-localize-recall-cascade-design.md`). Shipped **Phase 1** (mechanical layer,
+subagent-driven with adversarial review, 5 commits `084252a..5457e77`, **merged to master**): the `--localize
+rerank` bge-m3 vector lane now **fails LOUD** instead of silently degrading to keyword-only (`return 2`/raise on a
+missing embedder; per-case embed failures counted into `manifest.localize_embed_failures`), the CamelCase splitter
+is shared (`engines/atlas/tokenize.py`, applied query-side with a match-noise filter caught in review) and an
+opt-in `KLOOP_INDEX_CAMELCASE` splits identifiers at index time (default OFF = byte-identical). `core/` +
+atlas-schema **zero-diff**; full suite **718 green**, ruff clean.
+- **A1 `[proxy]` read** (isolated file@k, n=108 `mine74`, `atlas-6-doc.db`, live bge-m3): the vector lane
+  **provably fires** — `atlas` (floor) 0.075/0.244 → `rerank_pool` (lane ON) 0.084/**0.267** (file@1/file@5); a
+  **modest** standalone lift — the judge/literal/CamelCase tiers are the real levers. `docs/results-log.md` 2026-07-18.
+  A1's win is **correctness**: a rerank scorecard can no longer silently reflect a dead vector lane.
+- **Next (deferred, gated):** Phase 2 (literal-anchor cascade + RRF union + abstain-on-no-anchor), Phase 3
+  (soft-gate fix: `locations` as seeds + CBM expansion), the benchmark re-point (`bug_kind` split + `localize_hit`),
+  and the `[production]` GEI localize file@k read (lane ON) + the A3 CamelCase-atlas rebuild + match-regression —
+  the Candidate→Core promotion gate.
 
 ### CodeWiki + CBM in localize & fix — full enablement + live A/B (2026-07-16/17) ✅
 Fully enabled the two under-used code-understanding assets in the read-stages: **CodeWiki** (per-module LLM
