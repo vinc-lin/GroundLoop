@@ -3,7 +3,7 @@ Mirrors tests/kb/test_provenance.py: save->load equals, tuple fields survive JSO
 empty store, unknown keys dropped + id defaulted from the dict key."""
 import json
 
-from groundloop.kb.knowledge import Knowledge, load_knowledge, save_knowledge
+from groundloop.kb.knowledge import Knowledge, KnowledgePlaybook, load_knowledge, save_knowledge
 
 
 def _knowledge() -> Knowledge:
@@ -32,6 +32,32 @@ def test_save_then_load_round_trips_all_fields(tmp_path):
 
 def test_missing_file_is_empty_store(tmp_path):
     assert load_knowledge(str(tmp_path / "nope.json")) == {}
+
+
+def _playbook() -> KnowledgePlaybook:
+    return KnowledgePlaybook(
+        id="fragment-view-after-destroy-npe",
+        applies_when={"any_text": ["onDestroyView"], "any_errors": ["NullPointerException"]},
+        signature="NPE on a view/binding; stack through Fragment.onDestroyView; "
+                   "a callback fires after teardown",
+        localize=("onDestroyView", "retained listener/handler/coroutine fields"),
+        fix=("null out the ViewBinding in onDestroyView", "cancel the async callback post-teardown"),
+        required_apis=("onDestroyView", "Job.cancel"),
+        grounding_refs=("onDestroyView", "Job.cancel"),
+        provenance="fragment-view-after-destroy-npe", tier="candidate",
+        evidence={"measured_lift": {}, "wilson95": None, "validating_case_ids": [], "fail_count": 0,
+                  "demotions": []},
+    )
+
+
+def test_playbook_save_then_load_round_trips_all_fields(tmp_path):
+    k = _playbook()
+    p = tmp_path / "knowledge.json"
+    save_knowledge(str(p), {k.id: k})
+    back = load_knowledge(str(p))
+    assert back == {k.id: k}
+    for tf in ("localize", "fix", "required_apis", "grounding_refs"):
+        assert isinstance(getattr(back[k.id], tf), tuple)
 
 
 def test_unknown_keys_dropped_and_id_defaulted(tmp_path):
