@@ -860,7 +860,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "tokens", "rerank"], default=None,
+    r.add_argument("--localize", choices=["atlas", "tokens", "rerank", "cascade"], default=None,
                    help="localize retriever, chosen independently of --match-arm (default atlas in both "
                         "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
                         "(signal-aware FTS5: query the extracted code tokens, fallback prose; no embedder — "
@@ -868,9 +868,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "per-candidate code-understanding context (source + CodeWiki + live CBM when "
                         "reachable, i.e. --repos points at a clone root) reranked by an LLM judge, grounded "
                         "to real source files — targets the rank-1 precision gap; "
-                        "degrades to the pool order without a judge). When it differs from the match arm's "
-                        "native retrieve (a vector --match-arm semantic), the index is wrapped in a "
-                        "SplitIndex so localize still runs FTS5.")
+                        "degrades to the pool order without a judge) | cascade (opt-in Candidate: recall-first "
+                        "RRF-union of crash code-tokens (FTS) + literal anchors (FTS) + an OPTIONAL bge-m3 "
+                        "semantic fallback — degrades gracefully without an embedder, omitting only the "
+                        "semantic tier; falls back to the FTS floor when no tier fires). When it differs "
+                        "from the match arm's native retrieve (a vector --match-arm semantic), the index is "
+                        "wrapped in a SplitIndex so localize still runs FTS5.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1430,6 +1433,19 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
                 localize_reranker = _build_rerank_localize(index, args, emb)
                 index = SplitIndex(index, localize_reranker)
+            elif localize_req == "cascade":
+                # Recall-first RRF cascade. Unlike rerank, cascade DEGRADES GRACEFULLY without an embedder
+                # (the bge-m3 semantic tier is simply omitted; the crash-tokens + literal-anchor FTS tiers
+                # still fire) — so NO fail-fast here. Rank stays with the match arm (wrapped in SplitIndex).
+                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
+                from groundloop.adapters.index.split import SplitIndex
+                from groundloop.engines.atlas.store import Store
+                emb = _build_embedder()
+                sem = SemanticAtlasIndex(args.index_db, emb) if emb is not None else None
+                cascade = CascadeLocalizeIndex(index, fts=AtlasIndex(args.index_db), semantic=sem,
+                                               store=Store(args.index_db))
+                index = SplitIndex(index, cascade)
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)

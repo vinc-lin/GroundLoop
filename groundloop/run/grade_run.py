@@ -58,6 +58,17 @@ def _localize_index_for(runs_dir, index_db, embedder):
         from groundloop.engines.atlas.store import Store
         return (RerankLocalizeIndex(AtlasIndex(index_db), store=Store(index_db),
                                     embedder=embedder, judge=None), "rerank(no-judge:pool)")
+    if arm == "cascade":
+        # Recall-first RRF cascade, reconstructed for the isolated diagnostic. The semantic tier degrades
+        # gracefully: with no embedder it is omitted (crash-tokens + literal-anchor FTS tiers still fire),
+        # so — unlike rerank — cascade never fails-fast offline.
+        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+        from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
+        from groundloop.engines.atlas.store import Store
+        sem = SemanticAtlasIndex(index_db, embedder) if embedder is not None else None
+        cascade = CascadeLocalizeIndex(AtlasIndex(index_db), fts=AtlasIndex(index_db), semantic=sem,
+                                       store=Store(index_db))
+        return cascade, (arm if embedder is not None else "cascade(no-embedder:fts-only)")
     if arm == "dispatch":     # localize dispatch retired (archived 2026-07-16) -> grade on the FTS5 floor
         return AtlasIndex(index_db), "dispatch->atlas(retired)"
     fell_back = arm == "semantic"     # wanted embedder, none available
