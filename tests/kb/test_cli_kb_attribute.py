@@ -33,10 +33,11 @@ def test_kb_attribute_promotes_via_seam(tmp_path, monkeypatch):
     (d / "b__arm.json").write_text(json.dumps(_payload("b", [], 0.3)))       # baseline, low groundedness
 
     def fake_seam(args, knowledge_arg):
-        def run_card_fn(ids):
+        def run_card_fn(ids):                     # c1 lifts resolved_rate_strict; its placebo does not
             good = "c1" in set(ids) and "placebo-c1" not in set(ids)
-            return {"plan_target_recall@1": {"value": 0.8 if good else 0.4, "n": 5},
-                    "resolved_rate_strict": {"value": 0.5, "n": 5}, "fabrication_rate": {"value": 0.0, "n": 3},
+            return {"plan_target_recall@1": {"value": 0.5, "n": 5},
+                    "resolved_rate_strict": {"value": 0.8 if good else 0.4, "n": 5},
+                    "fabrication_rate": {"value": 0.0, "n": 3},
                     "plan_groundedness": {"value": 0.9, "n": 5}, "cost_per_solved": {"value": 1.0, "n": 5},
                     "resolved_by_case": {}}
         return run_card_fn

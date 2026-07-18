@@ -55,10 +55,10 @@ def _card(ptr, *, fab=0.0, gnd=0.9, rss=0.5):
 def test_govern_promotes_a_load_bearing_item():
     knowledge = {"c1": _knowledge("c1"), "c2": _knowledge("c2")}
 
-    def run_card_fn(ids):                       # c1 lifts plan_target_recall; its placebo does not
+    def run_card_fn(ids):                       # c1 lifts resolved_rate_strict; its placebo does not
         ids = set(ids)
         good = "c1" in ids and "placebo-c1" not in ids
-        return _card(0.8 if good else 0.4)
+        return _card(0.5, rss=0.8 if good else 0.4)      # ptr flat; rss is the load-bearing metric now
 
     updated = attribute_and_govern(knowledge, ["c1"], run_card_fn)
     assert updated["c1"].tier == "applied"                       # promoted one rung
@@ -93,10 +93,11 @@ def test_govern_requires_lofo_even_when_accept_passes():
     would wrongly promote this item, so this locks the LOFO gate independently."""
     knowledge = {"c1": _knowledge("c1")}
 
-    def run_card_fn(ids):                       # metric depends only on the placebo's ABSENCE, not on c1
+    def run_card_fn(ids):                       # ptr depends only on the placebo's ABSENCE; rss stays flat
         return _card(0.8 if "placebo-c1" not in set(ids) else 0.4)
 
-    # LOFO: primary({c1}) == primary({}) == 0.8 -> Δ = 0 ; placebo-swap: head 0.8 vs base 0.4 -> accept ok.
+    # LOFO on rss (the primary): rss({c1}) == rss({}) == 0.5 (flat) -> Δ = 0 ; accept passes via ptr:
+    # head ptr 0.8 vs base ptr 0.4 -> accept_grounded pos_ok. Held on the LOFO gate alone (Δ not > 0).
     assert attribute_and_govern(knowledge, ["c1"], run_card_fn)["c1"].tier == "candidate"   # held (Δ not > 0)
 
 
@@ -106,8 +107,9 @@ def test_govern_requires_accept_even_when_lofo_passes():
     wrongly promote this item, so this locks the accept gate independently."""
     knowledge = {"c1": _knowledge("c1")}
 
-    def run_card_fn(ids):                       # metric depends only on ANY id present (c1 OR its placebo)
-        return _card(0.8 if set(ids) else 0.4)
+    def run_card_fn(ids):                       # rss (the primary) depends only on ANY id present (c1 OR placebo)
+        return _card(0.5, rss=0.8 if set(ids) else 0.4)
 
-    # LOFO: primary({c1})=0.8 vs primary({})=0.4 -> Δ=0.4>0 ; placebo-swap: head 0.8 == base 0.8 -> reject.
+    # LOFO on rss: rss({c1})=0.8 vs rss({})=0.4 -> Δ=0.4>0 (load-bearing) ; placebo-swap: head rss 0.8 ==
+    # base rss 0.8 (both have an id present) -> accept_grounded rejects the tie. Held on the accept gate alone.
     assert attribute_and_govern(knowledge, ["c1"], run_card_fn)["c1"].tier == "candidate"   # held (not accepted)

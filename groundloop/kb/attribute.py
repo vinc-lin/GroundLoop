@@ -143,7 +143,7 @@ def _metric_value(card: dict, key: str) -> float:
 
 def attribute_and_govern(knowledge: dict[str, Knowledge], shortlist: Iterable[str],
                          run_card_fn: Callable[[frozenset[str]], dict], *,
-                         primary: str = "plan_target_recall@1", cost_budget: float | None = None,
+                         primary: str = "resolved_rate_strict", cost_budget: float | None = None,
                          hysteresis: int = 2) -> dict[str, Knowledge]:
     """Confirm each shortlisted candidate causally, then govern its tier — one item at a time (spec §5.5).
     `run_card_fn(knowledge_id_set) -> eval-arm scorecard dict` re-runs the grounded fix eval with EXACTLY
