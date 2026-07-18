@@ -860,7 +860,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "tokens", "rerank", "cascade"], default=None,
+    r.add_argument("--localize", choices=["atlas", "tokens", "rerank", "cascade", "cascade_judge"],
+                   default=None,
                    help="localize retriever, chosen independently of --match-arm (default atlas in both "
                         "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
                         "(signal-aware FTS5: query the extracted code tokens, fallback prose; no embedder — "
@@ -871,7 +872,11 @@ def build_parser() -> argparse.ArgumentParser:
                         "degrades to the pool order without a judge) | cascade (opt-in Candidate: recall-first "
                         "RRF-union of crash code-tokens (FTS) + literal anchors (FTS) + an OPTIONAL bge-m3 "
                         "semantic fallback — degrades gracefully without an embedder, omitting only the "
-                        "semantic tier; falls back to the FTS floor when no tier fires). When it differs "
+                        "semantic tier; falls back to the FTS floor when no tier fires) | cascade_judge "
+                        "(opt-in Candidate: the recall-first cascade POOL reordered by the rerank LLM judge "
+                        "+ code-understanding context — combines the cascade's higher-recall pool with the "
+                        "judge's precision; degrades to the cascade pool order without gateway creds). When "
+                        "it differs "
                         "from the match arm's native retrieve (a vector --match-arm semantic), the index is "
                         "wrapped in a SplitIndex so localize still runs FTS5.")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
@@ -1229,12 +1234,14 @@ def _build_fix_context(args):
     return FixContextProvider(store=store, entity_map=entity_map, cbm=cbm)
 
 
-def _build_rerank_localize(match_index, args, embedder):
+def _build_rerank_localize(match_index, args, embedder, pool_index=None):
     """Compose the opt-in `--localize rerank` RerankLocalizeIndex around the built match index. Fail-safe:
     no gateway creds -> judge=None (degrades to the grounded candidate-pool order, never fabricates); the
     doc→source entity_map + source_reader come from KLOOP_REGISTRY + --repos when available, else degrade.
     Live per-repo CBM enrichment engages when --repos is a clone root (the SAME lazy per-repo `_cbm_provider`
-    as --fix-context cbm); with no --repos the provider is None and the reranker drops the CBM block."""
+    as --fix-context cbm); with no --repos the provider is None and the reranker drops the CBM block.
+    `pool_index` (set by `--localize cascade_judge`) supplies the recall POOL via its retrieve() instead of
+    the reranker's own candidate-gen — the judge then reorders that higher-recall pool."""
     import os
     from groundloop.adapters.index.rerank_localize import GatewayFileJudge, RerankLocalizeIndex
     from groundloop.engines.atlas.store import Store
@@ -1251,7 +1258,7 @@ def _build_rerank_localize(match_index, args, embedder):
     # --fix-context cbm so a run without a clone root never spins up a CBM subprocess.
     return RerankLocalizeIndex(
         match_index, store=Store(args.index_db), embedder=embedder, judge=judge,
-        cbm=_cbm_provider(args.repos),
+        cbm=_cbm_provider(args.repos), pool_index=pool_index,
         entity_map=_entity_map_provider(registry_path), source_reader=_source_reader(args.repos))
 
 
@@ -1448,6 +1455,21 @@ def main(argv: list[str] | None = None) -> int:
                 cascade = CascadeLocalizeIndex(index, fts=AtlasIndex(args.index_db), semantic=sem,
                                                store=Store(args.index_db))
                 index = SplitIndex(index, cascade)
+            elif localize_req == "cascade_judge":
+                # cascade POOL (recall-first RRF) + rerank LLM judge (precision). The cascade degrades
+                # gracefully with no embedder (semantic tier omitted); the judge is creds-gated (judge=None
+                # without gateway creds), not embedder-gated — so, like cascade, NO fail-fast on a missing
+                # embedder. Rank stays with the match arm (wrapped in SplitIndex).
+                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
+                from groundloop.adapters.index.split import SplitIndex
+                from groundloop.engines.atlas.store import Store
+                emb = _build_embedder()
+                sem = SemanticAtlasIndex(args.index_db, emb) if emb is not None else None
+                cascade = CascadeLocalizeIndex(index, fts=AtlasIndex(args.index_db), semantic=sem,
+                                               store=Store(args.index_db))
+                localize_reranker = _build_rerank_localize(index, args, emb, pool_index=cascade)
+                index = SplitIndex(index, localize_reranker)
         else:
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
