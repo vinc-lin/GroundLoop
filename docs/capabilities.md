@@ -161,7 +161,7 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 > All three stay **Candidate** — opt-in, Core defaults unchanged (`component`/`atlas`/`plan`); a `[production]`
 > read is the promotion gate.
 
-`FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]`) ·
+`FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]` → **0.10 `[production]`** — the canonical "proxy flatters" collapse; see [environments.md](environments.md) §"the proxy is optimistic") ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · the bge-m3 vector **localize** retrieve
 (`SemanticAtlasIndex.retrieve`, unmeasured for localize; ~~there is **no** LLM/qwen-rerank localize —
 `LLMJudgeIndex.retrieve` delegates to plain FTS5~~ — **superseded 2026-07-16:** `RerankLocalizeIndex` /
