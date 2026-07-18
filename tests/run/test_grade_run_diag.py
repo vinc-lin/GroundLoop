@@ -57,3 +57,12 @@ def test_isolated_none_without_index(tmp_path):
     card = grade_run(out, ds)                                          # no index_db -> isolated stays None
     assert card["overall"]["localize"]["isolated"] is None
     assert render_run_markdown(card)                                  # renders without crashing
+
+
+def test_bind_defaults_to_mock_without_manifest(tmp_path):
+    ds, out = str(tmp_path / "ds"), str(tmp_path / "out")
+    _case(ds, out, "M", chosen="alpha", owner="alpha", as_run_loc=["Real.kt"], expected=["Real.kt"],
+          bug_kind="crash")
+    card = grade_run(out, ds)                                          # no manifest.json written by _case
+    assert card["bind"] == "mock"                                      # honest default, not silently omitted
+    assert "bind: mock" in render_run_markdown(card)

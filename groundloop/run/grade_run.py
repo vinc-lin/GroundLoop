@@ -219,4 +219,11 @@ def grade_run(runs_dir: str, dataset: str, *, index_db: str | None = None, embed
     card["by_bug_kind"] = {bk: _grade_subset([r for r in rows if r["bug_kind"] == bk],
                                              oracle_by_case, with_isolated) for bk in kinds}
     card["cases"] = [_case_row(r) for r in rows]
+    card["bind"] = "mock"
+    mpath = Path(runs_dir) / "manifest.json"
+    if mpath.exists():
+        try:
+            card["bind"] = json.loads(mpath.read_text()).get("change_sink", "mock")
+        except (json.JSONDecodeError, OSError):
+            card["bind"] = "mock"
     return card

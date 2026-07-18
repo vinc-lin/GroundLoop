@@ -30,6 +30,9 @@ def render_run_markdown(card: dict) -> str:
         lines.append(f"- fix: gradeable {fx['n_gradeable']} · "
                      f"ungradeable(no_source) {fx['n_ungradeable_no_source']} · "
                      f"resolved_strict {_fmt(rsv)}")
+    if card.get("bind"):
+        note = "" if card["bind"] != "mock" else " (mocked — not a real Gerrit change)"
+        lines.append(f"- bind: {card['bind']}{note}")
     if card.get("by_bug_kind"):
         for bk, sub in sorted(card["by_bug_kind"].items()):
             sm = sub["match"]
