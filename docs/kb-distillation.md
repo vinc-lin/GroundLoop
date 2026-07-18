@@ -11,9 +11,11 @@
 >
 > **Read this caveat first.** The distillation machinery below is **fully built and structurally correct**, but
 > **nothing has been validated yet** — all 12 seed Skills sit at cold-start `candidate` tier, no `Knowledge`
-> item has ever been extracted or promoted, and the KB's *efficacy* verdict is **production-gated** (see §7 and
-> [`kb-reverdict`](capabilities.md#candidate--dev-labs-research-blocked-on-a-first-production-read)). This guide
-> documents the *mechanism*, not a proven result. The KB is a **Candidate** fix arm, never default-on.
+> item has ever been extracted or promoted, and the KB's *efficacy* verdict is **production-gated** (see §7).
+> This guide documents the *mechanism*, not a proven result. As of the 2026-07-18 first-principles review the
+> KB is classified **Dormant** (see [`capabilities.md`](capabilities.md#dormant--valuable-concept-weak-current-implementation-1)):
+> the concept is judged valuable, but the current implementation has produced zero positive signal and is
+> blocked on a redesign — never default-on.
 
 ---
 
@@ -236,14 +238,19 @@ This matches the **KB re-verdict**: the earlier "Archived null" was **discredite
 wrong metric (`plan_target_recall`, not `resolved_rate`) and rode a localize-query pollution confound
 (reproduced Δ−0.10 file@1); the fair `fix-only` re-test was **inconclusive at a 0-resolution floor** (a
 synthetic crash log is disconnected from the real fix, so nothing resolves, and the hermetic fixer abstains on
-every case). The KB is therefore **Candidate (unproven, not null)** and **production-gated**: a fair
-`resolved_rate` verdict needs a **real** atlas + a **real** model + a **real-crash-with-fix** substrate that
-produces nonzero resolution — which the dev-box proxy provably cannot supply
-([`Phase-2 spec`](superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md), a production-side task).
+every case). Per the **2026-07-18 first-principles review** the KB is classified **Dormant** — not a validly
+measured null (so not Archived) and not promising-but-unvalidated (so not Candidate): the concept is judged
+valuable, but the current implementation has produced zero positive signal and is blocked on a 3-axis redesign
+(injection mechanism, richer Knowledge representation, a loop-outcome learning loop) plus real
+AAOS crash+fix data. A fair `resolved_rate` verdict needs a **real** atlas + a **real** model + a
+**real-crash-with-fix** substrate that produces nonzero resolution — which the dev-box proxy provably cannot
+supply ([`Phase-2 spec`](superpowers/specs/2026-07-13-kb-fair-eval-phase2-design.md), a production-side task).
 
-> **One correctness caution for anyone extending this:** the per-item retain loop's `attribute_and_govern`
-> defaults `primary="plan_target_recall@1"` — the *exact* metric the re-verdict flagged as discredited (a fix
-> arm cannot move a localize metric). Prefer `resolved_rate` when you wire the real production A/B.
+> **One correctness note for anyone extending this:** the per-item retain loop's `attribute_and_govern` now
+> defaults `primary="resolved_rate_strict"` (`kb/attribute.py:146`) — the game-proof metric every governance
+> consumer uses. The earlier default of `primary="plan_target_recall@1"` was the *exact* metric the re-verdict
+> flagged as discredited (a fix arm cannot move a localize metric); it has since been corrected. Do not revert
+> this default back to a `plan_target_recall`-family metric.
 
 ---
 
@@ -272,6 +279,6 @@ read (`docs/build-setup.md`). None is on the `gloop run` production path.
 - **Distillation (Skill → Knowledge):** `groundloop/kb/extract.py` (`knowledge_from_skill`, `extract_to_store`) · `groundloop/kb/knowledge_ground.py` (`check_knowledge_grounded`) · `groundloop/kb/knowledge_placebo.py`
 - **Injection:** `groundloop/fixeval/runner.py` (`_skill_query`, `render_skills`/`render_knowledge`, `--skills-inject`)
 - **Retain-loop:** `groundloop/kb/{attribute,ab,placebo,accept,lifecycle,provenance}.py` · `groundloop/fixeval/compare.py`
-- **Governance state:** [`capabilities.md`](capabilities.md) (Candidate) · design provenance: [`fix-loop.md`](fix-loop.md)
+- **Governance state:** [`capabilities.md`](capabilities.md) (Dormant) · design provenance: [`fix-loop.md`](fix-loop.md)
 </content>
 </invoke>

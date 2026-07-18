@@ -193,7 +193,8 @@ Every feature at every stage, with the evidence behind its state and what a prom
 mechanism + safety argument, *effectiveness* production-gated (resolves to Core or reverts) · **Core\*** =
 Core-when-configured (needs its artifact/flag) · **Candidate** = Dev-Labs, opt-in, `[proxy]`-only · **Dev-Labs Infra** = permanent
 measurement apparatus · **Fixture** = hermetic Type-1 double (never default) · **Archived** = measured null ·
-**`[to build]`** = not implemented. (Wide table — scroll right; states/evidence trace to
+**Dormant** = valuable concept, but the current implementation is weak/0-signal — blocked on a redesign, not a
+concluded null · **`[to build]`** = not implemented. (Wide table — scroll right; states/evidence trace to
 [`capabilities.md`](capabilities.md) + [`results-log.md`](results-log.md).)
 
 | Stage (port) | Feature | State | Reachable via | Evidence | Blocker → Core | File |
@@ -228,8 +229,8 @@ measurement apparatus · **Fixture** = hermetic Type-1 double (never default) ·
 | **6 fix** (FixEngine) | `PlanningFixEngine` — **"Bug Plan Mode"** (plan→gate→re-plan→abstain→execute; the executed diff is re-gated to candidate scope) | **Provisional-Core (default; effectiveness production-gated)** | `--fixer plan` (**run default**) | `[proxy]` plan recall@1 0.48/@5 0.68, groundedness 0.56, **fab 0.0** (safety proven; resolution never gradeable) | a `[production]` `resolved_rate` read (grade-run promotion note) → confirm Core / revert | `adapters/fix/planning.py` |
 | | `ModelPatchEngine` (single-shot) | Core\* | `--fixer model` (**opt-out**) | `[production]` ran; fix ungradeable (empty worktree) | gradeable worktrees (`--repos`) | `adapters/fix/model_patch.py` |
 | | `CannedFixEngine` (hermetic stub) | Fixture | `--fixer canned` | — | (never) | `adapters/fix/canned.py` |
-| | Dev-experience KB / Skill injection | Candidate | `fixeval --skills kb [--skills-inject fix-only]` | `[proxy]` **unproven**: old null discredited (confound Δ−0.10 file@1, wrong metric); `resolved_rate` re-test inconclusive (0 floor) | Phase 2 real-fix slice with resolution headroom | `adapters/skills/mock.py` |
-| | Knowledge injection (distilled) | Candidate | `fixeval --knowledge {candidate,validated}` | `[proxy]` 0/60 on `plan_target_recall` (wrong metric) — unproven, not null | Phase 2 real-fix slice | `kb/knowledge.py` |
+| | Dev-experience KB / Skill injection | Dormant | `fixeval --skills kb [--skills-inject fix-only]` | `[proxy]` **0 positive signal**: old null discredited (confound Δ−0.10 file@1, wrong metric); `resolved_rate` re-test inconclusive (0 floor) | 3-axis redesign (injection mechanism, richer Knowledge, loop-outcome learning) + real-fix slice with resolution headroom | `adapters/skills/mock.py` |
+| | Knowledge injection (distilled) | Dormant | `fixeval --knowledge {candidate,validated}` | `[proxy]` 0/60 on `plan_target_recall` (wrong metric) — 0 positive signal, not a valid null | 3-axis redesign + real-fix slice | `kb/knowledge.py` |
 | **7 submit** (ChangeSink) | `MockGerrit.submit` (synthesized change) | Fixture | default (only) | `[production]` ran (synthetic) | replaced, not promoted | `adapters/mock/gerrit.py` |
 | | live Gerrit sink | `[to build]` | — | none | push a real change + Change-Id | — |
 | **8 bind** (ChangeSink) | `MockGerrit.bind` (change↔ticket) | Fixture | default (only) | `[production]` ran (no real chain) | replaced, not promoted | `adapters/mock/gerrit.py` |
