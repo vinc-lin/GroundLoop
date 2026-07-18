@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-18 | localize recall — Phase-2 literal-anchor cascade (RRF union) | `[proxy]` | **`--localize cascade`** (prose floor ∪ crash code-tokens ∪ literal anchors ∪ semantic, RRF): isolated file@k n=108 vs `atlas` floor 0.075/0.244 → cascade **0.098/0.308** (file@1/@5, +0.023/+0.064, non-regression confirmed). BUT the **literal tier is marginal/mixed** — marginal contribution (cascade − cascade_no_literal) = file@1 **−0.011**, file@5 +0.009; **the SEMANTIC tier is the lever, not the literal anchor** (partially disconfirms the design bet, on the baseline non-CamelCase atlas). A 4-lens adversarial Workflow caught+fixed a real non-regression blocker pre-merge. Opt-in Candidate, merged to master. Gate = CamelCase-atlas read + `[production]` GEI |
 | 2026-07-18 | localize recall — Phase-1 mechanical fixes (vector-lane hardening + CamelCase index) | `[proxy]` | **A1 vector lane now provably fires** (was silently OFF): isolated file@k n=108, `atlas` (FTS5 floor) → `rerank_pool` (hybrid bge-m3∪FTS5): file@1 0.075→0.084, file@5 0.244→**0.267** (+0.023) — modest *standalone* lift (the judge/literal/CamelCase tiers are the real levers, deferred). + fail-fast on missing embedder, counted embed-degrade, opt-in `KLOOP_INDEX_CAMELCASE` (A3 Type-1-proven, efficacy A/B deferred). Opt-in Candidate; `core/`+schema zero-diff; suite 718 green; merged to master. Gate = `[production]` GEI localize file@k with the lane ON |
 | 2026-07-16 | CodeWiki + CBM in localize & fix (new 6-repo doc atlas) | `[proxy]` | **LOCALIZE** (isolated ceiling, prose-ticket regime, n=108): CodeWiki-under-judge **narrows** rank-1 — file@1 **0.075→0.212** (+0.137 abs, 2.8×; ~60% judge / ~40% CodeWiki, and CodeWiki's share is pool+context entangled); CBM marginal (+0.038, noise). **FIX** (n=29, floor): CodeWiki-only fix-context **no measurable effect** (**CBM never fired** — 0-signal tickets); resolved ≤1/29. → `--localize rerank` a **Candidate** (gate = `[production]` crash-ticket file@1); `--fix-context` stays OFF |
 | 2026-07-15 | **`--localize tokens` PROMOTED to Provisional-Core default** (was `atlas`) | governance | Core-default localize flipped `atlas`→`tokens` (`_resolve_arms`); recorded as **Provisional-Core** with an honest fail-safe-adjacent caveat (no *new* failure mode vs `atlas`: token-less ⇒ byte-identical; token-bearing ⇒ more grounded, within FTS5 envelope). No embedder ⇒ no new prod dependency. `--localize atlas` = reversible opt-out. **`[production]` GEI `file@1` read is the resolver** → confirm Core / revert |
@@ -25,6 +26,49 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
+
+## 2026-07-18 · Localize recall — Phase-2 literal-anchor cascade · `[proxy]`
+
+Shipped Phase 2 (`docs/superpowers/plans/2026-07-18-localize-literal-cascade.md`): **`--localize cascade`**, a
+recall-first **RRF union** of the prose FTS floor + crash code-tokens (FTS) + literal anchors (FTS) + an
+optional bge-m3 semantic tier. New `CascadeLocalizeIndex` + a literal-anchor extractor + an atlas rarity gate;
+opt-in Candidate, `core/`+schema **zero-diff**, suite **728** green. Commits `d3b8a3b`..`ed8820e` (merged to master).
+
+- **A 4-lens adversarial review (Workflow) caught a real merge-blocker pre-merge:** the prose FTS floor was a
+  *fallback*, not a union member — so a firing-but-poor literal/crash tier could drop the floor's oracle out of
+  the result (recall regression below `--localize atlas` in the documented no-embedder mode). Fixed (floor is
+  ALWAYS the first RRF list) + a regression test; also tightened the rarity gate (`max_files` 40→10, which was
+  admitting subsystem-tag noise like `HVAC`→30 files) and dropped version-token noise. The review corrected the
+  contract too: RRF is non-regressive **at the graded k**, not strict rank-1 (it reorders within top-k).
+- **The read** (isolated file@k on the ORACLE repo, n=108 `mine74` prose tickets, **baseline `atlas-6-doc.db`
+  — NOT CamelCase-indexed**, live bge-m3):
+
+  | arm | file@1 | file@3 | file@5 |
+  |---|---|---|---|
+  | `atlas` (FTS floor) | 0.075 | 0.203 | 0.244 |
+  | `cascade_no_literal` (floor + crash + semantic) | 0.109 | 0.212 | 0.299 |
+  | `cascade` (+ literal anchors) | 0.098 | 0.230 | 0.308 |
+
+  **The cascade beats the floor at every k** (file@1 +0.023, file@5 +0.064) — a real recall lift, and
+  non-regression is confirmed empirically. **But the literal tier is marginal/mixed:** its MARGINAL
+  contribution (`cascade − cascade_no_literal`) is **file@1 −0.011**, file@3 +0.018, file@5 +0.009. **The
+  SEMANTIC tier is the lever, not the literal anchor** — `cascade_no_literal` (just floor+crash+semantic)
+  already captures most of the gain (file@1 0.109). This **partially disconfirms the design's central bet**
+  ("the literal anchor is *the* functional-recall lever"): on the baseline atlas the semantic tier (made
+  reliable by Phase-1's A1 fix) carries it, and the literal tier slightly hurts file@1 (the RRF rank-1 dilution
+  the review predicted).
+- **Caveat — partial literal read:** this is the **baseline** atlas; the literal tier's power on CamelCase
+  compound symbol names (`ScreenshotUtils` ← `screenshot`) is DISABLED without the A3 `KLOOP_INDEX_CAMELCASE`
+  atlas, so the literal tier ran at partial strength. Its full test needs the CamelCase-atlas read (deferred).
+- **Context / next lever:** the best localize file@1 to date is still `rerank_cw_judge` (judge + CodeWiki,
+  **0.212**, 2026-07-16). The cascade (no judge) gets better **recall@5** (0.308 vs `rerank_pool` 0.267), so the
+  natural next step — scoped OUT of Phase 2 — is **cascade recall-union → rerank judge** (recall pool + precision
+  reorder).
+- **Governance:** cascade stays an opt-in Candidate; NOT promoted to a default. Semantic-tier value is
+  `[proxy]`-confirmed; literal-tier value is unproven/mixed on the baseline atlas. **Gate:** the CamelCase-atlas
+  cascade read + a `[production]` GEI file@k read (+ the deferred A3 match-regression) earn Core. **Open
+  question:** given the literal tier's file@1 cost, should it stay in the default cascade or be gated behind the
+  CamelCase atlas / a per-anchor RRF-mass cap (review #5)?
 
 ## 2026-07-18 · Localize recall — Phase-1 mechanical fixes · `[proxy]`
 

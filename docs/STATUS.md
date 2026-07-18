@@ -13,6 +13,23 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 
 ## Done
 
+### Localize recall — Phase-2 literal-anchor cascade shipped + [proxy] read (2026-07-18) ✅
+Shipped **`--localize cascade`** (Phase 2): a recall-first RRF union of the prose FTS floor + crash code-tokens +
+literal anchors + optional bge-m3 semantic tier (`CascadeLocalizeIndex` + literal-anchor extractor + atlas
+rarity gate). Subagent-driven with a **4-lens adversarial Workflow** that **caught a real non-regression
+merge-blocker** (the prose floor was a fallback, not a union member → recall regression below `--localize
+atlas`; fixed + regression test, gate tightened `max_files` 40→10). Opt-in Candidate, `core/`+schema zero-diff,
+suite **728 green**, merged to master (`d3b8a3b..ed8820e`).
+- **[proxy] read** (isolated file@k, n=108 mine74, **baseline** atlas-6-doc.db): the cascade beats the floor
+  (0.075/0.244 → **0.098/0.308** file@1/@5) — BUT the **literal tier is marginal/mixed** (marginal file@1
+  **−0.011**, file@5 +0.009); **the SEMANTIC tier is the lever, not the literal anchor** — this **partially
+  disconfirms the design's central bet**. Baseline atlas ⇒ literal tier at partial strength (no CamelCase).
+  `docs/results-log.md` 2026-07-18. **NOT promoted to default** — governance holds pending the [production] read.
+- **Next (gated / open):** the CamelCase-atlas cascade read (full literal strength) + [production] GEI file@k +
+  the deferred A3 match-regression = the promotion gate; and the **cascade-recall → rerank-judge** integration
+  (cascade wins recall@5, judge wins file@1 at 0.212 — combine them). Open: keep the literal tier in the default
+  cascade given its file@1 cost, or gate it?
+
 ### Localize recall — first-principles re-scope + Phase-1 mechanical fixes shipped (2026-07-18) ✅
 A first-principles review ("is the Localize stage even necessary?") re-scoped the pending pool-widening plan.
 Verdict (verified against code): Localize is necessary as a **concept**, **not** as a **hard gate** (`workflow.py:35`
