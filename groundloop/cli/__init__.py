@@ -1434,9 +1434,11 @@ def main(argv: list[str] | None = None) -> int:
                 localize_reranker = _build_rerank_localize(index, args, emb)
                 index = SplitIndex(index, localize_reranker)
             elif localize_req == "cascade":
-                # Recall-first RRF cascade. Unlike rerank, cascade DEGRADES GRACEFULLY without an embedder
-                # (the bge-m3 semantic tier is simply omitted; the crash-tokens + literal-anchor FTS tiers
-                # still fire) — so NO fail-fast here. Rank stays with the match arm (wrapped in SplitIndex).
+                # Recall-first RRF cascade. Unlike rerank, cascade DEGRADES GRACEFULLY when NO embedder is
+                # configured (emb is None -> the bge-m3 semantic tier is omitted; the crash-tokens +
+                # literal-anchor FTS tiers still fire) — so NO fail-fast on a MISSING embedder. A present-but
+                # -dim-mismatched embedder still fails loud at SemanticAtlasIndex construction (the
+                # reuse-contract dim check), by design. Rank stays with the match arm (wrapped in SplitIndex).
                 from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
                 from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
                 from groundloop.adapters.index.split import SplitIndex

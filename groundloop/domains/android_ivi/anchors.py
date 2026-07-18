@@ -21,6 +21,9 @@ _BACKTICK = re.compile(r"`([^`]{2,60})`")
 _CAMEL = re.compile(r"\b[A-Za-z]*[a-z][A-Z]\w*\b|\b[A-Z]{2,}[a-z]\w*\b")
 _ALLCAPS = re.compile(r"\b[A-Z]{2,5}\b")
 _DOTTED = re.compile(r"\b\w+[._]\w[\w._]*\b")
+# Version / float / measurement tokens (v1.2.3, 24.0f, 3.5mm, 1.2) — number-dominant, never a code
+# anchor. Dropped from shape-derived candidates (a quoted/backtick literal still overrides via forced).
+_NUMISH = re.compile(r"^v?\d+(?:[._]\d+)*[a-z]{0,3}$", re.I)
 
 # Common english + code words that over-match. NOTE: "error" is intentionally
 # absent — ERROR is a valid ALL-CAPS anchor when it appears literally.
@@ -50,7 +53,7 @@ def extract_anchor_candidates(text: str) -> list[str]:
         key = s.lower()
         if not s or key in seen:
             return
-        if not forced and key in _STOPLIST:
+        if not forced and (key in _STOPLIST or _NUMISH.match(s)):
             return
         seen.add(key)
         out.append(s)
@@ -70,7 +73,7 @@ def rare_anchors(
     store,
     repo: str,
     *,
-    max_files: int = 40,
+    max_files: int = 10,
     max_anchors: int = 6,
 ) -> list[str]:
     """Gate anchor candidates by atlas rarity, rarest first.

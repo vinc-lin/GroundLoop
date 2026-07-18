@@ -13,9 +13,12 @@ def _default_anchors(text, store, repo):
 
 
 class CascadeLocalizeIndex:
-    """Recall-first localize: RRF-union of crash code-tokens (FTS), literal anchors (FTS), and an optional
-    bge-m3 semantic fallback. Non-regressive: falls back to the FTS floor when no tier fires. Stash pattern
-    (signal_query.py); no core/ or schema edit; opt-in Candidate."""
+    """Recall-first localize: RRF-union of the prose FTS floor with crash code-tokens (FTS), literal
+    anchors (FTS), and an optional bge-m3 semantic tier. The prose FTS floor (== ``--localize atlas``) is
+    ALWAYS a union member, so the cascade is non-regressive vs the floor AT THE GRADED k — a firing-but-poor
+    tier cannot drop the floor's oracle out of the result set. (RRF only reorders WITHIN the union; it does
+    NOT lower-bound rank-1, so strict recall@1 non-regression is not guaranteed — recall-first, not
+    precision.) Stash pattern (signal_query.py); no core/ or schema edit; opt-in Candidate."""
 
     def __init__(self, match, *, fts, semantic=None, store, anchors_fn=_default_anchors, k: int = 20):
         self._match = match
@@ -34,7 +37,10 @@ class CascadeLocalizeIndex:
         self._last_signals = signals
 
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
-        lists: list[list[str]] = []
+        # The prose FTS floor is ALWAYS the first union member (not a fallback): fusing the crash / literal /
+        # semantic tiers ON TOP of it keeps the cascade non-regressive vs `--localize atlas` at the graded k —
+        # a firing-but-poor tier can no longer displace the floor's oracle out of the result set.
+        lists: list[list[str]] = [self._fts.retrieve(repo, query)]
         cq = code_query(self._last_signals) if self._last_signals is not None else ""
         if cq:
             lists.append(self._fts.retrieve(repo, cq))
@@ -44,5 +50,5 @@ class CascadeLocalizeIndex:
             lists.append(self._semantic.retrieve(repo, query))
         lists = [x for x in lists if x]
         if not lists:
-            return self._fts.retrieve(repo, query)
+            return []
         return [f for f, _ in rrf_fuse(lists)][: self.k]
