@@ -17,7 +17,10 @@ Research may expand freely, but Production must continuously converge.**
 - **Production Core** = the *smallest* system validated on **real production data** (the 19-repo GEI atlas +
   the JIRA↔Gerrit oracle), reliably deliverable and long-term maintainable. It contains **only** the modules
   the core business workflow needs (the 8-stage `run_ticket` loop: intake → extract → match → materialize →
-  localize → fix → submit → bind). Deterministic, stable interfaces, traceable, reversible. Experimental
+  localize → fix → submit → bind).
+  (Note: of these 8, `match` + `localize` are `[production]`-validated, `fix` is real-but-unproven, and
+  `submit`/`bind` are mocked — the loop *runs* all 8, but only match/localize carry a `[production]` efficacy read.)
+  Deterministic, stable interfaces, traceable, reversible. Experimental
   strategies, alternative algorithms, and research branches **must not** sit on the production path.
 - **Dev Labs** = an independent research/validation space. It may be complex — many matchers, retrieval
   strategies, KB experiments, synthetic datasets, experimental commands — but it stays **isolated** from
@@ -69,7 +72,7 @@ only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanis
 ### Core — production-validated and default-on (13)
 | Capability | Evidence |
 |---|---|
-| `gloop run` — the frozen 8-stage `run_ticket` loop (`core/workflow.py`) | 2026-07-11 GEI run executed all 8 stages to a bound change on 10/10 cases, 0 crashes `[production]`. |
+| `gloop run` — the frozen 8-stage `run_ticket` loop (`core/workflow.py`) | 2026-07-11 GEI run drove all 8 stages over 10/10 cases with 0 crashes `[production]` — a **completion/liveness** read, not an efficacy one. `submit`/`bind` are `MockGerrit` and `bound` is a hardcoded constant (`core/workflow.py:42`), so "bound" reflects a **mock** bind (`change_sink=mock`), not a real JIRA↔commit chain. Per-stage efficacy is graded separately (match recall@1, localize file@k, fix resolved_rate). |
 | `AtlasIndex` — FTS5 `rank_repos` (the `flood` base) **and** `retrieve` (the localize) (`adapters/index/atlas.py`) | Base substrate every arm wraps; `retrieve` = plain FTS5 keyword search scored **7/10 file@5** `[production]`. |
 | Composition-root wiring (`cli/__init__.py` `main`) | The sole `gloop run` composition root; carried the `[production]` run. |
 | `RecordingEstate` (`adapters/estate.py`) | Deterministic materialize-outcome decorator on the batch path; recorded the `[production]` fix-gradeability signal. |

@@ -34,6 +34,11 @@ then hunts the code: slow, experience-dependent, and prone to mis-routing.
 ticket + logs → MATCH owning repo → localize → fix → bind (JIRA ↔ commit)
 ```
 
+**Delivered vs aspirational (2026-07-18 rescope).** What is `[production]`-validated today is **Stage-1
+match** (recall@1 0.50) **+ recall-localize** (7/10 file@5). **Fix** is real but `[production]`-unproven;
+**submit/bind** are mocked at both ends (`bound` is a hardcoded constant). The closed loop is the
+*mission*, not yet a *delivered* capability — see [capabilities.md](capabilities.md) §3.
+
 The problem is **not** JIRA synchronization. It is building the ticket → repo → code → fix → binding
 loop, with **ticket‑to‑repo matching as the core objective**. Downstream stages have practical value
 only against tickets whose owning repo was identified correctly.
