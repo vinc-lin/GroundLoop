@@ -184,7 +184,7 @@ Stage-1 feeds the existing localize → propose-fix pipeline; the stages after `
   Provisional-Core is the deferred **`[production]` `resolved_rate` read** (plan vs model) — `gloop grade-run`
   emits the promotion-eligibility note → confirm Core or revert. Remaining downstream: the live JIRA/Gerrit
   adapters (the traceable chain) + a Tier-2/3 grader. Contracts: [fix-loop.md](fix-loop.md).
-- **Dev-experience KB (a Candidate fix arm — PRODUCTION-GATED)** — the KB's fix-value verdict cannot be
+- **Dev-experience KB (Dormant fix arm, 2026-07-18 — see [capabilities.md](capabilities.md); PRODUCTION-GATED)** — the KB's fix-value verdict cannot be
   reached on the dev-box proxy: synth fires the KB but floors resolution at 0 (synthetic log ≠ the real fix),
   and the OSS fleet has only **~7–15** genuine crash-with-fix cases (2026-07-13 scout). It is
   AAOS-crash-specific, so a fair `resolved_rate` A/B needs real **production** AAOS crash+fix tickets. The
