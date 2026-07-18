@@ -211,7 +211,8 @@ verdict, and reporting-only **promotion-eligibility notes**, 2026-07-13) · `syn
 
 ### Fixture — permanent hermetic Type-1 doubles (must be explicit, never default)
 `CannedFixEngine` · `MockEstate` · `MockJira` · `MockGerrit` · `CannedModel` · `TokenIndex` (M0 stub) ·
-legacy `grade()`. **The trap that §4 closes: several of these were the production *defaults*.**
+legacy `grade()` **+ the hidden-oracle bridge it uses** — `core.types.Oracle`/`Scores` and
+`eval.dataset.load_oracle` (test-only; the real grade path uses `eval.dataset.EvalOracle`, never core `Oracle`). **The trap that §4 closes: several of these were the production *defaults*.**
 
 ### Archived — measured NULL, stop investing
 **`LocalizeDispatchIndex`** (localize `dispatch`) — **Archived 2026-07-16** (workflow-simplification): a

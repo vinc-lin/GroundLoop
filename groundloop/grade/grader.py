@@ -1,3 +1,6 @@
+"""TEST-ONLY FIXTURE (hidden-oracle bridge). `grade(record, oracle) -> Scores` and the core `Oracle`/`Scores`
+types are called ONLY by tests; the real `gloop grade-run`/eval path uses `eval.dataset.EvalOracle` +
+`run/grade_run.py`. Kept because `core/` is frozen (cannot delete `Oracle`/`Scores`). Never wire into the loop."""
 from __future__ import annotations
 from groundloop.core.workflow import RunRecord
 from groundloop.core.types import Oracle, Scores
