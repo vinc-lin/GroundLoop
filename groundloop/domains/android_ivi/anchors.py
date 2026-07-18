@@ -63,3 +63,34 @@ def extract_anchor_candidates(text: str) -> list[str]:
         for m in rx.finditer(text):
             add(m.group(0))
     return out
+
+
+def rare_anchors(
+    candidates: list[str],
+    store,
+    repo: str,
+    *,
+    max_files: int = 40,
+    max_anchors: int = 6,
+) -> list[str]:
+    """Gate anchor candidates by atlas rarity, rarest first.
+
+    For each candidate, count DISTINCT files a literal keyword search over the
+    given ``repo`` hits. Keep only candidates whose distinct-file count is in
+    ``[1, max_files]`` — a zero-hit anchor has nothing to point at, and an
+    over-matching one (>``max_files``, e.g. "log") is noise. Survivors are
+    sorted ascending by hit count (rarest = most discriminating first) and the
+    first ``max_anchors`` returned. A bad anchor must never sink localize, so a
+    store error on any candidate skips just that candidate.
+    """
+    scored: list[tuple[int, str]] = []
+    for c in candidates:
+        try:
+            rows = store.keyword_search(c, k=max_files + 1, repos=[repo], kinds=["symbol"])
+        except Exception:
+            continue
+        n = len({u.file for u, _ in rows if getattr(u, "file", None)})
+        if 1 <= n <= max_files:
+            scored.append((n, c))
+    scored.sort(key=lambda t: t[0])
+    return [c for _, c in scored[:max_anchors]]
