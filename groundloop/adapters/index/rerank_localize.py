@@ -98,12 +98,15 @@ class GatewayFileJudge:
 
 class RerankLocalizeIndex:
     def __init__(self, match_index, *, store, embedder=None, judge: Optional[FileJudge] = None,
-                 cbm=None, entity_map=None, source_reader=None, k: int = 20,
+                 cbm=None, entity_map=None, source_reader=None, pool_index=None, k: int = 20,
                  max_context_chars: int = 800):
         self._match = match_index
         self.store = store
         self.embedder = embedder
         self.judge = judge
+        # pool_index: an optional CodeIndex whose retrieve() supplies the recall POOL (a recall-first
+        # cascade) INSTEAD of _gen_hits; None (default) keeps the byte-identical _gen_hits path.
+        self._pool_index = pool_index
         # cbm: a live graph object (single-repo, `.snippet`/`.call_neighbors`) OR a callable
         # repo_name -> CBMLiveGraph|None (multi-repo, resolved per candidate repo like entity_map).
         self.cbm = cbm
@@ -146,7 +149,10 @@ class RerankLocalizeIndex:
     def _retrieve(self, repo: RepoRef, query: str) -> list[str]:
         q = code_query(self._last_signals) if self._last_signals is not None else ""
         query_str = q or query
-        hits = self._gen_hits(repo.name, query_str)
+        if self._pool_index is not None:
+            hits = self._pool_index_hits(repo, query, query_str)
+        else:
+            hits = self._gen_hits(repo.name, query_str)
         em = self._entity_map_for(repo.name)
         pool, qns_by_file, snip_by_file, wiki_by_file = self._build_pool(hits, em)
         if not pool:
@@ -184,6 +190,31 @@ class RerankLocalizeIndex:
         try:
             rows = self.store.keyword_search(query_str, k=self.k, repos=[repo_name],
                                              kinds=["symbol", "doc"])
+        except Exception:      # noqa: BLE001
+            return hits
+        for u, _rank in rows:
+            hits.append({"kind": u.kind, "file": u.file, "qualified_name": u.qualified_name,
+                         "snippet": (u.text or "")[:400], "meta": u.meta or {}})
+        return hits
+
+    def _pool_index_hits(self, repo: RepoRef, query: str, query_str: str) -> list[dict]:
+        """Recall pool from the injected CodeIndex (e.g. the cascade) as symbol hits, PLUS a doc lane so
+        _build_pool can rewrite doc units -> source and stash CodeWiki summaries for the judge context.
+        The injected index gets the PROSE query + the stashed signals (it runs its own code_query/anchors);
+        symbol hits are listed FIRST so the pool cap keeps the recall candidates over doc-rewritten ones."""
+        if hasattr(self._pool_index, "note_signals"):
+            self._pool_index.note_signals(self._last_signals)
+        try:
+            files = list(self._pool_index.retrieve(repo, query))
+        except Exception:      # noqa: BLE001 — a pool-source failure degrades to the doc lane, never sinks localize
+            files = []
+        sym = [{"kind": "symbol", "file": f, "qualified_name": "", "snippet": "", "meta": {}} for f in files]
+        return sym + self._doc_hits(repo.name, query_str)
+
+    def _doc_hits(self, repo_name: str, query_str: str) -> list[dict]:
+        hits: list[dict] = []
+        try:
+            rows = self.store.keyword_search(query_str, k=self.k, repos=[repo_name], kinds=["doc"])
         except Exception:      # noqa: BLE001
             return hits
         for u, _rank in rows:
