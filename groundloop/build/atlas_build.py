@@ -52,23 +52,31 @@ def build_atlas(
     jobs: int = 3,
     concurrency: int = 4,
     force: bool = False,
+    symbol_only: bool = False,
     corpus: Optional[dict] = None,
     clone_fn: Callable = clone_fleet,
     produce_fn: Callable = produce_fleet,
     index_fn: Callable[[str], int] = _default_index,
     doctor_fn: Callable[[], int] = _default_doctor,
 ) -> BuildReport:
-    """Clone -> produce -> index -> doctor. Stops at the first failed stage."""
+    """Clone -> produce -> index -> doctor. Stops at the first failed stage.
+
+    When `symbol_only` is True the produce stage is skipped entirely, yielding a
+    symbol-only atlas (relies on `wiki_stub.ensure_indexable_wiki`, already fired
+    by `gloop index`, to make wiki dirs indexable without CodeWiki/CBM produce).
+    """
     entries = load_registry(registry_path)
 
     clone_res = clone_fn(_entries_to_fleet(entries, corpus), jobs=jobs)
     if any(getattr(r, "status", "") == "failed" for r in clone_res.values()):
         return BuildReport(ok=False, failed_stage="clone", clone=clone_res)
 
-    produce_res = produce_fn(entries, jobs=jobs, concurrency=concurrency, force=force)
-    if any(getattr(r, "status", "") == "failed" for r in produce_res.values()):
-        return BuildReport(ok=False, failed_stage="produce",
-                           clone=clone_res, produce=produce_res)
+    produce_res: dict = {}
+    if not symbol_only:
+        produce_res = produce_fn(entries, jobs=jobs, concurrency=concurrency, force=force)
+        if any(getattr(r, "status", "") == "failed" for r in produce_res.values()):
+            return BuildReport(ok=False, failed_stage="produce",
+                               clone=clone_res, produce=produce_res)
 
     index_rc = index_fn(registry_path)
     if index_rc != 0:

@@ -701,7 +701,7 @@ def _run_build_atlas(args) -> int:
             print(f"gloop build-atlas: corpus.toml is malformed ({corpus_path}): {exc}")
             return 2
     report = build_atlas(registry, jobs=args.jobs, concurrency=args.concurrency,
-                         force=args.force, corpus=corpus)
+                         force=args.force, symbol_only=args.symbol_only, corpus=corpus)
     for name, r in report.clone.items():
         print(f"clone {name}: {getattr(r, 'status', '?')}"
               + (f" ({getattr(r, 'detail', '')})" if getattr(r, "status", "") == "failed" else ""))
@@ -920,6 +920,9 @@ def build_parser() -> argparse.ArgumentParser:
     ba.add_argument("--concurrency", type=int, default=4,
                     help="modules per repo in parallel (default 4); total in-flight ~= jobs*concurrency")
     ba.add_argument("--force", action="store_true", help="re-produce even if a wiki exists")
+    ba.add_argument("--symbol-only", action="store_true",
+                    help="skip the produce stage entirely (symbol-only atlas; "
+                         "no CodeWiki/CBM produce required)")
     ba.add_argument("--corpus", default="",
                     help="path to corpus.toml (repo url+sha for cloning); "
                          "defaults to a corpus.toml sibling of the registry")

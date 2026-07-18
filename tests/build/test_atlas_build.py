@@ -80,6 +80,36 @@ def test_index_nonzero_marks_build_failed(tmp_path):
     assert report.failed_stage == "index"
 
 
+def test_symbol_only_skips_produce(tmp_path):
+    order = []
+
+    def fake_clone(fleet, *, jobs):
+        order.append("clone")
+        return {}
+
+    def fake_produce(entries, **kw):
+        order.append("produce")
+        return {}
+
+    def fake_index(reg):
+        order.append("index")
+        return 0
+
+    def fake_doctor():
+        order.append("doctor")
+        return 0
+
+    report = build_atlas(
+        _fake_toml(tmp_path), symbol_only=True,
+        clone_fn=fake_clone, produce_fn=fake_produce,
+        index_fn=fake_index, doctor_fn=fake_doctor,
+    )
+
+    assert "produce" not in order          # produce stage skipped
+    assert order == ["clone", "index", "doctor"]
+    assert report.ok is True
+
+
 def test_build_atlas_passes_corpus_urls_to_clone(tmp_path):
     seen = {}
 
