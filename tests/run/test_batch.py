@@ -47,6 +47,21 @@ def test_run_dataset_writes_oracle_free_records(tmp_path):
     assert "owning_repo" not in json.dumps(blob)                      # oracle-blind: never leaked
 
 
+def test_run_dataset_marks_bind_kind_mock_for_mock_gerrit(tmp_path):
+    ds, cat = _dataset(tmp_path)
+    out = tmp_path / "out"
+    issues = MockJira(ds)
+    estate = RecordingEstate(MockEstate(cat, str(tmp_path / "work")))
+    run_dataset(ds, issues=issues, extractor=AndroidSignalExtractor(), estate=estate,
+                index=_StubIndex(), fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                changes=MockGerrit(str(out / "changes.jsonl"), issues),
+                match_arm="component", out=str(out))
+    doc = RunRecordIO.read(str(out / "runs" / "GEI-1.json"))
+    assert doc.bind_kind == "mock"
+    blob = json.loads((out / "runs" / "GEI-1.json").read_text())
+    assert blob["bind_kind"] == "mock"
+
+
 class _FakeCost:
     """Stub GatewayModel-shaped cost handle: the batch driver snapshots these four attrs per case."""
     def __init__(self):

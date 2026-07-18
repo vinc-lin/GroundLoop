@@ -30,6 +30,17 @@ def test_roundtrip(tmp_path):
     assert doc.materialize.present is True and doc.materialize.n_files == 3
 
 
+def test_record_marks_bind_as_mock(tmp_path):
+    mo = MaterializeOutcome(repo="engineering", path="/w/engineering", present=True, n_files=3)
+    p = tmp_path / "runs" / "GEI-1.json"
+    RunRecordIO.write(str(p), _rec(), materialize=mo, match_arm="component",
+                      patch_applies=True, bind_kind="mock")
+    doc = RunRecordIO.read(str(p))
+    assert doc.bind_kind == "mock"
+    raw = json.loads(p.read_text())
+    assert raw["bind_kind"] == "mock"
+
+
 def test_record_carries_no_oracle(tmp_path):
     p = tmp_path / "runs" / "GEI-1.json"
     RunRecordIO.write(str(p), _rec(), materialize=MaterializeOutcome("engineering", "/w", False, 0),

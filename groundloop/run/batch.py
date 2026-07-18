@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from groundloop.adapters.mock.gerrit import MockGerrit
 from groundloop.core.workflow import run_ticket
 from groundloop.eval.dataset import load_cases
 from groundloop.fixeval.patch import patch_applies
@@ -31,7 +32,8 @@ def run_dataset(dataset: str, *, issues, extractor, estate, index, fixer, change
         if outcome is None:                                           # non-recording estate fallback
             outcome = MaterializeOutcome(rec.chosen.name, "", False, 0)
         applies = patch_applies(rec.patch.diff, outcome.path) if outcome.present else False
+        bind_kind = "mock" if isinstance(changes, MockGerrit) else "live"
         RunRecordIO.write(f"{out}/runs/{case.case_id}.json", rec, materialize=outcome,
                           match_arm=match_arm, patch_applies=applies,
-                          signals=sig, cost=cost, fixer=fixer_kind)
+                          signals=sig, cost=cost, fixer=fixer_kind, bind_kind=bind_kind)
     return len(cases)

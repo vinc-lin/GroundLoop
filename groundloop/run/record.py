@@ -48,12 +48,14 @@ class RunDoc:
     tokens: dict
     model_calls: int
     fixer: str
+    bind_kind: str = "mock"
 
 
 class RunRecordIO:
     @staticmethod
     def write(path: str, rec: RunRecord, *, materialize: MaterializeOutcome, match_arm: str,
-              patch_applies: bool, signals=None, cost=None, fixer: str = "") -> None:
+              patch_applies: bool, signals=None, cost=None, fixer: str = "",
+              bind_kind: str = "mock") -> None:
         blob = {
             "ticket_id": rec.ticket_id,
             "match_arm": match_arm,
@@ -65,6 +67,7 @@ class RunRecordIO:
             "patch_applies": bool(patch_applies),
             "change_id": rec.change.change_id,
             "bound": rec.bound,
+            "bind_kind": bind_kind,
             "events": list(rec.events),
             "materialize": {"repo": materialize.repo, "path": materialize.path,
                             "present": materialize.present, "n_files": materialize.n_files},
@@ -91,4 +94,4 @@ class RunRecordIO:
             materialize=MaterializeOutcome(m["repo"], m["path"], m["present"], m["n_files"]),
             signals=raw.get("signals", {}), cost_usd=raw.get("cost_usd", 0.0),
             tokens=raw.get("tokens", {}), model_calls=raw.get("model_calls", 0),
-            fixer=raw.get("fixer", ""))
+            fixer=raw.get("fixer", ""), bind_kind=raw.get("bind_kind", "mock"))
