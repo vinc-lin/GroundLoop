@@ -4,7 +4,7 @@ import ast
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2] / "groundloop"
-PRODUCT_DIRS = ["core", "adapters", "domains", "run"]
+PRODUCT_DIRS = ["core", "adapters", "domains", "run", "fix", "engines/atlas"]
 FORBIDDEN_PREFIX = "groundloop.engines.produce"
 
 
