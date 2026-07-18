@@ -5,6 +5,7 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 
 | date | track | env | headline |
 |---|---|---|---|
+| 2026-07-18 | localize recall — cascade→judge (recall pool + LLM judge) | `[proxy]` | **`--localize cascade_judge`** = the cascade's higher-recall pool reordered by the LLM file-judge: isolated file@k n=108, **beats the prior best `rerank_cw_judge` at every k** — file@1 **0.206→0.245** (+0.039), file@3 0.347→0.437, file@5 0.392→**0.469** — at ~equal cost ($0.148→$0.158). **Best localize file@1 to date.** Confirms the cascade→judge thesis (better recall pool → better judged result) and **redeems Phase 2** (cascade valuable as a judge pool source). Additive `pool_index` seam (default rerank unchanged), adversarially reviewed. Opt-in Candidate, merged to master. Gate = `[production]` GEI |
 | 2026-07-18 | localize recall — Phase-2 literal-anchor cascade (RRF union) | `[proxy]` | **`--localize cascade`** (prose floor ∪ crash code-tokens ∪ literal anchors ∪ semantic, RRF): isolated file@k n=108 vs `atlas` floor 0.075/0.244 → cascade **0.098/0.308** (file@1/@5, +0.023/+0.064, non-regression confirmed). BUT the **literal tier is marginal/mixed** — marginal contribution (cascade − cascade_no_literal) = file@1 **−0.011**, file@5 +0.009; **the SEMANTIC tier is the lever, not the literal anchor** (partially disconfirms the design bet, on the baseline non-CamelCase atlas). A 4-lens adversarial Workflow caught+fixed a real non-regression blocker pre-merge. Opt-in Candidate, merged to master. Gate = CamelCase-atlas read + `[production]` GEI |
 | 2026-07-18 | localize recall — Phase-1 mechanical fixes (vector-lane hardening + CamelCase index) | `[proxy]` | **A1 vector lane now provably fires** (was silently OFF): isolated file@k n=108, `atlas` (FTS5 floor) → `rerank_pool` (hybrid bge-m3∪FTS5): file@1 0.075→0.084, file@5 0.244→**0.267** (+0.023) — modest *standalone* lift (the judge/literal/CamelCase tiers are the real levers, deferred). + fail-fast on missing embedder, counted embed-degrade, opt-in `KLOOP_INDEX_CAMELCASE` (A3 Type-1-proven, efficacy A/B deferred). Opt-in Candidate; `core/`+schema zero-diff; suite 718 green; merged to master. Gate = `[production]` GEI localize file@k with the lane ON |
 | 2026-07-16 | CodeWiki + CBM in localize & fix (new 6-repo doc atlas) | `[proxy]` | **LOCALIZE** (isolated ceiling, prose-ticket regime, n=108): CodeWiki-under-judge **narrows** rank-1 — file@1 **0.075→0.212** (+0.137 abs, 2.8×; ~60% judge / ~40% CodeWiki, and CodeWiki's share is pool+context entangled); CBM marginal (+0.038, noise). **FIX** (n=29, floor): CodeWiki-only fix-context **no measurable effect** (**CBM never fired** — 0-signal tickets); resolved ≤1/29. → `--localize rerank` a **Candidate** (gate = `[production]` crash-ticket file@1); `--fix-context` stays OFF |
@@ -26,6 +27,40 @@ Chronological GroundLoop results. Each number is tagged `[proxy]` (mechanism, de
 | 2026-07-05 | first atlas build + synth-log real testing | `[proxy]` | full 9-repo atlas built; synth-log recall@1 **0.60** (Φ₁ +0.31) vs real-mined text **0.02**; size-bias quantified |
 
 ---
+
+## 2026-07-18 · Localize recall — cascade→judge (recall pool + LLM judge) · `[proxy]`
+
+Shipped `--localize cascade_judge` (`docs/superpowers/plans/2026-07-18-cascade-judge.md`): the recall-first
+cascade POOL reordered by the grounded LLM file-judge (+ source/CodeWiki context). Built as an **additive
+`pool_index` seam** on `RerankLocalizeIndex` (default None ⇒ `--localize rerank` byte-identical), so the judge
+reranks the cascade's union instead of its own `_gen_hits` pool. Zero `core/`+schema edits; suite **731** green;
+commits `43f9dae`+`bc32c6a` (merged to master). A focused adversarial review confirmed CodeWiki context survives
+the pool k-cap (stashed unconditionally; the cap only truncates the returned list) and CLI↔grade_run parity.
+
+- **The read** (isolated file@k on the ORACLE repo, n=108 `mine74` prose tickets, baseline `atlas-6-doc.db`,
+  live bge-m3 + LLM judge, **WITH `--repos`** so the judge sees real source):
+
+  | arm | file@1 | file@3 | file@5 | $/108 |
+  |---|---|---|---|---|
+  | `rerank_cw_judge` (judge over its OWN hybrid pool — the prior best) | 0.206 | 0.347 | 0.392 | $0.148 |
+  | `cascade_judge` (judge over the CASCADE's recall pool) | **0.245** | **0.437** | **0.469** | $0.158 |
+
+  **cascade_judge beats the prior best at every k** — file@1 **+0.039** (0.206→0.245, +19% rel), file@3 +0.090,
+  file@5 +0.077 — at **~equal cost** (+7%). This is the **best localize file@1 to date** (prior best 0.212,
+  2026-07-16; `rerank_cw_judge` here reproduces it at 0.206). **The cascade→judge thesis is confirmed:** the
+  cascade's higher-recall pool (0.308 file@5 un-judged vs the reranker's own 0.267) **survives the judge** and
+  yields a better judged result. It also **redeems Phase 2** — the literal tier alone was marginal, but the
+  cascade as a *recall pool source* for the judge is the win.
+- **Caveats (honest):** (1) baseline atlas ⇒ the literal tier ran at partial strength (no CamelCase) — the
+  CamelCase-atlas read may lift it further; (2) **needs `--repos`** — the cascade returns bare paths, so without
+  a `source_reader` (or the deferred atlas-snippet-floor follow-up) the judge would rerank bare paths; measured
+  WITH source context; (3) **CBM does not fire** in cascade_judge (empty `qualified_name` via the `list[str]`
+  seam) — but `rerank_cw_judge` here is also CodeWiki-only (no CBM), so the comparison is apples-to-apples;
+  (4) `[proxy]`, isolated ceiling, prose functional regime, n=108.
+- **Governance:** cascade_judge is the **leading localize Candidate** — the first `[proxy]` to clearly beat the
+  prior best at equal cost. Candidate→Core still needs a `[production]` GEI file@k read; cascade_judge is the arm
+  to put through that gate. Follow-ups: the CamelCase-atlas read, an atlas-snippet floor for `--repos`-less
+  robustness, and the deferred A3 match-regression.
 
 ## 2026-07-18 · Localize recall — Phase-2 literal-anchor cascade · `[proxy]`
 

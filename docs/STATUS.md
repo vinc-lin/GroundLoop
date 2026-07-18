@@ -13,6 +13,20 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 
 ## Done
 
+### Localize recall — cascade→judge shipped + [proxy] WIN (2026-07-18) ✅
+Shipped **`--localize cascade_judge`**: the recall-first cascade POOL reordered by the LLM file-judge, built as
+an **additive `pool_index` seam** on `RerankLocalizeIndex` (default None ⇒ `--localize rerank` byte-identical).
+Subagent-driven + a focused adversarial review (confirmed CodeWiki survives the pool k-cap; CLI↔grade_run
+parity). Suite **731 green**, `core/`+schema zero-diff, merged to master (`43f9dae`+`bc32c6a`).
+- **[proxy] WIN** (isolated file@k, n=108 mine74, baseline atlas, WITH `--repos`): **cascade_judge beats the
+  prior best `rerank_cw_judge` at every k** — file@1 **0.206→0.245** (+0.039), file@3 0.347→0.437, file@5
+  0.392→**0.469** — at ~equal cost ($0.148→$0.158). **Best localize file@1 to date.** Confirms the cascade→judge
+  thesis (better recall pool → better judged result) and **redeems Phase 2** (the cascade is valuable as a judge
+  pool source even though the literal tier alone was marginal). `docs/results-log.md` 2026-07-18.
+- **Next:** cascade_judge is the **leading Candidate** for the `[production]` GEI file@k gate. Follow-ups:
+  the CamelCase-atlas read, an atlas-snippet floor for `--repos`-less robustness, and the deferred A3
+  match-regression check.
+
 ### Localize recall — Phase-2 literal-anchor cascade shipped + [proxy] read (2026-07-18) ✅
 Shipped **`--localize cascade`** (Phase 2): a recall-first RRF union of the prose FTS floor + crash code-tokens +
 literal anchors + optional bge-m3 semantic tier (`CascadeLocalizeIndex` + literal-anchor extractor + atlas
