@@ -20,8 +20,9 @@ GroundLoop ships **additively** (behavior swaps at the composition root; `core/`
 frozen), so a `git pull` is low-risk and **does not require an atlas rebuild** — the existing `atlas.db` +
 `component_affinity.json` stay valid (the reuse contract holds). After pulling:
 
-1. **Refresh** `[in place]` — `git pull` → `uv sync --extra dev` (picks up new `gloop` subcommands + modules;
-   no new deps this release) → `set -a; . ./.env; set +a`. **No re-index / re-mine / rebuild.**
+1. **Refresh** `[in place]` — `git pull` → `uv sync --extra dev --extra produce` (picks up new `gloop`
+   subcommands + modules; the CodeWiki `produce` stack is now the optional `[produce]` extra, so keep
+   `--extra produce` on build/dev boxes) → `set -a; . ./.env; set +a`. **No re-index / re-mine / rebuild.**
 2. **Verify** `[in place]` — `.venv/bin/python -m pytest -q` green (hermetic, no gateway); `gloop doctor
    --atlas-db $KLOOP_ATLAS_DB` → READY; gateway `200`; a 1–2-case smoke `gloop run --out … → gloop grade-run`
    (§4).
@@ -52,7 +53,7 @@ Confirm all of these are available before a production run:
 
 ### 2. Installation & configuration `[in place]`
 ```bash
-uv sync --extra dev                       # base deps + pytest/ruff
+uv sync --extra dev --extra produce       # base deps + pytest/ruff + CodeWiki produce (build/dev extra)
 set -a; . ./.env; set +a                  # load gateway creds (NOT autoloaded)
 gloop doctor --atlas-db $KLOOP_ATLAS_DB    # -> readiness: READY
 # build the inputs (offline, zero-cost):

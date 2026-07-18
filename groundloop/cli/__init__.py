@@ -109,7 +109,12 @@ def _run_produce(args) -> int:
     """Invoke the migrated CodeWiki generator for --repo <path> --out <wiki_dir>."""
     import os
     from pathlib import Path
-    from groundloop.engines.produce.cli.adapters.doc_generator import CLIDocumentationGenerator
+
+    try:
+        from groundloop.engines.produce.cli.adapters.doc_generator import CLIDocumentationGenerator
+    except ImportError as e:
+        raise SystemExit("gloop produce requires the produce extra — install it with "
+                         "`uv sync --extra produce` (or `pip install groundloop[produce]`).") from e
 
     repo_path = Path(args.repo).expanduser().resolve()
     output_dir = Path(args.out).expanduser().resolve()

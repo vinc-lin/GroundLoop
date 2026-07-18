@@ -87,9 +87,12 @@ GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
 ## Working in this repo
-- Python 3.12, `.venv` (uv-managed). `pyproject.toml` — CBM + CodeWiki `produce` are **default deps**
-  (the CBM Level-1 decision: `mcp` + `codebase-memory-mcp==0.8.1` + the produce stack in base deps).
-- Setup: `uv sync --extra dev` (base deps + `pytest`/`ruff`; plain `uv sync` omits the test tooling).
+- Python 3.12, `.venv` (uv-managed). `pyproject.toml` — CBM is a **default dep** (the CBM Level-1
+  decision: `mcp` + `codebase-memory-mcp==0.8.1` in base deps); CodeWiki `produce`'s heavy stack lives
+  in the optional `produce` extra (build/dev only — runtime installs omit it).
+- Setup: `uv sync --extra dev --extra produce` (base deps + `pytest`/`ruff` + the CodeWiki `produce`
+  stack; plain `uv sync` omits both). Runtime installs omit `--extra produce` — the product imports
+  zero produce.
 - Tests: `.venv/bin/python -m pytest -q`  ·  Lint: `.venv/bin/ruff check groundloop tests` (line 110).
   Single test: `.venv/bin/python -m pytest tests/test_atlas_index.py -q` (or `-k <pattern>`).
   Gated Type-2 live tests (`tests/e2e/`) need env flags — see `docs/build-setup.md`.

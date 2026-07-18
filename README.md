@@ -68,7 +68,7 @@ Requires Python **3.12** and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 git clone git@github.com:vinc-lin/GroundLoop.git && cd GroundLoop
-uv sync --extra dev                        # base deps + pytest/ruff
+uv sync --extra dev --extra produce        # base deps + pytest/ruff + CodeWiki produce (build/dev extra)
 
 # Hermetic verification — no network, no LLM, no atlas needed:
 .venv/bin/python -m pytest -q              # 293 passed

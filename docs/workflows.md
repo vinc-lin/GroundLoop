@@ -165,7 +165,7 @@ stays an opt-in **Candidate** until a `[production]` read earns it promotion.
 
 ### Layer 1 — the inner loop (any change, every time)
 
-- [ ] Setup (once): `uv sync --extra dev`
+- [ ] Setup (once): `uv sync --extra dev --extra produce`
 - [ ] Change **adapters / the composition root only** — NEVER `groundloop/core/`, NEVER the atlas schema in `engines/atlas/store.py`
 - [ ] A Candidate must **not** change default production behavior (add an opt-in flag; leave the Core defaults alone)
 - [ ] Type-1 hermetic tests (no network / no real LLM): `.venv/bin/python -m pytest -q` → green

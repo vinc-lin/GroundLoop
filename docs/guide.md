@@ -94,10 +94,11 @@ Python **3.12**, `uv`-managed `.venv`. The `gloop` console entry point = `ground
 
 ```bash
 cd <repo-root>
-uv sync --extra dev      # base deps + pytest/ruff   (plain `uv sync` omits test tooling)
+uv sync --extra dev --extra produce   # base deps + pytest/ruff + CodeWiki produce   (plain `uv sync` omits both)
 ```
-Base deps already include the two "default" heavy stacks: **CBM** (`mcp` + `codebase-memory-mcp==0.8.1`) and
-the **CodeWiki `produce`** stack (litellm, tree-sitter grammars, GitPython, …).
+Base runtime deps are only **CBM** (`httpx` + `mcp` + `codebase-memory-mcp==0.8.1`). The **CodeWiki `produce`**
+heavy stack (litellm, tree-sitter grammars, GitPython, …) is the optional `[produce]` extra — build/dev only;
+runtime installs omit it and the product imports zero produce.
 
 ### 3.1 Environment (`KLOOP_*`)
 Config is env-only. `.env` is **gitignored** (only `.env.example` is committed, placeholders); it is **not
@@ -410,7 +411,7 @@ model portability are first-class. Rationale: [charter.md](charter.md).
 
 1. **Provision infra:** a LiteLLM chat gateway (chat model), a GPU-backed bge-m3 embed server, and
    `codebase-memory-mcp==0.8.1` on PATH. Pick an **ext4** `$GL_DATA`.
-2. **Install:** `uv sync --extra dev`; write `.env` (from `.env.example`) with your `KLOOP_*`; `set -a; . ./.env; set +a`.
+2. **Install:** `uv sync --extra dev --extra produce`; write `.env` (from `.env.example`) with your `KLOOP_*`; `set -a; . ./.env; set +a`.
 3. **Verify:** `pytest -q` green; embed `/embeddings` returns 200; `gloop doctor` clean.
 4. **Clone the fleet** to `repo_path`s (exclude `test*`/`3party`); write `atlas.toml` (+ optional `corpus.toml`).
 5. **Build the atlas** (`gloop index`, detached, one at a time, off ext4); pin the reuse-contract values;
