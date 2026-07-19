@@ -3,7 +3,7 @@ and injects them into the inner fixer's prompt via with_preamble. run_ticket (fr
 (worktree, ticket, locations); the decorator reads the per-ticket signals from the shared
 RecordingExtractor.last_signals (populated in run_ticket BEFORE propose). Fail-safe: no signals / empty
 selection / a fixer without with_preamble (e.g. CannedFixEngine) -> the inner fixer runs unchanged."""
-from groundloop.adapters.fix.knowledge_inject import KnowledgeInjectingFixEngine
+from groundloop.kb.inject import KnowledgeInjectingFixEngine
 from groundloop.core.types import Patch, RepoRef, Ticket, WorkTree
 from groundloop.kb.knowledge import KnowledgePlaybook
 

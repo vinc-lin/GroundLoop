@@ -1275,7 +1275,7 @@ def _wire_kb(fixer, extractor_rec, index_db, kb_store, kb_topk, embedder):
     with no KB at all (no decorator, no mint, no store I/O)."""
     if not kb_store:
         return fixer, None
-    from groundloop.adapters.fix.knowledge_inject import KnowledgeInjectingFixEngine
+    from groundloop.kb.inject import KnowledgeInjectingFixEngine
     from groundloop.engines.atlas.store import Store
     from groundloop.kb.knowledge import load_knowledge, save_knowledge
     from groundloop.kb.knowledge_ground import atlas_resolver

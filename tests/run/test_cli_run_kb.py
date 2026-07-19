@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from groundloop.adapters.fix.canned import CannedFixEngine
-from groundloop.adapters.fix.knowledge_inject import KnowledgeInjectingFixEngine
+from groundloop.kb.inject import KnowledgeInjectingFixEngine
 from groundloop.adapters.mock.model import CannedModel
 from groundloop.adapters.extractor_recording import RecordingExtractor
 from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
