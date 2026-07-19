@@ -19,9 +19,17 @@ orchestrator owns control flow; **the loop never sees the oracle** (grading is a
   (the deterministic control plane: intake → extract → match → materialize → localize → fix → submit →
   bind). Do **not** edit `core/` for a feature; swap behavior at the composition root (`cli/__init__.py`).
 - `groundloop/adapters/` — port implementations: `mock/` (MockJira, MockGerrit, CannedModel = the
-  hermetic test substrate), `index/` (`TokenIndex` M0 stub, `AtlasIndex` real FTS5 matcher over an
-  atlas.db), `estate.py` (MockEstate), `fix/` (`CannedFixEngine` hermetic stub + `ModelPatchEngine`
-  real propose-patch), `model/` (`GatewayModel`), `skills/` (`MockSkillRegistry` = the SP3 dev-experience KB).
+  hermetic test substrate), `index/` (`AtlasIndex` = the Core real FTS5 matcher over an atlas.db,
+  `adapters/index/atlas.py`; the other 11 index arms — `TokenIndex` M0 stub, `SplitIndex` composite, and
+  the experimental match/localize arms (component-prior, semantic, judge, functional, fault-routing,
+  cascade, rerank, signal-query, …) — live under `adapters/index/labs/`), `estate.py` (MockEstate), `fix/`
+  (`CannedFixEngine` hermetic stub + `ModelPatchEngine` real propose-patch), `model/` (`GatewayModel`).
+  `MockSkillRegistry` (the SP3 dev-experience KB double) lives at `groundloop/skills/adapters/`, not
+  `adapters/`. **`tests/architecture/test_import_boundary.py`** is a CI contract enforcing product↛labs:
+  the product runtime (`core/`, `config/`, `adapters/` outside `index/labs/`, `domains/`, `run/`, `fix/`,
+  `engines/atlas`, `engines/lore`, `cli/__init__.py`) must never module-import a labs package (`eval`,
+  `fixeval`, `funceval`, `faulteval`, `synth`, `mine`, `kb`, `skills`, `grade`, `build`,
+  `adapters.index.labs`, `engines.produce`) — lazy/function-local imports are the sanctioned opt-in seam.
 - `groundloop/engines/` — migrated **as-is** from the old knowledgeLoop (source:
   `/mnt/x/code/knowledgeLoop/knowledgeloop/`): `atlas/` (Store/embed/retrieve/registry/index),
   `lore/` (CBM client + launch + wiki), `produce/` (CodeWiki generation).

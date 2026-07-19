@@ -257,6 +257,17 @@ the "too complicated to be realistic" gap, and it is small to close.
   stub, and the single-case `--case` demo are rejected in production and reachable only behind `KLOOP_DEV=1`
   (or the hidden `--dev` flag). The Type-1 suite arms `KLOOP_DEV=1` via an autouse fixture; production cannot
   silently select a hermetic double.
+- **Structurally CI-enforced (2026-07-19).** The Core/Labs boundary is no longer just documentary:
+  `tests/architecture/test_import_boundary.py` fails CI if any product-runtime module (`core/`, `config/`,
+  `adapters/` outside `adapters/index/labs/`, `domains/`, `run/`, `fix/`, `engines/atlas`, `engines/lore`,
+  `cli/__init__.py`) eagerly imports a labs package (`eval`/`fixeval`/`funceval`/`faulteval`/`synth`/`mine`/
+  `kb`/`skills`/`grade`/`build`/`adapters.index.labs`/`engines.produce`) at module scope. Labs features
+  (arms, KB, produce) stay reachable only through the sanctioned lazy/function-local opt-in seam — the
+  CLI's `--match-arm`/`--localize`/`--kb-store` loaders — never as an eager top-level import. Labs code was
+  relocated to make the boundary a physical directory line, not just an import rule: the 11 non-Core index
+  arms live in `adapters/index/labs/` (Core's `AtlasIndex` stays at `adapters/index/atlas.py`),
+  `MockSkillRegistry` in `skills/adapters/`, offline-grade tooling in `grade/{grade_run,compare,promotion}.py`,
+  and the opt-in KB fixer in `kb/inject.py`.
 
 **Remaining gaps to a fully real Core (net-new builds, not re-points):**
 - **`MockJira` → a live JIRA REST `IssueSource`** (fetch + `post_comment`/`transition` write-back).

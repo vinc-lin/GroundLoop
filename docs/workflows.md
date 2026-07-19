@@ -237,9 +237,9 @@ concluded null · **`[to build]`** = not implemented. (Wide table — scroll rig
 | | real traceable JIRA↔commit chain | `[to build]` | — | none | live JIRA + Gerrit write-back | — |
 | **run-record** (batch `--out` output) | persisted `signals` + fix `cost_usd`/`tokens` + `fixer` kind | Core | batch `--out` (default) | `[production]`-ready feedback data plane — core `RunRecord` stays frozen; captured via sidecars + `GatewayModel` self-cost | — | `run/record.py`, `run/batch.py` |
 | | `manifest.json` provenance (timestamp · atlas identity · produce+embed model pins · affinity hash · `change_sink=mock` · `n_cases`) | Core | batch `--out` (default) | `[production]`-ready run attribution | — | `run/manifest.py` |
-| **offline** (grade) | `grade-run` per-stage self-scoring + richer rows (predicted/oracle repo · `signals` · `cost_usd` · `fixer`) | Dev-Labs Infra | `gloop grade-run` | `[production]` feedback scorecard | — (measurement apparatus, never promoted into the loop) | `run/grade_run.py` |
-| | `grade-run --compare <prev-card>` (per-stage improved/flat/regressed verdict + `.compare.json`) | Dev-Labs Infra | `gloop grade-run --compare` | `[production]`-ready regression gate | — | `run/compare.py` |
-| | promotion-eligibility notes (reporting-only; never auto-enacts) | Dev-Labs Infra | `gloop grade-run` (auto-printed) | surfaces the Provisional-Core obligation (plan run w/ gradeable resolution → confirm Core / revert) | — | `run/promotion.py` |
+| **offline** (grade) | `grade-run` per-stage self-scoring + richer rows (predicted/oracle repo · `signals` · `cost_usd` · `fixer`) | Dev-Labs Infra | `gloop grade-run` | `[production]` feedback scorecard | — (measurement apparatus, never promoted into the loop) | `grade/grade_run.py` |
+| | `grade-run --compare <prev-card>` (per-stage improved/flat/regressed verdict + `.compare.json`) | Dev-Labs Infra | `gloop grade-run --compare` | `[production]`-ready regression gate | — | `grade/compare.py` |
+| | promotion-eligibility notes (reporting-only; never auto-enacts) | Dev-Labs Infra | `gloop grade-run` (auto-printed) | surfaces the Provisional-Core obligation (plan run w/ gradeable resolution → confirm Core / revert) | — | `grade/promotion.py` |
 
 **Model port (cross-cutting, underlies fix + any eval rerank):** `GatewayModel` = Core (`adapters/model/gateway.py`);
 `CannedModel` = Fixture (`adapters/mock/model.py`) — the hermetic model, and formerly the silent-degrade the
