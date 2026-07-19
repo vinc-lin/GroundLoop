@@ -24,8 +24,9 @@ Every component carries one tag:
 
 **Reality check (the honesty overlay).** The loop is *not* a delivered closed loop. **Match** is
 `[production]`-validated; **localize**'s *floor* (`AtlasIndex.retrieve`) is `[production]`-validated, but its
-run **default** (`atlas_rerank`) is Provisional-Core — safety-proven (degrades byte-identical to the
-`[production]` floor without judge creds), effectiveness still an open `[proxy]` A/B; **fix** is a real engine
+run **default** (`atlas_rerank`) is Provisional-Core — safety-proven (degrades to the
+`[production]` floor without judge creds — byte-identical with no `KLOOP_REGISTRY` doc-bridge, a rank-1-preserving
+recall-superset with it), effectiveness still an open `[proxy]` A/B; **fix** is a real engine
 but **unproven** (safety default = abstain);
 **submit/bind are MOCK**, and `run_ticket` returns **`bound=True` as a hardcoded literal** (`core/workflow.py:42`)
 — it is *not* derived from the `bind()` call (whose return is discarded at L39). A doc "structured by the
@@ -139,7 +140,8 @@ Signature: `run_ticket(ticket_id, *, issues, extractor, estate, index, fixer, ch
 - **Run default (Provisional-Core, since 2026-07-19):** `--localize atlas_rerank` — `RerankLocalizeIndex`
   (`adapters/index/labs/rerank_localize.py`) composed via the `pool_index` seam over a **plain `AtlasIndex`**
   pool (no cascade, no embedder anywhere in the arm) and reordered by the rerank LLM file-judge. Fail-safe: with
-  no gateway judge creds it returns the FTS5 pool order **byte-identical to `--localize atlas`**, so a
+  no gateway judge creds it returns the FTS5 pool order **byte-identical to `--localize atlas`** (with no
+  `KLOOP_REGISTRY` doc-bridge; a rank-1-preserving recall-superset with it), so a
   credential-less run can't regress and — unlike `--localize rerank` — it never fail-closes on a missing
   embedder. Honest gap: *with* creds the judge can rank the true file below where raw FTS5 had it (a `file@1`
   regression vs `atlas`), unmeasured for this arm; the `[proxy]` file@1 A/B (`atlas` vs `atlas_rerank` vs

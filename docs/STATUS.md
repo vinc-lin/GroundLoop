@@ -17,7 +17,7 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 Shipped **`--localize atlas_rerank`**: the plain FTS5 `AtlasIndex.retrieve` recall pool reordered by the rerank
 LLM file-judge, composed via the same additive `pool_index` seam `cascade_judge` uses on `RerankLocalizeIndex`
 — but with a plain `AtlasIndex` pool instead of the cascade, so it needs **no embedder at all** (unlike
-`--localize rerank`, which fails closed without one). Three commits: `1c32b35`/`4d2d442` (spec+plan),
+`--localize rerank`, which fails closed without one). Commits: `1c32b35`/`4d2d442` (spec+plan),
 `c87f7a5` (the arm), `b91ae58` (made it the run default), `f8ef049` (grade-run isolated-localize diagnostic
 fix so `atlas_rerank` runs attribute correctly instead of falling through to a generic `atlas` label, + a
 stale `--profile` help-string fix).
@@ -26,7 +26,8 @@ stale `--profile` help-string fix).
   argument, before a `[production]` effectiveness read, reverting on debt), on the same admission logic as Bug
   Plan Mode.
 - **The fail-safe argument (proven):** with no judge creds (`KLOOP_PRODUCE_API_KEY` unset) it returns the FTS5
-  pool order **byte-identical to `--localize atlas`** — a credential-less production run cannot regress, and it
+  pool order **byte-identical to `--localize atlas`** (with no `KLOOP_REGISTRY` doc-bridge; a rank-1-preserving
+  recall-superset with it) — a credential-less production run cannot regress, and it
   never fail-closes (no embedder dependency anywhere in the arm). `--localize atlas` stays the explicit
   opt-out / revert path. Cost while creds are present: ~$0.0014/case.
 - **The one honest NEW failure mode (not covered by the fail-safe, unmeasured for this arm):** *with* judge

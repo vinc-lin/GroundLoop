@@ -122,7 +122,7 @@ GL-M1 plan (for provenance):
   `tokens`/`SignalQueryIndex` default was reverted to a reachable opt-in on 2026-07-15 —
   see `docs/superpowers/specs/2026-07-15-workflow-overdesign-audit-and-simplification.md`), fail-closed
   without gateway creds / a valid `--repos`. Experimental Candidate arms are opt-in, never the silent default:
-  `--match-arm {semantic,judge,functional,dispatch}`, `--localize {tokens,semantic,dispatch}`,
+  `--match-arm {semantic,judge,functional,dispatch}`, `--localize {tokens,rerank,cascade,cascade_judge}`,
   `--profile labs`/`KLOOP_LABS` (reachable ≠ default — see `docs/capabilities.md`).
 - **Two test surfaces** (`docs/evaluation.md` §14 + `docs/environments.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in
