@@ -29,10 +29,15 @@ orchestrator owns control flow; **the loop never sees the oracle** (grading is a
   the product runtime (`core/`, `config/`, `adapters/` outside `index/labs/`, `domains/`, `run/`, `fix/`,
   `engines/atlas`, `engines/lore`, `cli/__init__.py`) must never module-import a labs package (`eval`,
   `fixeval`, `funceval`, `faulteval`, `synth`, `mine`, `kb`, `skills`, `grade`, `build`,
-  `adapters.index.labs`, `engines.produce`) — lazy/function-local imports are the sanctioned opt-in seam.
+  `adapters.index.labs`, `codewiki`) — lazy/function-local imports are the sanctioned opt-in seam.
 - `groundloop/engines/` — migrated **as-is** from the old knowledgeLoop (source:
   `/mnt/x/code/knowledgeLoop/knowledgeloop/`): `atlas/` (Store/embed/retrieve/registry/index),
-  `lore/` (CBM client + launch + wiki), `produce/` (CodeWiki generation).
+  `lore/` (CBM client + launch + wiki).
+- `codewiki/` — the CodeWiki doc generator, **relocated out of `groundloop/engines/produce/` to a
+  top-level package** (out of the product package) and **stripped to the live doc-gen path** (~30 dead
+  files removed: web app, MCP server, standalone CLI, config lane, dead utils). `gloop produce` still
+  bridges to it via a lazy, function-local import in `cli/__init__.py`; the import-boundary contract
+  guards product↛`codewiki` (see above).
 - `groundloop/domains/android_ivi/` — the domain pack (fleet catalog, `AndroidSignalExtractor`).
   Multi-domain is a design-for-later seam; no plugin framework yet (YAGNI).
 - **Type-2 stack** (eval/benchmark side): `eval/` (oracle-blind Stage-1 matching eval → scorecard),

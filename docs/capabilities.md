@@ -261,13 +261,19 @@ the "too complicated to be realistic" gap, and it is small to close.
   `tests/architecture/test_import_boundary.py` fails CI if any product-runtime module (`core/`, `config/`,
   `adapters/` outside `adapters/index/labs/`, `domains/`, `run/`, `fix/`, `engines/atlas`, `engines/lore`,
   `cli/__init__.py`) eagerly imports a labs package (`eval`/`fixeval`/`funceval`/`faulteval`/`synth`/`mine`/
-  `kb`/`skills`/`grade`/`build`/`adapters.index.labs`/`engines.produce`) at module scope. Labs features
+  `kb`/`skills`/`grade`/`build`/`adapters.index.labs`/`codewiki`) at module scope. Labs features
   (arms, KB, produce) stay reachable only through the sanctioned lazy/function-local opt-in seam — the
   CLI's `--match-arm`/`--localize`/`--kb-store` loaders — never as an eager top-level import. Labs code was
   relocated to make the boundary a physical directory line, not just an import rule: the 11 non-Core index
   arms live in `adapters/index/labs/` (Core's `AtlasIndex` stays at `adapters/index/atlas.py`),
   `MockSkillRegistry` in `skills/adapters/`, offline-grade tooling in `grade/{grade_run,compare,promotion}.py`,
-  and the opt-in KB fixer in `kb/inject.py`.
+  and the opt-in KB fixer in `kb/inject.py`. **The CodeWiki doc generator (`gloop produce`) completes this
+  line the furthest: relocated out of `groundloop/engines/produce/` to a top-level `codewiki/` package
+  (out of the product package entirely, not just a labs subtree of it) and stripped to the live doc-gen
+  path (~30 dead files removed — web app, MCP server, standalone CLI, config lane, dead utils).**
+  `gloop produce` still bridges to it via the same lazy, function-local import seam; the import-boundary
+  contract now guards product↛`codewiki` directly (`codewiki` sits in `FORBIDDEN` alongside the other
+  labs packages, even though it is no longer a `groundloop.*` submodule).
 
 **Remaining gaps to a fully real Core (net-new builds, not re-points):**
 - **`MockJira` → a live JIRA REST `IssueSource`** (fetch + `post_comment`/`transition` write-back).
