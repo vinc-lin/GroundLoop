@@ -119,7 +119,7 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 | **`PlanningFixEngine`** — "Bug Plan Mode" (plan→gate→re-plan→abstain→execute); `--fixer plan`, **the run default** since 2026-07-13 | Fail-safe by construction: the in-world gate scope-checks every target *before any disk read*, and the executed diff is **re-gated** against candidate scope, so it **abstains** (empty patch) rather than emit an out-of-scope or ungrounded fix. Measured `fabrication_rate = 0.0` `[proxy]`, with a recorded case of it abstaining where the direct fixer fabricated. That honesty *is* a charter-aligned production improvement and reduces incorrect-run risk (Ask-3). | **No measured resolution lift** over `ModelPatchEngine` yet — `resolved_rate` was never gradeable (`[proxy]` ungradeable 2026-07-07; 0-floor 2026-07-13). The next instrumented `[production]` run measures `resolved_rate` (grade-run emits a promotion-eligibility note) → **confirm Core** if it clears the bar with `fabrication_rate ≤ 0`, else **revert** to `--fixer model`. Until then it is bounded: it reverts on governance debt. |
 | **`SignalQueryIndex`** — signal-aware FTS5 localize; `--localize tokens` — **REVERTED to a Candidate 2026-07-16** (was the run default 2026-07-15→16; localize default back to `atlas`, see the amendment above). Historical rationale retained: | **NOT abstain-fail-safe — this is a deliberate, recorded relaxation of §2(1), not compliance.** Its worst case is a *worse-ranked file list*, not an abstain — the disclosed `audio −0.017` is exactly such a wrong-output case — so by the letter of §2 it would "stay Candidate". It is default-on anyway on an **operator decision (2026-07-15)** backed by: (a) strong `[proxy]` evidence — functional isolated `file@1` **0.010→0.166 (16×)**, ≥ the atlas/dispatch arms per class; (b) **no gateway dependency** (pure FTS5), so no new production fragility; (c) **no *categorical* new failure mode** vs the `atlas` default it replaces — a token-less ticket falls back byte-identical to `atlas`, and a token-bearing ticket only rewrites the FTS5 query string (not the ranking algorithm — it is not an aggressive re-ranker); (d) **trivially reversible** (`--localize atlas`). The regression surface is *bounded per-ticket*, not categorical. | **Only `[proxy]` evidence; no `[production]` read yet, AND it does not meet strict §2 — so the production read is load-bearing, not a formality.** Bounded per-ticket regression: a ticket whose extracted tokens localize *worse* than its summary (measured `audio −0.017`, ~1/69 — a weak `.so`-only signal). The next instrumented `[production]` GEI run measures `--localize tokens` vs `atlas` `file@1` (`canonical_path` grading) → **confirm Core** if it wins, else **revert** to `--localize atlas`. Reverts on governance debt. |
 
-### Candidate — Dev-Labs research, blocked on a first `[production]` read (8)
+### Candidate — Dev-Labs research, blocked on a first `[production]` read (9)
 
 > **Amendment 2026-07-16 (workflow-simplification, see the plan spec).** Four run-menu arms were pruned:
 > **`LocalizeDispatchIndex` (localize `dispatch`) → Archived** (removed from `--localize`; measured null
@@ -190,18 +190,26 @@ Provisional-Core default on 2026-07-15**; see the Provisional-Core table above.)
 > just **a `[production]` read**. They stay **Candidate**: run-reachable ≠ default. The Core default is
 > unchanged unless the **labs switch** (below) is enabled.
 
-### Dormant — valuable concept, weak current implementation (1)
-**Dev-experience KB** (raw Skills → knowledge distill) — **Dormant** (2026-07-18 first-principles review).
-The *concept* is the productization of charter §7's strongest lever (cross-repo grounding, +40–60pp); the
-*current implementation* has produced 0 positive signal (0/60 validated, 0.0 resolved in every fair arm),
-sits off the `run_ticket` path, and is untestable on the dev box (synth floors resolution at 0; the OSS
-fleet has ~7–15 crash-with-fix cases). It is neither a valid null (Archived) nor promising-but-unvalidated
-(Candidate). **Blocked on a 3-axis redesign** — injection mechanism (retriever, not firehose: raw Skills in
-the localize query cost Δ−0.10; wholesale into the planner hurt 0.51→0.22) · richer Knowledge representation
-(worked crash-RCA playbooks / cross-repo helper pointers, not atomic claims) · a loop-outcome learning loop —
-plus real AAOS crash+fix data. Kept in-tree (`fixeval/runner.py:17` hard-imports `kb/`; the green in-tree
-tests are its readiness). Redesign: `docs/superpowers/specs/2026-07-18-first-principles-review.md` §7. Its
-A/B machinery (`kb-ab`/`kb-extract`/`kb-attribute`/placebo) is the eval infra for that test.
+**Dev-experience KB (redesigned crash-RCA playbooks)** — **Candidate** (redesigned 2026-07-19, out of
+`Dormant`). Self-improving: a `KnowledgePlaybook` (signature/localize/fix/APIs, grounded per-field) is
+retrieved bounded top-k=2 and injected `validated`-only into `gloop run`'s fixer (opt-in `--kb-store`, the
+composition-root `KnowledgeInjectingFixEngine` decorator, `core/` zero-diff); a clean-applying fix **mints** a
+new `candidate` playbook (oracle-blind, deduped by crash-class), and the offline retain-loop (`gloop
+kb-attribute`, gated on `resolved_rate_strict`) promotes `candidate → validated`. Seeded from the 12
+feedstock playbooks via the deterministic parser `gloop kb-seed` (the LLM `kb-extract` shredder — atomic
+claims out of Skills — is **retired**). **Efficacy remains production-gated**: the `resolved_rate` A/B
+(KB-on vs KB-off) on real AAOS crash+fix tickets is the promotion read; this cycle's bar is unit-proven +
+wired + hermetically testable, not a measured lift. Fail-safe throughout — grounding (every referenced
+symbol must resolve in the atlas), `validated`-only injection, and Bug Plan Mode's in-world abstain gate
+(a playbook can inform the plan, never force an out-of-scope or ungrounded patch). Design:
+`docs/superpowers/specs/2026-07-19-kb-playbook-redesign-design.md`; plan:
+`docs/superpowers/plans/2026-07-19-kb-playbook-redesign.md`.
+
+### Dormant — valuable concept, weak current implementation (0)
+*(Currently empty.)* The **dev-experience KB** occupied this state after the 2026-07-18 first-principles
+review (0/60 validated, 0-signal, blocked on a 3-axis redesign); the 2026-07-19 playbook redesign resolved
+the redesign and moved it back to **Candidate** (above) — active, wired, opt-in, `[production]`-gated. No
+other capability currently sits here.
 
 ### Dev-Labs Infra — permanent measurement / data apparatus (never promoted)
 `eval` · `fixeval` · `funceval` · `faulteval` · `compare` · `grade-run` (the production **feedback**
@@ -219,8 +227,9 @@ legacy `grade()` **+ the hidden-oracle bridge it uses** — `core.types.Oracle`/
 **`LocalizeDispatchIndex`** (localize `dispatch`) — **Archived 2026-07-16** (workflow-simplification): a
 `[production]` measured null (`file@1 0/10`, inert under the `ComponentExtractor` default); removed from the
 `--localize` menu + wiring, module + tests deleted (recoverable from git history). *(This section was
-previously "currently empty".)* The dev-experience KB track was **reclassified Archived → Candidate (2026-07-13), then Dormant (2026-07-18)**: its
-null was measured on the wrong metric (`plan_target_recall`, not `resolved_rate`) and rode a localize-query
+previously "currently empty".)* The dev-experience KB track was **reclassified Archived → Candidate
+(2026-07-13), then Dormant (2026-07-18), then redesigned back to Candidate (2026-07-19)**: its null was
+measured on the wrong metric (`plan_target_recall`, not `resolved_rate`) and rode a localize-query
 pollution confound (reproduced: Δ−0.10 file@1), and the fair `resolved_rate` re-test was inconclusive (a
 0-resolution floor on a synth slice — the wrong substrate). So the null is **not** validly established and
 Archived requires a *genuinely-concluded* one. Nothing else has that yet. See Candidate (KB) +
