@@ -10,7 +10,7 @@ EXCLUDE = [ROOT / "adapters" / "index" / "labs"]
 FORBIDDEN = ("groundloop.eval", "groundloop.fixeval", "groundloop.funceval", "groundloop.faulteval",
              "groundloop.synth", "groundloop.mine", "groundloop.kb", "groundloop.skills",
              "groundloop.grade", "groundloop.build", "groundloop.adapters.index.labs",
-             "groundloop.engines.produce")
+             "codewiki")
 
 
 def _eager_imports(py):

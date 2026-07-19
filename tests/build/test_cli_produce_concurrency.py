@@ -5,7 +5,7 @@ import importlib
 
 import groundloop.cli as cli
 
-# groundloop/engines/produce/__init__.py does `from ...cli.main import cli`, which
+# codewiki/__init__.py does `from ...cli.main import cli`, which
 # shadows the `cli` *submodule* attribute on the `produce` package with the click
 # Group object of the same name. That breaks pytest's string-based monkeypatch
 # target resolution (it walks attributes: produce.cli.adapters... and hits the
@@ -14,7 +14,7 @@ import groundloop.cli as cli
 # traversal, so it isn't affected — use it to get the real module object and
 # patch the attribute on it directly.
 _doc_generator_mod = importlib.import_module(
-    "groundloop.engines.produce.cli.adapters.doc_generator"
+    "codewiki.cli.adapters.doc_generator"
 )
 
 

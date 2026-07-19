@@ -14,7 +14,7 @@ import pytest
 
 pytest.importorskip("pydantic_ai", reason="produce stack (pydantic_ai) not installed")
 
-from groundloop.engines.produce.src.be.documentation_generator import (  # noqa: E402
+from codewiki.src.be.documentation_generator import (  # noqa: E402
     DocumentationGenerator as D,
 )
 

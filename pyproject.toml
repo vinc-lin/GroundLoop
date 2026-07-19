@@ -52,7 +52,7 @@ produce = [
 gloop = "groundloop.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["groundloop*"]
+include = ["groundloop*", "codewiki*"]
 
 [tool.ruff]
 line-length = 110

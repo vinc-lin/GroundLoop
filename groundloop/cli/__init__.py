@@ -110,7 +110,7 @@ def _run_produce(args) -> int:
     from pathlib import Path
 
     try:
-        from groundloop.engines.produce.cli.adapters.doc_generator import CLIDocumentationGenerator
+        from codewiki.cli.adapters.doc_generator import CLIDocumentationGenerator
     except ImportError as e:
         raise SystemExit("gloop produce requires the produce extra — install it with "
                          "`uv sync --extra produce` (or `pip install groundloop[produce]`).") from e

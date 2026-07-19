@@ -1,7 +1,7 @@
-"""Hermetic smoke tests for the migrated groundloop.engines.produce package.
+"""Hermetic smoke tests for the migrated codewiki package.
 
 Tests:
- - import groundloop.engines.produce works
+ - import codewiki works
  - gloop produce --repo <path> --out <wiki_dir> dispatches the generator with correct args and rc 0
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 def test_produce_package_importable():
     """The migrated produce package must be importable at module level."""
-    import groundloop.engines.produce  # noqa: F401
+    import codewiki  # noqa: F401
 
 
 def test_gloop_produce_dispatches_generator_hermetic(tmp_path, monkeypatch):
@@ -44,7 +44,7 @@ def test_gloop_produce_dispatches_generator_hermetic(tmp_path, monkeypatch):
         return _FakeJob()
 
     import importlib
-    _dg_mod = importlib.import_module("groundloop.engines.produce.cli.adapters.doc_generator")
+    _dg_mod = importlib.import_module("codewiki.cli.adapters.doc_generator")
 
     monkeypatch.setattr(_dg_mod.CLIDocumentationGenerator, "__init__", _fake_init)
     monkeypatch.setattr(_dg_mod.CLIDocumentationGenerator, "generate", _fake_generate)
