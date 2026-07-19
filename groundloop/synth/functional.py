@@ -105,27 +105,3 @@ def build_functional_dataset(src_root: str, atlas_db: str, dest_root: str,
     _dump(os.path.join(dest_root, "dataset_meta.json"),
           {"dataset_kind": "functional_unscrubbed"})
     return made
-
-
-_NEG_PROMPTS = [
-    ("How do I change the app theme to dark mode?", "This is a usage question, not a defect."),
-    ("Please add a feature to export playlists to CSV", "Feature request, not a defect."),
-    ("Documentation for the settings screen is unclear", "Docs improvement, not a code defect."),
-]
-
-
-def build_functional_negatives(dest_root: str, *, n: int = 3) -> list[str]:
-    """Mint functional honest-refusal negatives (not_a_defect): answerable=False, prose-only. Follows
-    the four-class contract (owning_repo='__NOT_A_DEFECT__', expected_files=[]). Never leaks an owner."""
-    made: list[str] = []
-    for i in range(n):
-        summary, desc = _NEG_PROMPTS[i % len(_NEG_PROMPTS)]
-        cid = f"func-neg-{i}"
-        dest = os.path.join(dest_root, cid)
-        _dump(os.path.join(dest, "ticket.json"),
-              {"id": cid, "summary": summary, "description": desc, "component": "", "logs": []})
-        _dump(os.path.join(dest, "_oracle", "oracle.json"),
-              {"owning_repo": "__NOT_A_DEFECT__", "expected_files": [], "is_answerable": False,
-               "negative_class": "not_a_defect", "bug_kind": "functional"})
-        made.append(cid)
-    return made

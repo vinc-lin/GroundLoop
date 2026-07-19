@@ -87,16 +87,3 @@ def test_carplay_log_channel_extracts_owner_tokens(tmp_path):
     sig = pack_prose(Ticket(id="C2", summary=ticket["summary"], description=ticket["description"]), (log,))
     assert sig.classes                                        # log names the owner's real class
     assert replace(sig, symbols=()).tokens()                 # -> the optional log-RRF channel will fire
-
-
-def test_functional_negatives_are_unanswerable(tmp_path):
-    from groundloop.synth.functional import build_functional_negatives
-    out = tmp_path / "neg"
-    ids = build_functional_negatives(str(out), n=2)
-    assert len(ids) == 2
-    for cid in ids:
-        oracle = json.loads((out / cid / "_oracle" / "oracle.json").read_text())
-        ticket = json.loads((out / cid / "ticket.json").read_text())
-        assert oracle["is_answerable"] is False and oracle["bug_kind"] == "functional"
-        assert oracle["negative_class"] == "not_a_defect"
-        assert oracle["owning_repo"] == "__NOT_A_DEFECT__" and ticket["logs"] == []

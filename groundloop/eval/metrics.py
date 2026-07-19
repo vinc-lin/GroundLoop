@@ -1,8 +1,8 @@
 """Retrieval + selective-prediction metrics for the Type-2 scorecard.
 
-recall_at_k/success_at_k/mrr/ndcg_at_k migrated verbatim from knowledgeLoop
-offline/metrics.py (file-level any-of; used for Stage-2 localization). repo_rank/
-wilson/phi_c are the Stage-1 + selective additions (docs/type2-evaluation.md §7)."""
+recall_at_k migrated verbatim from knowledgeLoop offline/metrics.py (file-level
+any-of; used for Stage-2 localization). repo_rank/wilson/phi_c are the Stage-1 +
+selective additions (docs/type2-evaluation.md §7)."""
 from __future__ import annotations
 
 import math
@@ -12,30 +12,6 @@ def recall_at_k(ranked_files: list, gold: set, k: int) -> float:
     if not gold:
         return 0.0
     return len(gold & set(ranked_files[:k])) / len(gold)
-
-
-def success_at_k(ranked_files: list, gold: set, k: int) -> float:
-    return 1.0 if (gold & set(ranked_files[:k])) else 0.0
-
-
-def mrr(ranked_files: list, gold: set) -> float:
-    for i, f in enumerate(ranked_files):
-        if f in gold:
-            return 1.0 / (i + 1)
-    return 0.0
-
-
-def ndcg_at_k(ranked_files: list, gold: set, k: int) -> float:
-    if not gold:
-        return 0.0
-    dcg, seen = 0.0, set()
-    for i, f in enumerate(ranked_files[:k]):
-        if f in gold and f not in seen:
-            seen.add(f)
-            dcg += 1.0 / math.log2(i + 2)
-    ideal = min(k, len(gold))
-    idcg = sum(1.0 / math.log2(p + 1) for p in range(1, ideal + 1))
-    return dcg / idcg if idcg else 0.0
 
 
 def repo_rank(ranked_names: list, owning_repo: str) -> int:

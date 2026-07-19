@@ -1,12 +1,8 @@
-from groundloop.eval.metrics import (recall_at_k, success_at_k, mrr, ndcg_at_k,
-                                      wilson, phi_c, repo_rank)
+from groundloop.eval.metrics import recall_at_k, wilson, phi_c, repo_rank
 
 
 def test_migrated_file_metrics():
     assert recall_at_k(["a", "b", "c"], {"a", "z"}, 2) == 0.5
-    assert success_at_k(["a", "b"], {"b"}, 2) == 1.0
-    assert mrr(["x", "a"], {"a"}) == 0.5
-    assert abs(ndcg_at_k(["a"], {"a"}, 1) - 1.0) < 1e-9
 
 
 def test_repo_rank_exact_match():
