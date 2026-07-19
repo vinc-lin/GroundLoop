@@ -49,23 +49,20 @@ class CLIDocumentationGenerator:
         output_dir: Path,
         config: Dict[str, Any],
         verbose: bool = False,
-        generate_html: bool = False
     ):
         """
         Initialize the CLI documentation generator.
-        
+
         Args:
             repo_path: Repository path
             output_dir: Output directory
             config: LLM configuration
             verbose: Enable verbose output
-            generate_html: Whether to generate HTML viewer
         """
         self.repo_path = repo_path
         self.output_dir = output_dir
         self.config = config
         self.verbose = verbose
-        self.generate_html = generate_html
         self.progress_tracker = ProgressTracker(total_stages=5, verbose=verbose)
         self.job = DocumentationJob()
         
@@ -171,11 +168,7 @@ class CLIDocumentationGenerator:
             
             # Run backend documentation generation
             asyncio.run(self._run_backend_generation(backend_config))
-            
-            # Stage 4: HTML Generation (optional)
-            if self.generate_html:
-                self._run_html_generation()
-            
+
             # Stage 5: Finalization (metadata already created by backend)
             self._finalize_job()
             
@@ -329,38 +322,7 @@ class CLIDocumentationGenerator:
             raise APIError(f"Documentation generation failed: {e}")
         
         self.progress_tracker.complete_stage()
-    
-    def _run_html_generation(self):
-        """Run HTML generation stage."""
-        self.progress_tracker.start_stage(4, "HTML Generation")
-        
-        from groundloop.engines.produce.cli.html_generator import HTMLGenerator
-        
-        # Generate HTML
-        html_generator = HTMLGenerator()
-        
-        if self.verbose:
-            self.progress_tracker.update_stage(0.3, "Loading module tree and metadata...")
-        
-        repo_info = html_generator.detect_repository_info(self.repo_path)
-        
-        # Generate HTML with auto-loading of module_tree and metadata from docs_dir
-        output_path = self.output_dir / "index.html"
-        html_generator.generate(
-            output_path=output_path,
-            title=repo_info['name'],
-            repository_url=repo_info['url'],
-            github_pages_url=repo_info['github_pages_url'],
-            docs_dir=self.output_dir  # Auto-load module_tree and metadata from here
-        )
-        
-        self.job.files_generated.append("index.html")
-        
-        if self.verbose:
-            self.progress_tracker.update_stage(1.0, "Generated index.html")
-        
-        self.progress_tracker.complete_stage()
-    
+
     def _finalize_job(self):
         """Finalize the job (metadata already created by backend)."""
         # Just verify metadata exists

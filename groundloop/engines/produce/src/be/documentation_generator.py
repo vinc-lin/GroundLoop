@@ -18,10 +18,6 @@ from groundloop.engines.produce.src.be.prompt_template import (  # noqa: E402
     REPO_OVERVIEW_PROMPT,
     MODULE_OVERVIEW_PROMPT,
 )
-from groundloop.engines.produce.src.be.cluster_modules import (  # noqa: E402
-    cluster_modules,
-    get_clustering_input_token_count,
-)
 from groundloop.engines.produce.src.config import (  # noqa: E402
     Config,
     FIRST_MODULE_TREE_FILENAME,
@@ -630,78 +626,5 @@ class DocumentationGenerator:
             
         except Exception as e:
             logger.error(f"Error generating parent documentation for {module_name}: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
-    
-    async def run(self) -> None:
-        """Run the complete documentation generation process using dynamic programming."""
-        try:
-            # Build dependency graph
-            components, leaf_nodes = self.graph_builder.build_dependency_graph()
-
-            logger.debug(f"Found {len(leaf_nodes)} leaf nodes")
-            # logger.debug(f"Leaf nodes:\n{'\n'.join(sorted(leaf_nodes)[:200])}")
-            # exit()
-            
-            # Cluster modules
-            working_dir = os.path.abspath(self.config.docs_dir)
-            file_manager.ensure_directory(working_dir)
-            first_module_tree_path = os.path.join(working_dir, FIRST_MODULE_TREE_FILENAME)
-            module_tree_path = os.path.join(working_dir, MODULE_TREE_FILENAME)
-            
-            # Check if module tree exists
-            if os.path.exists(first_module_tree_path):
-                logger.debug(f"Module tree found at {first_module_tree_path}")
-                module_tree = file_manager.load_json(first_module_tree_path)
-            else:
-                logger.debug(f"Module tree not found at {module_tree_path}, clustering modules")
-                clustering_tokens = get_clustering_input_token_count(
-                    leaf_nodes, components
-                )
-                logger.info(
-                    "Preparing %d leaf nodes for module clustering (%d tokens, threshold %d)",
-                    len(leaf_nodes),
-                    clustering_tokens,
-                    self.config.max_token_per_module,
-                )
-                # Bind cluster_model into the completer so the backend uses the
-                # configured clustering model (separate from main_model) when
-                # one is set.  Caw mode's cluster_model is typically empty —
-                # complete() falls back to its own _model in that case.
-                cluster_model = self.config.cluster_model or None
-                module_tree = cluster_modules(
-                    leaf_nodes,
-                    components,
-                    self.config,
-                    completer=lambda p: self.backend.complete(p, model=cluster_model),
-                )
-                file_manager.save_json(module_tree, first_module_tree_path)
-            
-            file_manager.save_json(module_tree, module_tree_path)
-            
-            if len(module_tree) == 0:
-                logger.info(
-                    "Module clustering produced no top-level modules; continuing in "
-                    "whole-repository documentation mode"
-                )
-            else:
-                logger.info(
-                    "Grouped components into %d top-level modules",
-                    len(module_tree),
-                )
-            
-            # Generate module documentation using dynamic programming approach
-            # This processes leaf modules first, then parent modules
-            working_dir = await self.generate_module_documentation(components, leaf_nodes)
-            
-            # Create documentation metadata
-            self.create_documentation_metadata(working_dir, components, len(leaf_nodes))
-            
-            logger.debug("Documentation generation completed successfully using dynamic programming!")
-            logger.debug("Processing order: leaf modules → parent modules → repository overview")
-            logger.debug(f"Documentation saved to: {working_dir}")
-            
-        except Exception as e:
-            logger.error(f"Documentation generation failed: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
