@@ -494,56 +494,6 @@ def _run_kb_ab(args) -> int:
     return 0
 
 
-def _extract_model():
-    """The LLM proposer for kb-extract: live GatewayModel when KLOOP_PRODUCE_API_KEY is set, else a no-op
-    CannedModel (hermetic tests monkeypatch this seam to a scripted CannedModel). Mirrors _run_fixeval's
-    model gate. Implementer-verify (confirmed in _run_fixeval): GatewayModel(base_url, api_key, model)."""
-    import os
-    if os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
-        from groundloop.adapters.model.gateway import GatewayModel
-        from groundloop.config.settings import Settings
-        s = Settings.load()
-        return GatewayModel(s.produce_base_url, s.produce_api_key, s.produce_main_model)
-    print("gloop kb-extract: no KLOOP_PRODUCE_API_KEY — hermetic canned model (proposes 0 knowledge item(s)).")
-    return CannedModel({"default": ""})
-
-
-def _extract_resolver(index_db: str):
-    """The fleet-wide atlas existence probe for the ground-check (hermetic tests monkeypatch this seam).
-    Fails fast on an empty atlas: a wrong/typo'd --index-db makes Store() create an EMPTY schema, which
-    would silently reject every ref ('N rejected', exit 0) — misleading. Detect 0 indexed units and error."""
-    from groundloop.engines.atlas.store import Store
-    from groundloop.kb.knowledge_ground import atlas_resolver
-    store = Store(index_db)
-    if sum(st.unit_count for st in store.list_repo_states()) == 0:
-        raise SystemExit(f"gloop kb-extract: atlas {index_db!r} has 0 indexed units — wrong --index-db?")
-    return atlas_resolver(store)
-
-
-def _run_kb_extract(args) -> int:
-    """Decompose each feedstock Skill's prose into candidate Knowledge (LLM PROPOSES), ground-check every
-    candidate against the atlas (existence) + the leak red-test (oracle-blind), and MERGE survivors into the
-    knowledge store at tier=candidate. The LLM is a proposer only; grounding admits."""
-    from groundloop.kb.extract import extract_to_store
-    from groundloop.kb.knowledge import KNOWLEDGE_PATH, load_knowledge, save_knowledge
-    from groundloop.kb.validate import SEED_PATH as KB_SEED
-    from groundloop.kb.validate import load_corpus
-
-    seed = args.skills_seed or KB_SEED
-    out = args.out or KNOWLEDGE_PATH
-    skills = load_corpus(seed)
-    existing = load_knowledge(out)
-    store, rejected = extract_to_store(skills, _extract_model(), _extract_resolver(args.index_db),
-                                       existing=existing)
-    save_knowledge(out, store)
-    admitted = len(store) - len(existing)
-    print(f"kb-extract: {len(skills)} skill(s) -> {admitted} new candidate knowledge item(s), "
-          f"{len(rejected)} rejected -> {out}")
-    for item, chk in rejected:
-        print(f"  drop {item.id}: {', '.join(chk.reasons)}")
-    return 0
-
-
 def _build_attribute_run_card_fn(args, knowledge):
     """Return `run_card_fn(knowledge_id_set) -> eval-arm scorecard dict`: re-runs the plan-format fix eval
     with EXACTLY the passed knowledge ids (candidates AND their per-item placebos) injected via a
@@ -1053,14 +1003,6 @@ def build_parser() -> argparse.ArgumentParser:
     kab.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
                      help="reject if Δcost_per_solved exceeds this (default: advisory only)")
 
-    kex = sub.add_parser("kb-extract",
-                         help="decompose feedstock Skills -> candidate Knowledge (LLM propose + ground-check)")
-    kex.add_argument("--skills-seed", dest="skills_seed", default=None,
-                     help="feedstock corpus TOML (default: groundloop/kb/data/aaos_kb_seed.toml)")
-    kex.add_argument("--index-db", required=True, help="atlas.db for the grounding existence check")
-    kex.add_argument("--out", default=None,
-                     help="knowledge store JSON to merge into (default: groundloop/kb/data/knowledge.json)")
-
     kat = sub.add_parser("kb-attribute",
                          help="staged per-item attribution: archive screen -> LOFO confirm vs placebo -> "
                               "promote/retire (per-item governance of knowledge.json)")
@@ -1569,8 +1511,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_funceval(args)
     if args.cmd == "kb-ab":
         return _run_kb_ab(args)
-    if args.cmd == "kb-extract":
-        return _run_kb_extract(args)
     if args.cmd == "kb-attribute":
         return _run_kb_attribute(args)
     if args.cmd == "compare":
