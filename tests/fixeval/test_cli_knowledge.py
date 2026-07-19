@@ -35,7 +35,7 @@ def test_load_knowledge_maps_kind_to_registry_and_floor(monkeypatch):
     from groundloop.kb.knowledge import Knowledge
     from groundloop.kb.registry import KnowledgeRegistry
 
-    fixture = {"c1": Knowledge(id="c1", applies_when={"any_text": ["x"]}, type="fix_step", content="c",
+    fixture = {"c1": Knowledge(id="c1", applies_when={"any_text": ["x"]}, signature="c", fix=("c",),
                                grounding_refs=(), provenance="p", tier="candidate", evidence={})}
     monkeypatch.setattr("groundloop.kb.registry.load_knowledge", lambda path=None: fixture)
 
@@ -55,13 +55,14 @@ def test_load_knowledge_reads_from_store_path_fixture(tmp_path):
     from groundloop.kb.registry import KnowledgeRegistry
 
     store = tmp_path / "knowledge.json"
-    save_knowledge(str(store), {"only": Knowledge(id="only", applies_when={"any_text": ["z"]}, type="fix_step",
-                                                  content="from-the-fixture", grounding_refs=(), provenance="p",
+    save_knowledge(str(store), {"only": Knowledge(id="only", applies_when={"any_text": ["z"]},
+                                                  signature="from-the-fixture", fix=("from-the-fixture",),
+                                                  grounding_refs=(), provenance="p",
                                                   tier="candidate", evidence={})})
     reg, floor = _load_knowledge("candidate", None, store_path=str(store))
     assert isinstance(reg, KnowledgeRegistry) and floor == "candidate"
     assert [k.id for k in reg.items] == ["only"]                # loaded the FIXTURE store...
-    assert reg.items[0].content == "from-the-fixture"          # ...not the packaged knowledge.json
+    assert reg.items[0].signature == "from-the-fixture"        # ...not the packaged knowledge.json
 
 
 def test_fixeval_threads_knowledge_store_to_load_knowledge(tmp_path, monkeypatch):
@@ -73,8 +74,9 @@ def test_fixeval_threads_knowledge_store_to_load_knowledge(tmp_path, monkeypatch
     monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)    # hermetic canned model
     monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)     # no live bge-m3 rerank
     store = tmp_path / "knowledge.json"
-    save_knowledge(str(store), {"fx": Knowledge(id="fx", applies_when={"any_text": ["z"]}, type="fix_step",
-                                                content="fixture-only", grounding_refs=(), provenance="p",
+    save_knowledge(str(store), {"fx": Knowledge(id="fx", applies_when={"any_text": ["z"]},
+                                                signature="fixture-only", fix=("fixture-only",),
+                                                grounding_refs=(), provenance="p",
                                                 tier="candidate", evidence={})})
 
     seen: dict = {}

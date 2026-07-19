@@ -100,11 +100,11 @@ def test_optional_embedder_rerank_is_deterministic_and_capped():
     assert [p.id for p in out] == [p.id for p in out2]
 
 
-def test_rerank_orders_by_signature_not_content():
-    # signature (not the legacy content field) drives the rerank: an item whose signature echoes the
-    # query text must outrank one whose signature is unrelated, regardless of content.
-    items = [_pb("near", signature="segv nativePtr guard", content="unrelated legacy text"),
-             _pb("far", signature="unrelated ui layout freeze", content="segv nativePtr guard")]
+def test_rerank_orders_by_signature():
+    # signature drives the rerank: an item whose signature echoes the query text must outrank one whose
+    # signature is unrelated.
+    items = [_pb("near", signature="segv nativePtr guard"),
+             _pb("far", signature="unrelated ui layout freeze")]
     reg = PlaybookRegistry(items, embedder=StubEmbedder(), top_k=1)
     out = reg.select(_ctx("segv nativePtr"), "candidate")
     assert [p.id for p in out] == ["near"]

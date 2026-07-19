@@ -11,8 +11,9 @@ from groundloop.kb.knowledge_ground import atlas_resolver, check_knowledge_groun
 
 
 def _knowledge(**over) -> Knowledge:
-    base = dict(id="c-guard", applies_when={"any_text": ["sigsegv"]}, type="fix_step",
-                content="Reject a 0 handle at native method entry before dereferencing it.",
+    base = dict(id="c-guard", applies_when={"any_text": ["sigsegv"]},
+                signature="SIGSEGV from a native method dereferencing a 0 handle",
+                fix=("Reject a 0 handle at native method entry before dereferencing it.",),
                 grounding_refs=("GetLongField", "reinterpret_cast"),
                 provenance="native-null-deref-segv", tier="candidate", evidence={})
     base.update(over)
@@ -30,7 +31,7 @@ def _playbook(**over) -> Knowledge:
                 localize=("onDestroyView",), fix=("cancel the callback",),
                 required_apis=("onDestroyView", "Job.cancel"),
                 grounding_refs=("onDestroyView", "Job.cancel"),
-                content="", provenance="viewmodel-job-leak", tier="candidate", evidence={})
+                provenance="viewmodel-job-leak", tier="candidate", evidence={})
     base.update(over)
     return Knowledge(**base)
 
@@ -51,19 +52,17 @@ def test_unresolved_ref_is_not_grounded():
 
 def test_owner_token_leak_is_rejected():
     # "exoplayer" is a media3 owner slug in FLEET_OWNER_TOKENS -> a leak even though the ref resolves.
-    k = _knowledge(content="Guard the ExoPlayer native peer handle.", grounding_refs=("GetLongField",))
+    k = _knowledge(fix=("Guard the ExoPlayer native peer handle.",), grounding_refs=("GetLongField",))
     chk = check_knowledge_grounded(k, _resolver(["GetLongField"]))
     assert chk.grounded is False
     assert "exoplayer" in chk.leak_tokens
 
 
-def test_bad_type_and_empty_content_flagged():
-    chk = check_knowledge_grounded(_knowledge(type="bogus", content="  "),
+def test_empty_signature_flagged():
+    chk = check_knowledge_grounded(_knowledge(signature="  "),
                                    _resolver(["GetLongField", "reinterpret_cast"]))
     assert chk.grounded is False
-    assert any(r.startswith("bad_type:") for r in chk.reasons)
-    # shape-tolerant well-formedness: a legacy item with a blank content AND no signature has no body.
-    assert "empty_body" in chk.reasons
+    assert "empty_signature" in chk.reasons
 
 
 def test_empty_grounding_refs_not_grounded():
@@ -82,9 +81,9 @@ def test_playbook_ungrounded_when_a_ref_missing():
     assert chk.grounded is False and any(r.startswith("unresolved_refs") for r in chk.reasons)
 
 
-def test_not_wellformed_when_neither_signature_nor_content():
-    chk = check_knowledge_grounded(_playbook(signature="", content=""), _resolver(["onDestroyView", "Job.cancel"]))
-    assert chk.grounded is False and "empty_body" in chk.reasons
+def test_not_wellformed_when_signature_empty():
+    chk = check_knowledge_grounded(_playbook(signature=""), _resolver(["onDestroyView", "Job.cancel"]))
+    assert chk.grounded is False and "empty_signature" in chk.reasons
 
 
 def _real_store(tmp_path) -> Store:

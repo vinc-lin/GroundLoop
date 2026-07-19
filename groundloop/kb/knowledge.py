@@ -10,11 +10,9 @@ the lifecycle-bookkeeping bag (measured_lift, wilson95, validating_case_ids, fai
 evidence_context); Phase C bridges tier + evidence[fail_count]/[demotions] to the reused
 kb/lifecycle.apply_verdict (which reads .tier/.fail_count/.demotions). Phase A only persists it.
 
-EXPAND step of an expand-migrate-contract reshape (KB playbook redesign): `type`/`content` are now LEGACY
-fields kept temporarily (defaulted) so every existing constructor/consumer keeps working unchanged; the
-new multi-field playbook shape (`signature`/`localize`/`fix`/`required_apis`) is also defaulted so it is
-optional until later tasks migrate each consumer to it. A final 'contract' task removes `type`/`content`
-and the `Knowledge` alias once nothing constructs them anymore.
+CONTRACT step of an expand-migrate-contract reshape (KB playbook redesign): the multi-field playbook
+shape (`signature`/`localize`/`fix`/`required_apis`) is now the ONLY shape — the transitional legacy
+`type`/`content` fields have been removed now that every constructor/consumer is migrated to it.
 """
 from __future__ import annotations
 
@@ -36,14 +34,10 @@ class KnowledgePlaybook:
     grounding_refs: tuple[str, ...]  # the code entities it asserts exist (checkable in the atlas)
     provenance: str               # the source Skill id it was distilled from (kept; never trusted)
     tier: str                     # "candidate" | "validated" | "canonical" | "retired"
-    # NEW playbook fields (defaulted during the expand migration; a later 'contract' task makes them primary)
     signature: str = ""           # the recognizable RCA shape this item fires on (crash/bug signature)
     localize: tuple[str, ...] = ()   # where-to-look hints for the localize stage
     fix: tuple[str, ...] = ()        # what-to-do hints for the fix stage
     required_apis: tuple[str, ...] = ()  # APIs the fix is expected to touch (checkable in the atlas)
-    # LEGACY fields (temporary; removed in the contract task once all consumers migrate)
-    type: str = ""                # "localize_hint" | "fix_step" | "api_requirement"
-    content: str = ""             # the ONE thing it advises (this text enters the plan prompt)
     evidence: dict = field(default_factory=dict)  # lifecycle-bookkeeping bag (see module docstring)
 
 

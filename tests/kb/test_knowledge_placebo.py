@@ -1,8 +1,7 @@
 """Per-item placebo control (Phase C1, retargeted to playbooks in Task 7). Mirrors tests for
 kb/placebo.build_placebo but at Knowledge granularity: one placebo KnowledgePlaybook per candidate, SAME
 applies_when (fires on the identical cases), empty grounding_refs/required_apis, and length-matched
-IRRELEVANT signature/fix text (never the legacy type/content fields) that is leak-safe vs the real owner
-denylist."""
+IRRELEVANT signature/fix text that is leak-safe vs the real owner denylist."""
 from groundloop.kb.knowledge import Knowledge
 from groundloop.kb.knowledge_placebo import build_knowledge_placebo
 from groundloop.kb.validate import owner_denylist
@@ -28,11 +27,6 @@ def test_one_placebo_per_item_same_predicate_and_firing():
     assert p.grounding_refs == ()                           # cites nothing
     assert p.required_apis == ()                            # asserts no checkable API
     assert p.tier == "candidate"                            # injectable at the eval floor (same as source)
-
-
-def test_placebo_does_not_construct_legacy_fields():
-    p = build_knowledge_placebo({"c-seg": _knowledge()})["placebo-c-seg"]
-    assert p.type == "" and p.content == ""                 # migrated off type/content entirely
 
 
 def test_placebo_signature_and_fix_are_length_matched_and_leak_safe():

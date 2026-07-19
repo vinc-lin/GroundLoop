@@ -1,15 +1,12 @@
 """Deterministic, oracle-blind ground-check for a candidate Knowledge item (design spec §5.2).
 
-A knowledge item is admitted to the store only if it (a) is WELL-FORMED — a non-empty `signature` OR
-`content` body, a non-empty `id`, an optional `type` that (when set) is one of `_VALID_TYPES`, and a
-compilable applies_when predicate (reuse skills/predicate.compile_predicate). This is shape-tolerant by
-design (expand-migrate-contract): a LEGACY item (from kb/extract.py) sets `type`/`content`; a new
-playbook item (from seed/mint) sets `signature`/`localize`/`fix`/`required_apis` and leaves `type` blank
-— both ground the same way. (b) is GROUNDED — every
-grounding_ref resolves in the atlas (some unit exists for it, fleet-wide) — and (c) is LEAK-SAFE — its
-content / grounding_refs / applies_when name NO fleet-owner token (the same FLEET_OWNER_TOKENS red-test the
-KB corpus passes, via kb/validate.owner_denylist). Checking FLEET-WIDE existence reveals nothing about WHICH
-repo owns the defect, so the gate stays oracle-blind; the atlas is code reality, never the answer.
+A knowledge item is admitted to the store only if it (a) is WELL-FORMED — a non-empty `signature`, a
+non-empty `id`, and a compilable applies_when predicate (reuse skills/predicate.compile_predicate).
+(b) is GROUNDED — every grounding_ref resolves in the atlas (some unit exists for it, fleet-wide) — and
+(c) is LEAK-SAFE — its signature/localize/fix/required_apis/grounding_refs/applies_when name NO
+fleet-owner token (the same FLEET_OWNER_TOKENS red-test the KB corpus passes, via
+kb/validate.owner_denylist). Checking FLEET-WIDE existence reveals nothing about WHICH repo owns the
+defect, so the gate stays oracle-blind; the atlas is code reality, never the answer.
 
 `resolver(ref) -> bool` decouples the gate from a live atlas so it is hermetic-testable. The production
 resolver is `atlas_resolver(store)`, a thin wrapper over Store.keyword_search (queried across ALL repos —
@@ -24,8 +21,6 @@ from typing import Callable, Optional
 
 from groundloop.kb.validate import owner_denylist
 from groundloop.skills.predicate import compile_predicate
-
-_VALID_TYPES = ("localize_hint", "fix_step", "api_requirement")
 
 
 @dataclass(frozen=True)
@@ -82,15 +77,13 @@ def atlas_resolver(store, *, k: int = 20) -> Callable[[str], bool]:
 
 
 def _leak_haystack(knowledge) -> str:
-    """Lowercased signature/localize/fix/required_apis/content/grounding_refs + applies_when values — the
-    same surface validate_corpus scans. Shape-tolerant (getattr with a default) so it scans whichever
-    fields a legacy `content`-shaped item or a new `signature`-shaped playbook item actually carries."""
+    """Lowercased signature/localize/fix/required_apis/grounding_refs + applies_when values — the same
+    surface validate_corpus scans."""
     parts = [
         getattr(knowledge, "signature", "") or "",
         " ".join(getattr(knowledge, "localize", ()) or ()),
         " ".join(getattr(knowledge, "fix", ()) or ()),
         " ".join(getattr(knowledge, "required_apis", ()) or ()),
-        getattr(knowledge, "content", "") or "",
         " ".join(getattr(knowledge, "grounding_refs", ()) or ()),
     ]
     for v in (knowledge.applies_when or {}).values():
@@ -107,14 +100,9 @@ def check_knowledge_grounded(knowledge, resolver: Callable[[str], bool], *,
     deny = owner_denylist() if denylist is None else denylist
     reasons: list[str] = []
 
-    # (a) well-formedness — an item that can't type-check or can't fire is never grounded/effective.
-    # Shape-tolerant during the expand-migrate-contract reshape: a legacy item carries `type`/`content`,
-    # a new playbook item carries `signature` (+ `localize`/`fix`/`required_apis`) and leaves `type` blank
-    # — so `type` is only checked when non-empty, and the body check accepts EITHER `signature` OR `content`.
-    if knowledge.type and knowledge.type not in _VALID_TYPES:
-        reasons.append(f"bad_type:{knowledge.type}")
-    if not ((knowledge.signature or "").strip() or (knowledge.content or "").strip()):
-        reasons.append("empty_body")
+    # (a) well-formedness — an item that can't fire, or carries no signature, is never grounded/effective.
+    if not (knowledge.signature or "").strip():
+        reasons.append("empty_signature")
     if not (knowledge.id or "").strip():
         reasons.append("empty_id")
     if not knowledge.applies_when:
@@ -135,8 +123,8 @@ def check_knowledge_grounded(knowledge, resolver: Callable[[str], bool], *,
     if missing:
         reasons.append("unresolved_refs:" + ",".join(missing))
 
-    # (c) leak red-test — no fleet-owner token in content/grounding_refs/applies_when (generic android.*
-    #     / androidx.* / sonames are KEPT, exactly as validate_corpus).
+    # (c) leak red-test — no fleet-owner token in signature/localize/fix/required_apis/grounding_refs/
+    #     applies_when (generic android.* / androidx.* / sonames are KEPT, exactly as validate_corpus).
     hay = _leak_haystack(knowledge)
     leak = tuple(tok for tok in sorted(deny) if tok in hay)
     if leak:

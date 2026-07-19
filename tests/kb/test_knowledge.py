@@ -10,8 +10,8 @@ def _knowledge() -> Knowledge:
     return Knowledge(
         id="native-null-deref-segv-fix_step-abc12345",
         applies_when={"any_text": ["sigsegv", "segv_maperr"]},
-        type="fix_step",
-        content="Reject a 0 nativePtr handle at native method entry before dereferencing it.",
+        signature="SIGSEGV from a native method dereferencing a 0 nativePtr handle",
+        fix=("Reject a 0 nativePtr handle at native method entry before dereferencing it.",),
         grounding_refs=("GetLongField", "std::weak_ptr::lock"),
         provenance="native-null-deref-segv",
         tier="candidate",

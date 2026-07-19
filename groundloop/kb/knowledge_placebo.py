@@ -29,13 +29,12 @@ def build_knowledge_placebo(items: dict[str, Knowledge]) -> dict[str, Knowledge]
     """Return {placebo_id: placebo KnowledgePlaybook}, one per input item. Each placebo copies
     applies_when VERBATIM (fires on the identical cases at the same tier floor) under id='placebo-'+<id>,
     but carries empty grounding_refs/required_apis and length-matched irrelevant signature/fix(/localize)
-    text — never the legacy type/content fields (those stay at their "" default). Mirrors
-    kb/placebo.build_placebo."""
+    text. Mirrors kb/placebo.build_placebo."""
     out: dict[str, Knowledge] = {}
     for kid, k in items.items():
         pid = "placebo-" + kid
-        sig_ref = k.signature or k.content or ""
-        fix_ref = " ".join(k.fix) if k.fix else (k.content or "")
+        sig_ref = k.signature or ""
+        fix_ref = " ".join(k.fix) if k.fix else ""
         out[pid] = Knowledge(
             id=pid,
             applies_when=dict(k.applies_when or {}),           # verbatim predicate -> same firing set
