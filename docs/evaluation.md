@@ -470,6 +470,42 @@ number to observe, likely weak, not a bar this branch claims to clear. Spec/plan
 `docs/superpowers/specs/2026-07-19-e2e-eval-corpus-design.md`,
 `docs/superpowers/plans/2026-07-19-e2e-eval-corpus.md`.
 
+### The `[authored]` Tier-B corpus (2026-07-20)
+
+The mined e2e-corpus above hit a supply wall: real crash-with-merged-fix issues are scarce in the mine74 corpus
+(only ~1 of 108 cases carries a crash log) — mining alone can't populate Tier B. In response, **3 full-Tier-B
+crash cases were hand-authored**, each grounded in real fleet source (not fabricated) at
+`groundloop/mine/data/authored/`:
+
+- `crash-01-native-audio-resampler` — **oboe** (C++ native audio), a native `.so` backtrace naming
+  `MultiChannelResampler::writeFrame`.
+- `crash-02-java-stream-helper` — **newpipe** (Java/Android), a Java stacktrace naming
+  `SecondaryStreamHelper.getStream`.
+- `crash-03-c-logging-message` — **dlt-daemon** (C, automotive Diagnostic Log & Trace), a native SIGSEGV
+  backtrace naming `dlt_message_read`.
+
+Each case is a standard case dir (`ticket.json` + `_oracle/oracle.json` + `logs/*.txt` + `fix.diff`) carrying a
+full end-to-end oracle (`owning_repo`, `expected_files`, `required_apis`, `fix_patch`, `owning_repo_sha`,
+`is_answerable=true`, `bug_kind="crash"`), so the existing case-dir harness runs over them unchanged.
+
+**The anti-fabrication gate:** `groundloop/mine/authored.py::validate_authored_case(case_dir, corpora_root)`
+(hermetic-tested) returns `[]` for all 3 cases only because each `expected_files` entry is a real file in the
+real repo, each `required_apis` symbol appears in that file's real text, the crash log names a real oracle
+symbol, the ticket (summary/description/logs **and** the case `id`) never leaks the `owning_repo` name, and
+`fix.diff` touches an `expected_files` path and references a `required_apis` symbol on an added line — hand-
+verified to `git apply --check` clean (zero fuzz/offset) against the pinned `owning_repo_sha`.
+
+**The `[authored]` tag — distinct from `[proxy]`/`[production]`.** These cases are honestly *designed, not
+observed*: a **mechanics/capability test** ("does the loop carry a realistic crash end-to-end — match →
+localize → fix — over real code?"), not an effectiveness measurement. n=3, hand-authored-for-clarity text, is
+not a sample from the real ticket distribution. Any result computed over this corpus must carry `[authored]`,
+never `[production]` (there is no production JIRA/Gerrit behind it), and must never be blended into the mined
+`[proxy]` aggregate. **No live read has run yet** — the open follow-up is the same `render_e2e_funnel` above,
+graded match+localize against the real fleet atlas and fix against the gateway (gated Type-2; see
+`docs/STATUS.md`). Full framing + validator contract: `groundloop/mine/data/authored/README.md`. Spec/plan:
+`docs/superpowers/specs/2026-07-20-authored-tierb-cases-design.md`,
+`docs/superpowers/plans/2026-07-20-authored-tierb-cases.md`.
+
 ---
 
 ## 8. Harness architecture

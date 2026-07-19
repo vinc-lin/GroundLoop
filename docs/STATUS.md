@@ -1,6 +1,6 @@
 # GroundLoop — Status
 
-**As of 2026-07-19.** Read this first when resuming; see
+**As of 2026-07-20.** Read this first when resuming; see
 `CLAUDE.md` for durable project context.
 
 **Docs are the single source of truth** (re-consolidated 2026-07-11 → 13 top-level docs, + `capabilities.md`
@@ -12,6 +12,37 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 [`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md) · [`workflows.md`](workflows.md).
 
 ## Done
+
+### Authored Tier-B corpus — 3 grounded cases (2026-07-20) ✅
+Hand-authored **3 full-Tier-B crash test cases**, each grounded in real fleet source, committed at
+`groundloop/mine/data/authored/` (branch `feat/authored-tierb-cases`): `crash-01-native-audio-resampler`
+(**oboe**, C++ native audio, native `.so` backtrace naming `MultiChannelResampler::writeFrame`),
+`crash-02-java-stream-helper` (**newpipe**, Java/Android, Java stacktrace naming
+`SecondaryStreamHelper.getStream`), `crash-03-c-logging-message` (**dlt-daemon**, C, automotive
+Diagnostic Log & Trace, native SIGSEGV backtrace naming `dlt_message_read`). This is GroundLoop's
+**first owned, reproducible, end-to-end substrate** — a standard case dir per case (`ticket.json` +
+`_oracle/oracle.json` + `logs/crash.txt` + `fix.diff`) with a full end-to-end oracle (`owning_repo`,
+`expected_files`, `required_apis`, `fix_patch`, `owning_repo_sha`, `is_answerable=true`,
+`bug_kind="crash"`).
+- **Why authored, not mined:** mining real crash-with-fix cases on the current fleet yields ~1 usable
+  case (only 1 of 108 mine74 cases carries a crash log) — mining alone can't populate Tier B.
+- **The anti-fabrication gate:** a new hermetic-tested validator,
+  `groundloop/mine/authored.py::validate_authored_case`, returns `[]` for all 3 cases only because every
+  `expected_files`/`required_apis` entry is verified against the real repo text, the crash log names a
+  real oracle symbol, the ticket (incl. the case `id`) never leaks the `owning_repo` name (leak-safe),
+  and `fix.diff` applies **clean** (`git apply --check`, zero fuzz/offset) against the pinned
+  `owning_repo_sha` while touching `expected_files` and referencing `required_apis` on an added line.
+- **The `[authored]` framing (load-bearing, honest):** these cases are **designed, not observed** — a
+  **mechanics/capability test** ("does the loop carry a realistic crash end-to-end — match → localize →
+  fix — over real code?"), **not an effectiveness measurement**. Tagged `[authored]`, distinct from
+  `[proxy]`/`[production]`: **never `[production]`** (no real JIRA/Gerrit behind them) and **never
+  blended** with the mined `[proxy]` corpus. **No live read has run yet.**
+- **`core/` + atlas schema zero-diff.** Docs: `docs/evaluation.md`, `groundloop/mine/data/authored/README.md`.
+  Spec/plan: `docs/superpowers/specs/2026-07-20-authored-tierb-cases-design.md`,
+  `docs/superpowers/plans/2026-07-20-authored-tierb-cases.md`.
+- **OPEN — the gated funnel follow-up (not done):** run `render_e2e_funnel` over the 3 cases — match +
+  localize graded against the real fleet atlas (`/mnt/x/code/corpora/atlas-fleet.db`), fix graded against
+  the gateway. Needs a built atlas + gateway creds, so it's gated Type-2, not hermetic — the next step.
 
 ### Realistic end-to-end eval corpus — hermetic machinery shipped, no live read yet (2026-07-19) ✅
 Shipped the **hermetic machinery** for a realistic, full-end-to-end `[proxy]` eval corpus (branch
@@ -509,6 +540,12 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
    step is `gloop mine --require-crash-log --require-merged-fix` over a broadened Android/native repo set →
    commit the populated manifest → build the atlas (off ext4) → run the end-to-end funnel (`[proxy]`). Needs
    `gh` + the gateway + a built atlas, so it isn't hermetic — run by the user, not a merge gate.
+8. **Run the `render_e2e_funnel` read over the 3 authored Tier-B cases (gated, not done).** The 3
+   `[authored]` cases (`groundloop/mine/data/authored/`, 2026-07-20) are validated + committed; the open
+   step is grading match + localize against the real fleet atlas (`/mnt/x/code/corpora/atlas-fleet.db`)
+   and fix against the gateway. Needs a built atlas + gateway creds, so it isn't hermetic — run by the
+   user, not a merge gate. Result must be tagged `[authored]` (mechanics, n=3), never `[production]`,
+   never blended into the mined `[proxy]` aggregate.
 
 ## Services / environment
 - **LiteLLM gateway** — creds in the gitignored `/mnt/x/code/loop-agent/.env`, reused by
