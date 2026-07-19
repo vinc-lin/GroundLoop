@@ -9,7 +9,7 @@ assembles (`adapters/index/rerank_localize.py`), now injected as a fix-prompt pr
   * CBM — for the localized symbols (from the arm signals), the LIVE CBM call-graph: node source
     (`cbm.snippet`) + callers/callees (`cbm.call_neighbors`).
 
-Both renderers mirror `skills/base.render_skills` / `kb/render.render_knowledge`: they return the
+Both renderers mirror `skills/base.render_skills` / `kb/render.render_playbooks`: they return the
 `"\n\n# <Header>\n…"` shape and `""` when empty, so the runner concatenates
 `preamble = skills + knowledge + codewiki + cbm` cleanly.
 

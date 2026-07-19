@@ -14,7 +14,7 @@ from groundloop.eval.dataset import CaseRef, case_catalog
 from groundloop.fixeval.base_checkout import checkout_base
 from groundloop.fixeval.localize import localize
 from groundloop.fixeval.patch import patch_applies
-from groundloop.kb.render import render_knowledge
+from groundloop.kb.render import render_playbooks
 from groundloop.skills.base import render_skills
 from groundloop.skills.ctx import build_ctx
 
@@ -134,7 +134,7 @@ class FixEvalRunner:
         knowledge_pre = ""
         if self.knowledge is not None:
             selected_knowledge = self.knowledge.select(ctx, self.knowledge_tier_floor)
-            knowledge_pre = render_knowledge(selected_knowledge)   # PLAN-prompt preamble only
+            knowledge_pre = render_playbooks(selected_knowledge)   # PLAN-prompt preamble only
         preamble = skill_pre + knowledge_pre                   # skills first; each is "" when its arm is off
         if preamble:
             f = fixer.with_preamble(preamble)

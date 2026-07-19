@@ -1,7 +1,9 @@
-"""Knowledge injection through FixEvalRunner (Phase B3). Mirrors tests/fixeval/test_skill_injection.py: a
-spy model (_Capture) records the prompts the fixer builds; the plan path (PlanningFixEngine) is where a
-knowledge preamble lands. Asserts injection, the tier-floor gate, localize-invariance (knowledge never
-feeds the localize query), and that the skills-only / none-none paths stay byte-identical to pre-B3."""
+"""Knowledge injection through FixEvalRunner (Phase B3; playbook-shape migrated in Task 2 of the KB
+playbook redesign). Mirrors tests/fixeval/test_skill_injection.py: a spy model (_Capture) records the
+prompts the fixer builds; the plan path (PlanningFixEngine) is where a playbook preamble
+(render_playbooks -> "# Grounded playbooks") lands. Asserts injection, the tier-floor gate,
+localize-invariance (knowledge never feeds the localize query), and that the skills-only / none-none
+paths stay byte-identical to pre-B3."""
 import shutil
 from pathlib import Path
 
@@ -35,7 +37,7 @@ class _Capture:
 
 def _knowledge(kid, tier="candidate"):
     # always-firing predicate: the injection plumbing (not predicate matching, which B1 covers) is under test.
-    return Knowledge(id=kid, applies_when={"always": True}, type="fix_step", content=_CONTENT,
+    return Knowledge(id=kid, applies_when={"always": True}, fix=(_CONTENT,),
                      grounding_refs=(), provenance="p", tier=tier, evidence={})
 
 
@@ -56,7 +58,7 @@ def test_knowledge_injects_into_plan_prompt(tmp_path):
     reg = KnowledgeRegistry([_knowledge("c-seg")])
     runner, cases = _runner(tmp_path, "inj", knowledge=reg, knowledge_tier_floor="candidate")
     runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(cap))
-    injected = [p for p in cap.prompts if "# Grounded knowledge" in p]
+    injected = [p for p in cap.prompts if "# Grounded playbooks" in p]
     assert injected, "knowledge=candidate must inject the knowledge preamble into the plan prompt"
     assert any(_CONTENT in p for p in injected)
 
@@ -70,10 +72,10 @@ def test_both_channels_inject_and_compose_in_order(tmp_path):
                             knowledge_tier_floor="candidate")
     runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(cap))
     composed = [p for p in cap.prompts
-                if "# Applicable playbooks" in p and "# Grounded knowledge" in p]
+                if "# Applicable playbooks" in p and "# Grounded playbooks" in p]
     assert composed, "both arms on -> one prompt must carry BOTH preambles"
     for p in composed:
-        assert p.index("# Applicable playbooks") < p.index("# Grounded knowledge")   # skills first
+        assert p.index("# Applicable playbooks") < p.index("# Grounded playbooks")   # skills first
 
 
 def test_candidate_tier_gated_out_at_validated_floor(tmp_path):
@@ -82,7 +84,7 @@ def test_candidate_tier_gated_out_at_validated_floor(tmp_path):
     reg = KnowledgeRegistry([_knowledge("c-seg", tier="candidate")])
     runner, cases = _runner(tmp_path, "gate", knowledge=reg, knowledge_tier_floor="validated")
     runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(cap))
-    assert cap.prompts and not any("# Grounded knowledge" in p for p in cap.prompts)
+    assert cap.prompts and not any("# Grounded playbooks" in p for p in cap.prompts)
 
 
 def test_knowledge_is_localize_invariant(tmp_path):
@@ -105,7 +107,7 @@ def test_back_compat_skills_only_no_knowledge_header(tmp_path):
     runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=ModelPatchEngine(cap))
     injected = [p for p in cap.prompts if "# Applicable playbooks" in p]
     assert injected and any("aaos-native-lib-load-failure" in p for p in injected)
-    assert not any("# Grounded knowledge" in p for p in cap.prompts)   # knowledge=None -> no knowledge block
+    assert not any("# Grounded playbooks" in p for p in cap.prompts)   # knowledge=None -> no knowledge block
 
 
 def test_back_compat_none_none_no_preamble(tmp_path):
@@ -114,7 +116,7 @@ def test_back_compat_none_none_no_preamble(tmp_path):
     runner, cases = _runner(tmp_path, "off", skills=None, knowledge=None)
     runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=ModelPatchEngine(cap))
     assert cap.prompts and not any(
-        "# Applicable playbooks" in p or "# Grounded knowledge" in p for p in cap.prompts)
+        "# Applicable playbooks" in p or "# Grounded playbooks" in p for p in cap.prompts)
 
 
 def test_runner_records_fired_knowledge(tmp_path):
@@ -129,8 +131,8 @@ def test_runner_records_fired_knowledge(tmp_path):
 def test_runner_no_knowledge_fires_empty_fired_knowledge(tmp_path):
     db = build_fix_atlas_fixture(str(tmp_path / "atlas.db"))
     # a predicate that never matches this fixture -> selection empty -> fired_knowledge == ()
-    non_firing = Knowledge(id="c-none", applies_when={"any_text": ["nonexistent_token_zzz"]}, type="fix_step",
-                           content=_CONTENT, grounding_refs=(), provenance="p", tier="candidate", evidence={})
+    non_firing = Knowledge(id="c-none", applies_when={"any_text": ["nonexistent_token_zzz"]}, fix=(_CONTENT,),
+                           grounding_refs=(), provenance="p", tier="candidate", evidence={})
     runner, cases = _runner(tmp_path, "nofire", knowledge=KnowledgeRegistry([non_firing]),
                             knowledge_tier_floor="candidate")
     recs = runner.run(cases, build_arms(membership_index=AtlasIndex(db)), fixer=PlanningFixEngine(_Capture()))

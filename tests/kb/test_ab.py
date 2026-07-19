@@ -1,8 +1,8 @@
-"""Hermetic A/B: run_ab returns the 3 KB arms {none, kb, placebo} and the kb arm — injecting distilled
-Knowledge (a '# Grounded knowledge' preamble via render_knowledge) — RESOLVES the native positive
+"""Hermetic A/B: run_ab returns the 3 KB arms {none, kb, placebo} and the kb arm — injecting a distilled
+KnowledgePlaybook (a '# Grounded playbooks' preamble via render_playbooks) — RESOLVES the native positive
 (GP-352) that the none arm abstains on, proving the Knowledge injection flows through the per-arm
 orchestration (FixEvalRunner + grade_fix_all reused once per arm). A scripted CannedModel emits the GOLD
-diff ONLY when a '# Grounded knowledge' preamble is present (mirrors tests/fixeval/test_skill_effect.py).
+diff ONLY when a '# Grounded playbooks' preamble is present (mirrors tests/fixeval/test_skill_effect.py).
 NOT a real-lift claim (that is the Type-2 gated measurement)."""
 import json
 import shutil
@@ -31,12 +31,12 @@ def test_run_ab_three_arms_kb_beats_none(tmp_path, monkeypatch):
     from groundloop.kb.knowledge import Knowledge
     # scripted fix-stage model: GOLD only when the Knowledge preamble fired, "" (abstain) otherwise.
     def _fx():
-        return ModelPatchEngine(CannedModel({"# Grounded knowledge": GOLD, "default": ""}))
+        return ModelPatchEngine(CannedModel({"# Grounded playbooks": GOLD, "default": ""}))
     monkeypatch.setattr(ab, "_make_fixer", _fx)
-    # seed one always-firing candidate Knowledge item so the kb arm injects a "# Grounded knowledge"
+    # seed one always-firing candidate Knowledge item so the kb arm injects a "# Grounded playbooks"
     # preamble (candidate floor = the run_ab eval floor); none injects nothing -> abstains.
-    k = Knowledge(id="k-352", applies_when={"always": True}, type="fix_step",
-                  content="Return early on the 0 native handle at the JNI boundary.",
+    k = Knowledge(id="k-352", applies_when={"always": True},
+                  fix=("Return early on the 0 native handle at the JNI boundary.",),
                   grounding_refs=(), provenance="skill-x", tier="candidate", evidence={})
     monkeypatch.setattr(ab, "load_knowledge", lambda path=None: {"k-352": k})
 
@@ -56,5 +56,5 @@ def test_run_ab_three_arms_kb_beats_none(tmp_path, monkeypatch):
     none_rr = cards["none"]["arms"]["membership+logs"]["resolved_rate"]["value"]
     kb_rr = cards["kb"]["arms"]["membership+logs"]["resolved_rate"]["value"]
     assert none_rr == 0.0        # no preamble -> "" -> patch_unappliable abstain -> unresolved
-    assert kb_rr == 1.0          # Knowledge fires -> "# Grounded knowledge" preamble -> GOLD -> resolved
+    assert kb_rr == 1.0          # Knowledge fires -> "# Grounded playbooks" preamble -> GOLD -> resolved
     assert kb_rr > none_rr       # the direction-of-effect the A/B measures
