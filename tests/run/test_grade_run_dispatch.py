@@ -70,3 +70,16 @@ def test_localize_index_for_rerank_fail_fast_without_embedder(tmp_path):
     (tmp_path / "manifest.json").write_text(json.dumps({"localize": "rerank"}))
     with pytest.raises(RuntimeError, match="embedder"):
         _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), None)   # embedder=None
+
+
+def test_localize_index_for_atlas_rerank_builds_reranklocalizeindex_over_plain_pool(tmp_path):
+    """A `--localize atlas_rerank` run (the DEFAULT arm) must not fall through to the generic `atlas`
+    label — it degrades to a RerankLocalizeIndex whose pool is a plain AtlasIndex (no cascade, no
+    semantic tier) with judge=None (no LLM judge offline), labelled so the attribution stays honest."""
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
+    (tmp_path / "manifest.json").write_text(json.dumps({"localize": "atlas_rerank"}))
+    idx, arm = _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), None)   # no embedder needed
+    assert isinstance(idx, RerankLocalizeIndex)
+    assert isinstance(idx._pool_index, AtlasIndex)
+    assert idx.judge is None
+    assert arm == "atlas_rerank(no-judge:pool)"

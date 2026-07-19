@@ -85,6 +85,17 @@ def _localize_index_for(runs_dir, index_db, embedder):
         rer = RerankLocalizeIndex(AtlasIndex(index_db), store=Store(index_db),
                                   embedder=embedder, judge=None, pool_index=cascade)
         return rer, "cascade_judge(no-judge:cascade-pool)"
+    if arm == "atlas_rerank":
+        # The DEFAULT live arm is the plain FTS5 AtlasIndex.retrieve POOL reordered by the rerank LLM
+        # judge (no embedder involved at all). Offline there is no judge, so the reranker degrades to
+        # reordering its injected plain-atlas pool -> byte-identical to AtlasIndex.retrieve, an honest
+        # rank-1 ceiling. Unlike `rerank`, this never needs an embedder (no vector candidate-gen), so no
+        # fail-fast guard is needed here.
+        from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
+        from groundloop.engines.atlas.store import Store
+        rer = RerankLocalizeIndex(AtlasIndex(index_db), store=Store(index_db), embedder=None, judge=None,
+                                  pool_index=AtlasIndex(index_db))
+        return rer, "atlas_rerank(no-judge:pool)"
     if arm == "dispatch":     # localize dispatch retired (archived 2026-07-16) -> grade on the FTS5 floor
         return AtlasIndex(index_db), "dispatch->atlas(retired)"
     fell_back = arm == "semantic"     # wanted embedder, none available

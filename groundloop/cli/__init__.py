@@ -813,8 +813,9 @@ def build_parser() -> argparse.ArgumentParser:
     idx_group.add_argument("--index-db", default=None,
                            help="path to atlas.db (real AtlasIndex)")
     r.add_argument("--profile", choices=["core", "labs"], default="core",
-                   help="core (default) | labs (experimental defaults: routing match + semantic localize; "
-                        "also KLOOP_LABS=1). Explicit --match-arm/--localize always override the profile.")
+                   help="core (default) | labs (experimental default: routing match; localize default is "
+                        "atlas_rerank in BOTH profiles, unchanged by labs; also KLOOP_LABS=1). Explicit "
+                        "--match-arm/--localize always override the profile.")
     r.add_argument("--match-arm",
                    choices=["flood", "routing", "component", "semantic", "functional", "dispatch"],
                    default=None,
