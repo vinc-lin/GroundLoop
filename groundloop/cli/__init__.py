@@ -236,7 +236,7 @@ def _load_skills(kind: str, seed: str | None, embedder):
         return None
     from pathlib import Path
 
-    from groundloop.adapters.skills.mock import SEED_PATH, MockSkillRegistry
+    from groundloop.skills.adapters.mock import SEED_PATH, MockSkillRegistry
     from groundloop.kb.validate import SEED_PATH as KB_SEED
 
     if kind == "mock":

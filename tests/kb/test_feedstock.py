@@ -36,6 +36,6 @@ def test_loads_under_real_sp3_loader_when_present():
     """Drift guard: once SP3's skills package merges to master, the corpus must load and every
     predicate must compile under the REAL loader (compile_predicate raises on a bad spec).
     Skipped until then."""
-    mod = pytest.importorskip("groundloop.adapters.skills.mock")
+    mod = pytest.importorskip("groundloop.skills.adapters.mock")
     skills = mod.load_skills(SEED_PATH)
     assert len(skills) >= 11

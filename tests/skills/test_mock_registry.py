@@ -1,4 +1,4 @@
-from groundloop.adapters.skills.mock import MockSkillRegistry, load_skills, SEED_PATH
+from groundloop.skills.adapters.mock import MockSkillRegistry, load_skills, SEED_PATH
 from groundloop.core.types import Signals
 from groundloop.engines.atlas.embed import StubEmbedder
 from groundloop.skills.ctx import SkillCtx

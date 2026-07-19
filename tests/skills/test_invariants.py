@@ -8,7 +8,7 @@ from groundloop.adapters.fix.model_patch import ModelPatchEngine
 from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.adapters.mock.jira import MockJira
 from groundloop.adapters.mock.model import CannedModel
-from groundloop.adapters.skills.mock import MockSkillRegistry, load_skills, SEED_PATH
+from groundloop.skills.adapters.mock import MockSkillRegistry, load_skills, SEED_PATH
 from groundloop.adapters.estate import GitFixtureEstate
 from groundloop.core.types import RepoRef
 from groundloop.eval.arms import build_arms

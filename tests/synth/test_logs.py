@@ -3,7 +3,7 @@ and the crash-class registry must be able to fire EACH of the 12 dev-experience 
 import pytest
 
 from groundloop.adapters.index.atlas import AtlasIndex
-from groundloop.adapters.skills.mock import MockSkillRegistry
+from groundloop.skills.adapters.mock import MockSkillRegistry
 from groundloop.core.types import LogAttachment, RepoRef, Ticket
 from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
 from groundloop.engines.atlas.store import Store

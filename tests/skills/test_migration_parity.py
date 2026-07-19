@@ -5,8 +5,8 @@ transform + documents the contract. The negative control proves the assertion ca
 import dataclasses
 from pathlib import Path
 
-from groundloop.adapters.skills.migrate import migrate_markdown_skills
-from groundloop.adapters.skills.mock import MockSkillRegistry, load_skills
+from groundloop.skills.adapters.migrate import migrate_markdown_skills
+from groundloop.skills.adapters.mock import MockSkillRegistry, load_skills
 from groundloop.skills.predicate import compile_predicate
 from tests.fixtures.skills.panel import build_panel
 

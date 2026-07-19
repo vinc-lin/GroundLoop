@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from groundloop.adapters.skills.migrate import migrate_markdown_skills, triggers_to_spec
+from groundloop.skills.adapters.migrate import migrate_markdown_skills, triggers_to_spec
 
 MD = Path(__file__).parent.parent / "fixtures" / "skills" / "md"
 
@@ -26,7 +26,7 @@ def test_migrate_markdown_produces_skills():
 
 def test_unterminated_front_matter_raises_clean_valueerror():
     import pytest
-    from groundloop.adapters.skills.migrate import _parse_front_matter
+    from groundloop.skills.adapters.migrate import _parse_front_matter
     with pytest.raises(ValueError):                     # opening --- but no closing --- (no bare StopIteration)
         _parse_front_matter("---\nid: x\ntriggers: jni-handle\nno closing fence\nbody")
 

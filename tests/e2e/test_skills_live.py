@@ -10,7 +10,7 @@ _GATE = bool(os.environ.get("KLOOP_EMBED_API_KEY", "").strip())
 
 @pytest.mark.skipif(not _GATE, reason="KLOOP_EMBED_API_KEY not set — live KB rerank skipped")
 def test_live_bge_m3_rerank_returns_capped_ordered_skills():
-    from groundloop.adapters.skills.mock import MockSkillRegistry
+    from groundloop.skills.adapters.mock import MockSkillRegistry
     from groundloop.engines.atlas.embed import GatewayEmbedder
     from groundloop.config.settings import Settings
     from groundloop.core.types import Signals
