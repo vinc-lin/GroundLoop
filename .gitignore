@@ -7,3 +7,6 @@ __pycache__/
 # local environment (secrets / machine paths) — never commit
 .env
 .env.local
+
+# run artifacts written into the authored corpus dirs by MockJira/MockGerrit during gloop run
+groundloop/mine/data/authored/**/ledger.jsonl
