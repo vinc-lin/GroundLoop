@@ -3,7 +3,7 @@ Cloned from GatewayJudge's httpx/cost pattern. Kept OUT of adapters/mock/ (the h
 CannedModel stays the Type-1 substitute. Live -> Type-2/gated (docs §6.1)."""
 from __future__ import annotations
 
-from groundloop.eval.cost import cost_of
+from groundloop.adapters.model.cost import cost_of
 
 
 class GatewayModel:
