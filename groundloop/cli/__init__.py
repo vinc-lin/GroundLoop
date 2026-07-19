@@ -6,7 +6,6 @@ from groundloop.adapters.mock.jira import MockJira
 from groundloop.adapters.mock.gerrit import MockGerrit
 from groundloop.adapters.mock.model import CannedModel
 from groundloop.adapters.estate import MockEstate
-from groundloop.adapters.index.labs.simple import TokenIndex
 from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.adapters.fix.canned import CannedFixEngine
 from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
@@ -1475,6 +1474,7 @@ def main(argv: list[str] | None = None) -> int:
                 localize_reranker = _build_rerank_localize(index, args, emb, pool_index=cascade)
                 index = SplitIndex(index, localize_reranker)
         else:
+            from groundloop.adapters.index.labs.simple import TokenIndex
             index, match_arm = TokenIndex(args.index), "flood"   # M0 stub is baseline membership, not component
         issues = MockJira(args.dataset)
         if args.case:  # single-case: hermetic demo path (canned fixer + MockEstate); production uses batch --out
