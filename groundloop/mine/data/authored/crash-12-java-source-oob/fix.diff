@@ -1,0 +1,12 @@
+--- a/libraries/common/src/main/java/androidx/media3/common/util/ParsableByteArray.java
++++ b/libraries/common/src/main/java/androidx/media3/common/util/ParsableByteArray.java
+@@ -351,6 +351,9 @@
+   /** Reads the next byte as an unsigned value. */
+   public int readUnsignedByte() {
+     maybeAssertAtLeastBytesLeftForLegacyMethod(1);
++    if (bytesLeft() < 1) {
++      throw new IndexOutOfBoundsException("position=" + position + ", limit=" + limit);
++    }
+     return (data[position++] & 0xFF);
+   }
+ 

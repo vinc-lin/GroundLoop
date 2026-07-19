@@ -1,0 +1,31 @@
+--------- beginning of crash
+07-19 22:07:53.114  4821  4903 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000007cb0a41000 in tid 4903 (audiocap-pump), pid 4821 (com.example.dashcam)
+07-19 22:07:53.201  4960  4960 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+07-19 22:07:53.201  4960  4960 F DEBUG   : Build fingerprint: 'Automotive/car_x86_64/emu_car_x86_64:14/UP1A.231005.007/11165595:userdebug/dev-keys'
+07-19 22:07:53.201  4960  4960 F DEBUG   : Revision: '0'
+07-19 22:07:53.201  4960  4960 F DEBUG   : ABI: 'arm64'
+07-19 22:07:53.201  4960  4960 F DEBUG   : Timestamp: 2026-07-19 22:07:53.180559871+0000
+07-19 22:07:53.201  4960  4960 F DEBUG   : Process uptime: 41s
+07-19 22:07:53.201  4960  4960 F DEBUG   : Cmdline: com.example.dashcam
+07-19 22:07:53.201  4960  4960 F DEBUG   : pid: 4821, tid: 4903, name: audiocap-pump  >>> com.example.dashcam <<<
+07-19 22:07:53.201  4960  4960 F DEBUG   : uid: 10188
+07-19 22:07:53.201  4960  4960 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000007cb0a41000
+07-19 22:07:53.202  4960  4960 F DEBUG   :     x0  0000007c9c0a3040  x1  0000007cb0a41000  x2  0000000000000c00  x3  0000000000000300
+07-19 22:07:53.202  4960  4960 F DEBUG   :     x4  0000007c9c0a3040  x5  0000000000000c00  x6  0000000000010000  x7  0000000000000008
+07-19 22:07:53.202  4960  4960 F DEBUG   :     x8  0000007cb09e1000  x9  0000000000060000  x10 00000000000000c0  x11 0000000000000004
+07-19 22:07:53.202  4960  4960 F DEBUG   :     x19 0000007c9c0a2e80  x20 00000000000005c0  x21 0000007c9c0a3040  x22 0000007c9dd11a40
+07-19 22:07:53.202  4960  4960 F DEBUG   :     sp  0000007c9e7f5a90  lr  0000007c8b3120e8  pc  0000007c8b312110
+07-19 22:07:53.202  4960  4960 F DEBUG   :
+07-19 22:07:53.202  4960  4960 F DEBUG   : backtrace:
+07-19 22:07:53.202  4960  4960 F DEBUG   :       #00 pc 0000000000112110  /data/app/~~5rG0mQ8w==/com.example.dashcam-Lm2Qd9==/lib/arm64/libaudiocapture.so (FifoBuffer::read(void*, int)+92) (BuildId: a7c41e93d5b208f6)
+07-19 22:07:53.202  4960  4960 F DEBUG   :       #01 pc 0000000000113864  /data/app/~~5rG0mQ8w==/com.example.dashcam-Lm2Qd9==/lib/arm64/libaudiocapture.so (AudioStreamBuffered::transfer(void*, void const*, int, long long)+300) (BuildId: a7c41e93d5b208f6)
+07-19 22:07:53.202  4960  4960 F DEBUG   :       #02 pc 0000000000113a1c  /data/app/~~5rG0mQ8w==/com.example.dashcam-Lm2Qd9==/lib/arm64/libaudiocapture.so (AudioStreamBuffered::read(void*, int, long long)+120) (BuildId: a7c41e93d5b208f6)
+07-19 22:07:53.203  4960  4960 F DEBUG   :       #03 pc 00000000000d4f70  /data/app/~~5rG0mQ8w==/com.example.dashcam-Lm2Qd9==/lib/arm64/libaudiocapture.so (dashcam::AudioCapturePump::drainLoop()+240) (BuildId: a7c41e93d5b208f6)
+07-19 22:07:53.203  4960  4960 F DEBUG   :       #04 pc 00000000000d51b8  /data/app/~~5rG0mQ8w==/com.example.dashcam-Lm2Qd9==/lib/arm64/libaudiocapture.so (dashcam::AudioCapturePump::threadEntry(void*)+40) (BuildId: a7c41e93d5b208f6)
+07-19 22:07:53.203  4960  4960 F DEBUG   :       #05 pc 0000000000089e34  /system/lib64/libc.so (__pthread_start(void*)+208)
+07-19 22:07:53.203  4960  4960 F DEBUG   :       #06 pc 000000000002a4dc  /system/lib64/libc.so (__start_thread(void*)+64)
+07-19 22:07:53.203  4960  4960 F DEBUG   :
+07-19 22:07:53.360  4960  4960 F DEBUG   : Note: multiple potential causes for this crash were detected, listing them in decreasing order of likelihood.
+07-19 22:07:53.360  4960  4960 F DEBUG   : Cause: read past the end of a heap-allocated buffer
+07-19 22:07:53.690  1042  1042 W ActivityManager: Force finishing activity com.example.dashcam/.CaptureService
+07-19 22:07:53.905  1042  4980 I libc    : Requested dump for tid 4903 (audiocap-pump)

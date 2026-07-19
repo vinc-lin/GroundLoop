@@ -1,0 +1,23 @@
+--- a/library/src/main/jni/cge/filters/cgeDataParsingEngine.cpp
++++ b/library/src/main/jni/cge/filters/cgeDataParsingEngine.cpp
+@@ -40,15 +40,16 @@
+     {
+         while (i < n && pstr[i] != '\0' && pstr[i] != '(')
+             ++i;
+-        if (pstr[i] != '(') break;
++        if (i >= n || pstr[i] != '(') break;
+         p = pstr + i + 1;
+-        if (sscanf(p, "%d%*c%d", &a, &b) == 2)
++        if (p < pstr + n && sscanf(p, "%d%*c%d", &a, &b) == 2)
+         {
+-            vecPnts.push_back(CGECurveTexFilter::makeCurvePoint(a / 255.0f, b / 255.0f));
++            if (a >= 0 && a <= 255 && b >= 0 && b <= 255)
++                vecPnts.push_back(CGECurveTexFilter::makeCurvePoint(a / 255.0f, b / 255.0f));
+         }
+         while (i < n && pstr[i] != '\0' && pstr[i] != ')')
+             ++i;
+-        if (pstr[i] != ')') break;
++        if (i >= n || pstr[i] != ')') break;
+         ++i;
+     }
+ }

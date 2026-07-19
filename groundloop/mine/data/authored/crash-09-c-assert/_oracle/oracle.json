@@ -1,0 +1,9 @@
+{
+  "owning_repo": "dlt-daemon",
+  "expected_files": ["src/system/dlt-system-filetransfer.c"],
+  "required_apis": ["unique_name"],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "b84dbc0d1ab35f686dd225956d33c003b5917ab6",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

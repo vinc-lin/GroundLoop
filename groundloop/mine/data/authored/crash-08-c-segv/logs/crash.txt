@@ -1,0 +1,34 @@
+--------- beginning of crash
+07-19 21:14:33.882  1442  1487 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000007b1c0003a1 in tid 1487 (logstore-wrk), pid 1442 (com.example.app)
+07-19 21:14:34.021   612   612 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+07-19 21:14:34.021   612   612 F DEBUG   : Build fingerprint: 'ivi-connect/car_x_arm64/car_x:14/UP1A.231005.007/2026.06:userdebug/release-keys'
+07-19 21:14:34.021   612   612 F DEBUG   : Revision: '0'
+07-19 21:14:34.021   612   612 F DEBUG   : ABI: 'arm64'
+07-19 21:14:34.021   612   612 F DEBUG   : Timestamp: 2026-07-19 21:14:33.905+0000
+07-19 21:14:34.021   612   612 F DEBUG   : Process uptime: 3184s
+07-19 21:14:34.021   612   612 F DEBUG   : Cmdline: com.example.app
+07-19 21:14:34.021   612   612 F DEBUG   : pid: 1442, tid: 1487, name: logstore-wrk  >>> com.example.app <<<
+07-19 21:14:34.021   612   612 F DEBUG   : uid: 10214
+07-19 21:14:34.021   612   612 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000007b1c0003a1
+07-19 21:14:34.021   612   612 F DEBUG   : Cause: out-of-bounds read while deriving the rotation index from a stored log file name
+07-19 21:14:34.021   612   612 F DEBUG   :     x0  0000007b1c000381  x1  0000000000000021  x2  0000000000000000  x3  00000000000003a1
+07-19 21:14:34.021   612   612 F DEBUG   :     x4  0000007b1c0003a1  x5  0000000000000021  x6  0000000000000000  x7  00000000000000ff
+07-19 21:14:34.021   612   612 F DEBUG   :     x8  000000000000000a  x9  0000007b2044c000  x10 0000000000000001  x11 0000000000000000
+07-19 21:14:34.021   612   612 F DEBUG   :     x12 0000000000000018  x13 ffffffffffffffff  x14 0000000000000000  x15 00000000ebad6a89
+07-19 21:14:34.021   612   612 F DEBUG   :     x28 0000007b3ad2ca10  fp  0000007b3ad2c930
+07-19 21:14:34.021   612   612 F DEBUG   :     sp  0000007b3ad2c8f0  lr  0000007b1f04a21c  pc  0000007b1f04b3a0
+07-19 21:14:34.021   612   612 F DEBUG   :
+07-19 21:14:34.021   612   612 F DEBUG   : backtrace:
+07-19 21:14:34.021   612   612 F DEBUG   :       #00 pc 000000000004b3a0  /data/app/~~kQ9vTn5r/com.example.app-1/lib/arm64/libdiaglog.so (dlt_logstorage_get_idx_of_log_file+96) (BuildId: 3f2a9c1d5e7b40a2)
+07-19 21:14:34.021   612   612 F DEBUG   :       #01 pc 000000000004a21c  /data/app/~~kQ9vTn5r/com.example.app-1/lib/arm64/libdiaglog.so (dlt_logstorage_storage_dir_info+404) (BuildId: 3f2a9c1d5e7b40a2)
+07-19 21:14:34.021   612   612 F DEBUG   :       #02 pc 0000000000049114  /data/app/~~kQ9vTn5r/com.example.app-1/lib/arm64/libdiaglog.so (dlt_logstorage_open_log_file+308) (BuildId: 3f2a9c1d5e7b40a2)
+07-19 21:14:34.021   612   612 F DEBUG   :       #03 pc 0000000000047980  /data/app/~~kQ9vTn5r/com.example.app-1/lib/arm64/libdiaglog.so (dlt_logstorage_prepare_on_msg+180) (BuildId: 3f2a9c1d5e7b40a2)
+07-19 21:14:34.021   612   612 F DEBUG   :       #04 pc 0000000000031244  /data/app/~~kQ9vTn5r/com.example.app-1/lib/arm64/libtelemetry.so (com::example::app::TelemetryWriter::flush(bool)+120) (BuildId: a17c04ee9b3320f8)
+07-19 21:14:34.021   612   612 F DEBUG   :       #05 pc 00000000000b34e8  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+264) (BuildId: c9b0f7e2a1d84463)
+07-19 21:14:34.021   612   612 F DEBUG   :       #06 pc 000000000005bd9c  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+64) (BuildId: c9b0f7e2a1d84463)
+
+logcat (preceding the fault):
+07-19 21:14:33.870  1442  1487 I diaglog : offline log-storage: rotation triggered, scanning storage dir for existing segments
+07-19 21:14:33.874  1442  1487 W diaglog : storage dir contains an unexpected short entry 'seg' (base name 'telemetry-segment'), does not match the configured pattern
+07-19 21:14:33.878  1442  1487 E diaglog : dlt_logstorage_get_idx_of_log_file: computed index pointer runs past end of file name buffer
+07-19 21:14:33.880  1442  1487 F diaglog : offline log-storage index derivation faulted on a truncated segment name; aborting rotation

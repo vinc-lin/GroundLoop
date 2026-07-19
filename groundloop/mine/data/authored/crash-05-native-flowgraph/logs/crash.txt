@@ -1,0 +1,38 @@
+--------- beginning of crash
+07-20 09:14:52.107  4021  4088 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000000000000048 in tid 4088 (audiofx-render), pid 4021 (com.northbridge.audiofx)
+07-20 09:14:52.201  4140  4140 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+07-20 09:14:52.201  4140  4140 F DEBUG   : Build fingerprint: 'Automotive/car_x86_64/emu_car_x86_64:14/UP1A.231005.007/11165595:userdebug/dev-keys'
+07-20 09:14:52.201  4140  4140 F DEBUG   : Revision: '0'
+07-20 09:14:52.201  4140  4140 F DEBUG   : ABI: 'arm64'
+07-20 09:14:52.201  4140  4140 F DEBUG   : Timestamp: 2026-07-20 09:14:52.150987654+0000
+07-20 09:14:52.201  4140  4140 F DEBUG   : Process uptime: 41s
+07-20 09:14:52.201  4140  4140 F DEBUG   : Cmdline: com.northbridge.audiofx
+07-20 09:14:52.201  4140  4140 F DEBUG   : pid: 4021, tid: 4088, name: audiofx-render  >>> com.northbridge.audiofx <<<
+07-20 09:14:52.201  4140  4140 F DEBUG   : uid: 10188
+07-20 09:14:52.201  4140  4140 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000000000000048
+07-20 09:14:52.202  4140  4140 F DEBUG   :     x0  0000000000000000  x1  0000007b41c02e40  x2  0000000000000006  x3  0000000000000004
+07-20 09:14:52.202  4140  4140 F DEBUG   :     x4  0000000000000048  x5  0000007b41c02e40  x6  0000000000000006  x7  0000000000000080
+07-20 09:14:52.202  4140  4140 F DEBUG   :     x8  0000000000000048  x9  0000007b41c00000  x10 0000000000000006  x11 0000000000000002
+07-20 09:14:52.202  4140  4140 F DEBUG   :     x19 0000007b41c02e40  x20 0000000000000005  x21 0000000000000006  x22 0000007b52d1a3c0
+07-20 09:14:52.202  4140  4140 F DEBUG   :     x23 0000007b41c03000  x24 0000000000000002  x25 0000000000000006  x26 0000007b41c02e40
+07-20 09:14:52.202  4140  4140 F DEBUG   :     sp  0000007b4e7f9a70  lr  0000007b3c1b8d10  pc  0000007b3c1b8d34
+07-20 09:14:52.202  4140  4140 F DEBUG   :
+07-20 09:14:52.202  4140  4140 F DEBUG   : backtrace:
+07-20 09:14:52.202  4140  4140 F DEBUG   :       #00 pc 00000000000b8d34  /data/app/~~kR3vN1qA==/com.northbridge.audiofx-8Ty0Wb==/lib/arm64/libaudiofx.so (MultiToManyConverter::onProcess(int)+52) (BuildId: 9d4e0a17c6b28f5a)
+07-20 09:14:52.202  4140  4140 F DEBUG   :       #01 pc 00000000000b6420  /data/app/~~kR3vN1qA==/com.northbridge.audiofx-8Ty0Wb==/lib/arm64/libaudiofx.so (FlowGraphNode::pullData(long long, int)+96) (BuildId: 9d4e0a17c6b28f5a)
+07-20 09:14:52.202  4140  4140 F DEBUG   :       #02 pc 00000000000b5f0c  /data/app/~~kR3vN1qA==/com.northbridge.audiofx-8Ty0Wb==/lib/arm64/libaudiofx.so (SinkFloat::read(long long, void*, int)+140) (BuildId: 9d4e0a17c6b28f5a)
+07-20 09:14:52.202  4140  4140 F DEBUG   :       #03 pc 00000000000b1c88  /data/app/~~kR3vN1qA==/com.northbridge.audiofx-8Ty0Wb==/lib/arm64/libaudiofx.so (DataConversionFlowGraph::write(void const*, int)+108) (BuildId: 9d4e0a17c6b28f5a)
+07-20 09:14:52.203  4140  4140 F DEBUG   :       #04 pc 00000000000ad5b0  /data/app/~~kR3vN1qA==/com.northbridge.audiofx-8Ty0Wb==/lib/arm64/libaudiofx.so (FilterAudioStream::write(void const*, int, long long)+176) (BuildId: 9d4e0a17c6b28f5a)
+07-20 09:14:52.203  4140  4140 F DEBUG   :       #05 pc 00000000000a1178  /data/app/~~kR3vN1qA==/com.northbridge.audiofx-8Ty0Wb==/lib/arm64/libaudiofx.so (AudioStreamAAudio::callbackLoop()+352) (BuildId: 9d4e0a17c6b28f5a)
+07-20 09:14:52.203  4140  4140 F DEBUG   :       #06 pc 0000000000051f30  /system/lib64/libaaudio.so (aaudio::AudioStreamInternal::callbackLoop()+632)
+07-20 09:14:52.203  4140  4140 F DEBUG   :       #07 pc 0000000000089e34  /system/lib64/libc.so (__pthread_start(void*)+208)
+07-20 09:14:52.203  4140  4140 F DEBUG   :       #08 pc 000000000002a4dc  /system/lib64/libc.so (__start_thread(void*)+64)
+07-20 09:14:52.203  4140  4140 F DEBUG   :
+07-20 09:14:52.400  4140  4140 F DEBUG   : Note: multiple potential causes for this crash were detected, listing them in decreasing order of likelihood.
+07-20 09:14:52.400  4140  4140 F DEBUG   : Cause: null pointer dereference
+07-20 09:14:52.480  4140  4140 F DEBUG   :
+07-20 09:14:52.480  4140  4140 F DEBUG   : Abort message: (none)
+07-20 09:14:52.620  4140  4140 F DEBUG   :       #00 pc 0000000000089b18  /system/lib64/libc.so (abort+164)
+07-20 09:14:52.620  4140  4140 F DEBUG   :       #01 pc 000000000005c9a0  /system/lib64/libc.so (__libc_init+108)
+07-20 09:14:52.900  1055  1055 W ActivityManager: Force finishing activity com.northbridge.audiofx/.RenderActivity
+07-20 09:14:53.140  1055  4160 I libc    : Requested dump for tid 4088 (audiofx-render)

@@ -1,0 +1,17 @@
+--- a/library/src/main/jni/cge/common/cgeImageFilter.cpp
++++ b/library/src/main/jni/cge/common/cgeImageFilter.cpp
+@@ -166,7 +166,13 @@ bool CGEImageFilterInterface::initShadersFromString(const char* vsh, const char*
+ 
+ void CGEImageFilterInterface::render2Texture(CGEImageHandlerInterface* handler, GLuint srcTexture, GLuint vertexBufferID)
+ {
+-    handler->setAsTarget();
++    if (handler == nullptr)
++    {
++        CGE_LOG_ERROR("render2Texture: null image handler, skipping render pass\n");
++        return;
++    }
++
++    handler->setAsTarget();
+     m_program.bind();
+ 
+     glEnableVertexAttribArray(0);

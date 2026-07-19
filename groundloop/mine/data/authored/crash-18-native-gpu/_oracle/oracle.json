@@ -1,0 +1,14 @@
+{
+  "owning_repo": "android-gpuimage-plus",
+  "expected_files": [
+    "library/src/main/jni/cge/common/cgeImageFilter.cpp"
+  ],
+  "required_apis": [
+    "CGEImageFilterInterface::render2Texture",
+    "setAsTarget"
+  ],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "a2807447e12b68ecca8ea085b89b14ef76a75f2c",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "crash-06-java-npe",
+  "summary": "NullPointerException in getVideoStreamIndex when opening the video quality selector",
+  "description": "Users report a hard crash the moment they tap the resolution/quality button on a video. The app dies with a java.lang.NullPointerException raised while ranking the available video streams: String.replaceAll is invoked on a null resolution value inside ListHelper.getVideoStreamIndex. It reproduces on certain streams whose extracted resolution string is missing (null) - the default-resolution lookup at ListHelper.getDefaultResolutionIndex walks every video stream and calls getResolution(), then immediately dereferences the result without a null guard. Attaching a logcat capture from a Pixel device; the fatal frame is ListHelper.java:590. Expected: a stream with a missing resolution should be skipped, not crash the player.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: main\nProcess: com.example.app, PID: 12043\njava.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.String java.lang.String.replaceAll(java.lang.String, java.lang.String)' on a null object reference\n\tat com.example.app.util.ListHelper.getVideoStreamIndex(ListHelper.java:590)\n\tat com.example.app.util.ListHelper.getDefaultResolutionIndex(ListHelper.java:439)\n\tat com.example.app.util.ListHelper.getDefaultResolutionWithDefaultFormat(ListHelper.java:644)\n\tat com.example.app.util.ListHelper.getDefaultResolutionIndex(ListHelper.java:85)\n\tat com.example.app.player.VideoPlayerUi.buildQualityMenu(VideoPlayerUi.java:412)\n\tat com.example.app.player.Player.initPlayback(Player.java:731)\n\tat android.os.Handler.handleCallback(Handler.java:938)\n\tat android.os.Handler.dispatchMessage(Handler.java:99)\n\tat android.os.Looper.loop(Looper.java:223)\n\tat android.app.ActivityThread.main(ActivityThread.java:7656)\n\tat java.lang.reflect.Method.invoke(Native Method)\n\tat com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:592)\n\tat com.android.internal.os.ZygoteInit.main(ZygoteInit.java:947)\n"
+    }
+  ]
+}

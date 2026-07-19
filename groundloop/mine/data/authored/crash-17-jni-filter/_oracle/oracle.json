@@ -1,0 +1,14 @@
+{
+  "owning_repo": "android-gpuimage-plus",
+  "expected_files": [
+    "library/src/main/jni/cge/filters/cgeDataParsingEngine.cpp"
+  ],
+  "required_apis": [
+    "tableParserHelper",
+    "makeCurvePoint"
+  ],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "a2807447e12b68ecca8ea085b89b14ef76a75f2c",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

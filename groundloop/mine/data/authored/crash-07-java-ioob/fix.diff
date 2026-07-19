@@ -1,0 +1,21 @@
+diff --git a/app/src/main/java/org/schabi/newpipe/util/ListHelper.java b/app/src/main/java/org/schabi/newpipe/util/ListHelper.java
+--- a/app/src/main/java/org/schabi/newpipe/util/ListHelper.java
++++ b/app/src/main/java/org/schabi/newpipe/util/ListHelper.java
+@@ -135,9 +135,15 @@ public final class ListHelper {
+         if (groupedAudioStreams == null || groupedAudioStreams.isEmpty()) {
+             return -1;
+         }
+
+-        final Comparator<AudioStream> cmp = getAudioTrackComparator(context);
+-        final List<AudioStream> highestRanked = groupedAudioStreams.stream()
++        final List<List<AudioStream>> nonEmptyGroups = groupedAudioStreams.stream()
++                .filter(group -> !group.isEmpty())
++                .collect(Collectors.toList());
++        if (nonEmptyGroups.isEmpty()) {
++            return -1;
++        }
++        final Comparator<AudioStream> cmp = getAudioTrackComparator(context);
++        final List<AudioStream> highestRanked = nonEmptyGroups.stream()
+                 .max((o1, o2) -> cmp.compare(o1.get(0), o2.get(0)))
+                 .orElse(null);
+         return groupedAudioStreams.indexOf(highestRanked);

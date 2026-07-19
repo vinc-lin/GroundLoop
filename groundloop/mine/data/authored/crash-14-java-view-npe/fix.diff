@@ -1,0 +1,14 @@
+--- a/cameraview/src/main/java/com/otaliastudios/cameraview/overlay/OverlayLayout.java
++++ b/cameraview/src/main/java/com/otaliastudios/cameraview/overlay/OverlayLayout.java
+@@ -95,8 +95,9 @@ public class OverlayLayout extends FrameLayout implements Overlay {
+     @Override
+     public boolean drawsOn(@NonNull Target target) {
+         for (int i = 0; i < getChildCount(); i++) {
+-            LayoutParams params = (LayoutParams) getChildAt(i).getLayoutParams();
+-            if (params.drawsOn(target)) return true;
++            ViewGroup.LayoutParams lp = getChildAt(i).getLayoutParams();
++            if (!(lp instanceof LayoutParams)) continue;
++            if (((LayoutParams) lp).drawsOn(target)) return true;
+         }
+         return false;
+     }

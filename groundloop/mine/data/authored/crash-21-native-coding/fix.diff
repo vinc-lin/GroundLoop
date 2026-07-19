@@ -1,0 +1,21 @@
+--- a/libs/kml/serdes_gpx.cpp
++++ b/libs/kml/serdes_gpx.cpp
+@@ -107,8 +107,16 @@ bool GpxParser::MakeValid()
+ bool GpxParser::IsValidCoordinatesPosition() const
+ {
+   std::string const & lastTag = GetTagFromEnd(0);
+-  return lastTag == gpx::kWpt || (lastTag == gpx::kTrkPt && GetTagFromEnd(1) == gpx::kTrkSeg) ||
+-         (lastTag == gpx::kRtePt && GetTagFromEnd(1) == gpx::kRte);
++  if (lastTag == gpx::kWpt)
++    return true;
++  // A malformed GPX can present a <trkpt>/<rtept> without its expected parent
++  // (<trkseg>/<rte>). With fewer than two tags on the stack the GetTagFromEnd(1)
++  // lookup below evaluates m_tags[m_tags.size() - 2], underflowing size_t and
++  // reading past the vector, which crashes the native track-import path.
++  if (m_tags.size() < 2)
++    return false;
++  return (lastTag == gpx::kTrkPt && GetTagFromEnd(1) == gpx::kTrkSeg) ||
++         (lastTag == gpx::kRtePt && GetTagFromEnd(1) == gpx::kRte);
+ }
+
+ void GpxParser::AddAttr(std::string_view attr, char const * value)

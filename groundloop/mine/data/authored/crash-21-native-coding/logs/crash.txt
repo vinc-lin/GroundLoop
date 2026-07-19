@@ -1,0 +1,41 @@
+--------- beginning of crash
+07-19 09:14:52.113  4821  4901 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x000000749f7ffff8 in tid 4901 (bg-bookmarks), pid 4821 (com.example.trailnav)
+07-19 09:14:52.220  4930  4930 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+07-19 09:14:52.220  4930  4930 F DEBUG   : Build fingerprint: 'Automotive/car_x86_64/emu_car_x86_64:14/UP1A.231005.007/11165595:userdebug/dev-keys'
+07-19 09:14:52.220  4930  4930 F DEBUG   : Revision: '0'
+07-19 09:14:52.220  4930  4930 F DEBUG   : ABI: 'arm64'
+07-19 09:14:52.220  4930  4930 F DEBUG   : Timestamp: 2026-07-19 09:14:52.100987654+0000
+07-19 09:14:52.220  4930  4930 F DEBUG   : Process uptime: 41s
+07-19 09:14:52.220  4930  4930 F DEBUG   : Cmdline: com.example.trailnav
+07-19 09:14:52.220  4930  4930 F DEBUG   : pid: 4821, tid: 4901, name: bg-bookmarks  >>> com.example.trailnav <<<
+07-19 09:14:52.220  4930  4930 F DEBUG   : uid: 10148
+07-19 09:14:52.220  4930  4930 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x000000749f7ffff8
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x0  0000007498d00a20  x1  ffffffffffffffff  x2  0000000000000000  x3  0000000000000018
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x4  0000000000000018  x5  0000000000000001  x6  0000000000000000  x7  0000000000000001
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x8  000000749f7ffff8  x9  0000000000000018  x10 0000000000000000  x11 0000000000000001
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x12 0000000000000001  x13 0000000000000000  x14 0000000000000000  x15 000000000000000f
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x20 0000007498d00a20  x21 0000000000000001  x22 0000007498d00a00  x23 0000007499b31c40
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x24 0000007498d00a00  x25 0000000000000000  x26 0000007499b31d90  x27 0000000000000001
+07-19 09:14:52.221  4930  4930 F DEBUG   :     x28 0000007499b31cf0  x29 0000007499b31ba0
+07-19 09:14:52.221  4930  4930 F DEBUG   :     sp  0000007499b31b70  lr  0000007490c15d38  pc  0000007490c15d50
+07-19 09:14:52.221  4930  4930 F DEBUG   :
+07-19 09:14:52.221  4930  4930 F DEBUG   : backtrace:
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #00 pc 0000000000315d50  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (kml::gpx::GpxParser::GetTagFromEnd(unsigned long) const+44) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #01 pc 0000000000316128  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (kml::gpx::GpxParser::IsValidCoordinatesPosition() const+120) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #02 pc 00000000003163f4  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (kml::gpx::GpxParser::AddAttr(std::basic_string_view<char, std::char_traits<char>>, char const*)+108) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #03 pc 0000000000318a70  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (XmlParser<kml::gpx::GpxParser>::OnStartElement(char const*, char const**)+188) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #04 pc 0000000000318b58  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (XmlParser<kml::gpx::GpxParser>::StartElementHandler(void*, char const*, char const**)+64) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #05 pc 00000000004a1c30  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (doContent(XML_ParserStruct*, int, encoding const*, char const*, char const*, char const**, unsigned char, XML_Bool)+1360) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #06 pc 00000000004a04a8  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (XML_ParseBuffer+184) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #07 pc 0000000000317d1c  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (XMLSequenceParser<SequenceAdapter<NonOwningReaderSource>, kml::gpx::GpxParser>::Read()+220) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #08 pc 0000000000313b6c  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (kml::DeserializerGpx::Deserialize<MemReader>(MemReader const&)+340) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #09 pc 00000000002f8940  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (BookmarkManager::LoadBookmarkRoutine(std::string const&)+456) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #10 pc 00000000002fabb8  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (std::__function::__func<BookmarkManager::LoadBookmarks()::$_0, std::allocator<BookmarkManager::LoadBookmarks()::$_0>, void ()>::operator()()+72) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #11 pc 00000000002c5e40  /data/app/~~kP2mVq9x==/com.example.trailnav-a1B2c3==/lib/arm64/libtrackio.so (base::thread_pool::ThreadPool::ProcessTasks()+192) (BuildId: 8c4e2a1f9b7d6033)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #12 pc 00000000000b5e2c  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+208) (BuildId: a3f9c1d0b2e84f57)
+07-19 09:14:52.221  4930  4930 F DEBUG   :       #13 pc 00000000000536dc  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread(void*)+64) (BuildId: a3f9c1d0b2e84f57)
+07-19 09:14:52.221  4930  4930 F DEBUG   :
+07-19 09:14:52.402  4930  4930 F DEBUG   : Note: multiple potential causes for this crash were detected, listing them in decreasing order of likelihood.
+07-19 09:14:52.402  4930  4930 F DEBUG   : Cause: [libc] Fatal signal 11 (SIGSEGV) reading out-of-bounds address 0x000000749f7ffff8
+07-19 09:14:52.610  1039  1039 W ActivityManager: Force finishing activity com.example.trailnav/.MainActivity
+07-19 09:14:52.788  1039  4955 I libc    : Requested dump for tid 4901 (bg-bookmarks)

@@ -1,0 +1,15 @@
+{
+  "id": "crash-10-java-ise",
+  "summary": "App force-closes with IllegalStateException while buffering some AV1 clips",
+  "description": "Steps to reproduce: open a short user-uploaded AV1 clip that was re-muxed by our upload pipeline, then scrub forward once so the player re-buffers. The playback thread dies instead of resuming and the app force-closes. From the logcat, the extractor is decoding a variable-length LEB128 field out of the sample metadata and ParsableByteArray.readUnsignedLeb128ToLong runs off the end of the buffer, throwing 'Attempting to read a byte over the limit.' It only reproduces on clips whose metadata got truncated during re-mux, so ordinary files are fine. Reproduced on a Pixel 6 (Android 14) every time with the attached sample. The parser should tolerate a short/corrupt varint instead of crashing the whole session.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: pool-7-thread-1\nProcess: com.example.app, PID: 9471\njava.lang.IllegalStateException: Attempting to read a byte over the limit.\n\tat com.example.app.container.util.ParsableByteArray.readUnsignedLeb128ToLong(ParsableByteArray.java:725)\n\tat com.example.app.container.util.ParsableByteArray.readUnsignedLeb128ToInt(ParsableByteArray.java:745)\n\tat com.example.app.container.extractor.ObuParser.parseObuHeader(ObuParser.java:118)\n\tat com.example.app.container.extractor.FragmentedMp4Extractor.readSample(FragmentedMp4Extractor.java:1042)\n\tat com.example.app.playback.ExtractingLoadable.load(ExtractingLoadable.java:216)\n\tat com.example.app.util.Loader$LoadTask.run(Loader.java:412)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)\n\tat java.lang.Thread.run(Thread.java:1012)\n"
+    }
+  ]
+}

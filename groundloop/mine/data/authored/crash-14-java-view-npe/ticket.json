@@ -1,0 +1,15 @@
+{
+  "id": "crash-14-java-view-npe",
+  "summary": "App force-closes with NullPointerException when the camera overlay layout is drawn",
+  "description": "Steps to reproduce: add a child view to the custom camera overlay via addView(...) programmatically without passing explicit layout params, then open the capture screen so the overlay is rendered on top of the live preview. The app force-closes on the very first frame instead of showing the overlay. It looks like the overlay walks its children and casts each child's layout params to its own params type, but a child added without params has null layout params, so the draw pass throws. Attaching the logcat FATAL EXCEPTION captured on a Pixel 6 (Android 14). Reproduces 100% of the time once a param-less child is attached to the overlay.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: main\nProcess: com.example.app, PID: 9284\njava.lang.NullPointerException: Attempt to invoke virtual method 'boolean com.example.app.overlay.OverlayLayout$LayoutParams.drawsOn(com.example.app.overlay.Overlay$Target)' on a null object reference\n\tat com.example.app.overlay.OverlayLayout.drawsOn(OverlayLayout.java:99)\n\tat com.example.app.overlay.OverlayLayout.draw(OverlayLayout.java:90)\n\tat android.view.View.updateDisplayListIfDirty(View.java:22128)\n\tat android.view.ViewGroup.recreateChildDisplayList(ViewGroup.java:4550)\n\tat android.view.ViewGroup.dispatchGetDisplayList(ViewGroup.java:4523)\n\tat android.view.View.updateDisplayListIfDirty(View.java:22083)\n\tat android.view.ThreadedRenderer.updateViewTreeDisplayList(ThreadedRenderer.java:670)\n\tat android.view.ThreadedRenderer.updateRootDisplayList(ThreadedRenderer.java:676)\n\tat android.view.ThreadedRenderer.draw(ThreadedRenderer.java:784)\n\tat android.view.ViewRootImpl.draw(ViewRootImpl.java:4536)\n\tat android.view.ViewRootImpl.performDraw(ViewRootImpl.java:4249)\n\tat android.view.ViewRootImpl.performTraversals(ViewRootImpl.java:3617)\n\tat android.view.ViewRootImpl.doTraversal(ViewRootImpl.java:2287)\n\tat android.view.ViewRootImpl$TraversalRunnable.run(ViewRootImpl.java:9081)\n\tat android.view.Choreographer$CallbackRecord.run(Choreographer.java:1360)\n\tat android.view.Choreographer.doCallbacks(Choreographer.java:1170)\n\tat android.view.Choreographer.doFrame(Choreographer.java:1108)\n\tat android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1343)\n\tat android.os.Handler.handleCallback(Handler.java:958)\n\tat android.os.Handler.dispatchMessage(Handler.java:99)\n\tat android.os.Looper.loopOnce(Looper.java:205)\n\tat android.os.Looper.loop(Looper.java:294)\n\tat android.app.ActivityThread.main(ActivityThread.java:8177)\n\tat java.lang.reflect.Method.invoke(Native Method)\n\tat com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)\n\tat com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)\n"
+    }
+  ]
+}

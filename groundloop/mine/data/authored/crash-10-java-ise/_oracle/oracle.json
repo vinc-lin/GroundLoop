@@ -1,0 +1,9 @@
+{
+  "owning_repo": "media3",
+  "expected_files": ["libraries/common/src/main/java/androidx/media3/common/util/ParsableByteArray.java"],
+  "required_apis": ["readUnsignedLeb128ToLong", "readUnsignedByte"],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "5fb306449733dd71595700c1227ad6087578c559",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

@@ -1,0 +1,15 @@
+FATAL EXCEPTION: ExoPlayerInternal:Playback
+Process: com.example.ivi.player, PID: 9271
+java.lang.ArrayIndexOutOfBoundsException: Index 8192 out of bounds for length 8192
+	at com.example.ivi.player.core.util.ParsableByteArray.readUnsignedByte(ParsableByteArray.java:354)
+	at com.example.ivi.player.metadata.id3.Id3Decoder.decodeFrame(Id3Decoder.java:290)
+	at com.example.ivi.player.metadata.id3.Id3Decoder.decode(Id3Decoder.java:144)
+	at com.example.ivi.player.metadata.SimpleMetadataDecoder.decode(SimpleMetadataDecoder.java:44)
+	at com.example.ivi.player.metadata.MetadataRenderer.decodeMetadata(MetadataRenderer.java:245)
+	at com.example.ivi.player.metadata.MetadataRenderer.render(MetadataRenderer.java:196)
+	at com.example.ivi.player.core.ExoPlayerImplInternal.doSomeWork(ExoPlayerImplInternal.java:1043)
+	at com.example.ivi.player.core.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:611)
+	at android.os.Handler.dispatchMessage(Handler.java:99)
+	at android.os.Looper.loopOnce(Looper.java:205)
+	at android.os.Looper.loop(Looper.java:294)
+	at android.os.HandlerThread.run(HandlerThread.java:67)

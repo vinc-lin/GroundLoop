@@ -1,0 +1,16 @@
+diff --git a/OsmAnd/src/net/osmand/plus/render/TextRenderer.java b/OsmAnd/src/net/osmand/plus/render/TextRenderer.java
+index 8091644..0d9918c 100644
+--- a/OsmAnd/src/net/osmand/plus/render/TextRenderer.java
++++ b/OsmAnd/src/net/osmand/plus/render/TextRenderer.java
+@@ -195,7 +195,10 @@ public class TextRenderer {
+ 			TextDrawInfo text = rc.textToDraw.get(i);
+ 			if (text.text != null && text.text.length() > 0) {
+ 				if (preferredLocale.length() > 0) {
+-					text.text = TransliterationHelper.transliterate(text.text);
++					String translit = TransliterationHelper.transliterate(text.text);
++					if (translit != null) {
++						text.text = translit;
++					}
+ 				}
+ 				updateTextPaint(text, rc);
+ 				// align center y

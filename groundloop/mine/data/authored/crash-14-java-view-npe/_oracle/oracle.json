@@ -1,0 +1,9 @@
+{
+  "owning_repo": "cameraview",
+  "expected_files": ["cameraview/src/main/java/com/otaliastudios/cameraview/overlay/OverlayLayout.java"],
+  "required_apis": ["drawsOn"],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "b279ffaf57919b7dffccc8879a0cb1eeb542c1ca",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

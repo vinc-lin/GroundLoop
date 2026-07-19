@@ -1,0 +1,12 @@
+--- a/src/system/dlt-system-filetransfer.c
++++ b/src/system/dlt-system-filetransfer.c
+@@ -126,4 +126,8 @@ char *unique_name(char *src)
+-    MALLOC_ASSERT(ret);
++    if (ret == NULL) {
++        DLT_LOG(dltsystem, DLT_LOG_ERROR,
++                DLT_STRING("dlt-system-filetransfer, unique_name: allocation failed, skipping file"));
++        return (char *)NULL;
++    }
+     snprintf(ret, len, "%010" PRIu32 "%s", l, basename_f);
+     return ret;
+ }

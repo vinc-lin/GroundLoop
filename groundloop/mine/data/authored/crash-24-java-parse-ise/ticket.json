@@ -1,0 +1,15 @@
+{
+  "id": "crash-24-java-parse-ise",
+  "summary": "App force-closes with IllegalStateException when searching a place name on one downloaded offline map",
+  "description": "Steps to reproduce: download the offline vector map for one region, then use the global search box to type a street or POI name that resolves against that region. The search worker thread dies and the app force-closes instead of returning results. Other regions search fine, so it is specific to this one map file. From the logcat, while reading the POI name index the reader decodes the per-atom suffix dictionary and the very first dictionary entry is delta-encoded (it reuses a common prefix from the previous suffix), but there is no previous suffix yet, so SearchAlgorithms.nameIndexDecodeDictionarySuffix throws 'Delta-encoded suffix dictionary entry requires previous suffix'. It only reproduces on this region's file, whose download was interrupted and resumed once, so the name-index block looks truncated. Reproduced on a Pixel 6 (Android 14) every time from the saved copy. The decoder should tolerate a corrupt or truncated first suffix entry and fall back to a raw decode instead of crashing the whole search.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: main\nProcess: com.example.app, PID: 12734\njava.lang.IllegalStateException: Delta-encoded suffix dictionary entry requires previous suffix\n\tat com.example.app.search.util.SearchAlgorithms.nameIndexDecodeDictionarySuffix(SearchAlgorithms.java:228)\n\tat com.example.app.search.binary.BinaryMapPoiReaderAdapter.readPoiNameIndexData(BinaryMapPoiReaderAdapter.java:680)\n\tat com.example.app.search.binary.BinaryMapPoiReaderAdapter.readPoiNameIndex(BinaryMapPoiReaderAdapter.java:612)\n\tat com.example.app.search.binary.BinaryMapIndexReader.searchPoiByName(BinaryMapIndexReader.java:1893)\n\tat com.example.app.search.core.SearchCoreFactory$SearchAmenityByNameApi.search(SearchCoreFactory.java:1547)\n\tat com.example.app.search.SearchUICore$SearchResultCallback.publish(SearchUICore.java:388)\n\tat com.example.app.search.SearchUICore.searchInBackground(SearchUICore.java:512)\n\tat com.example.app.search.SearchUICore$3.run(SearchUICore.java:461)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)\n\tat java.lang.Thread.run(Thread.java:1012)\n"
+    }
+  ]
+}

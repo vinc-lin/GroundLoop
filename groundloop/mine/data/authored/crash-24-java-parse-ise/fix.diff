@@ -1,0 +1,13 @@
+--- a/OsmAnd-java/src/main/java/net/osmand/util/SearchAlgorithms.java
++++ b/OsmAnd-java/src/main/java/net/osmand/util/SearchAlgorithms.java
+@@ -226,5 +226,9 @@
+         if (markerCodePoint >= SUFFIX_DICT_MARKER_BASE && markerCodePoint <= SUFFIX_DICT_MARKER_MAX) {
+             if (previousSuffix == null) {
+-                throw new IllegalStateException("Delta-encoded suffix dictionary entry requires previous suffix");
++                // Corrupt or truncated dictionary: the first entry is delta-encoded but there is no
++                // previous suffix to borrow a prefix from. Decode the remaining bytes as a raw suffix
++                // instead of throwing and aborting the whole name-index read.
++                String fallbackRemainder = encodedSuffix.substring(Character.charCount(markerCodePoint));
++                return Normalizer.normalize(decodeRawSuffix(fallbackRemainder), Normalizer.Form.NFC);
+             }
+             int commonPrefixCodePointLength = markerCodePoint - SUFFIX_DICT_MARKER_BASE;

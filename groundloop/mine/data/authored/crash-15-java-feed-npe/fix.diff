@@ -1,0 +1,17 @@
+--- a/parser/feed/src/main/java/de/danoeh/antennapod/parser/feed/namespace/Itunes.java
++++ b/parser/feed/src/main/java/de/danoeh/antennapod/parser/feed/namespace/Itunes.java
+@@ -33,12 +33,10 @@
+ 
+             if (state.getCurrentItem() != null) {
+                 state.getCurrentItem().setImageUrl(url);
+-            } else {
++            } else if (state.getFeed() != null && !TextUtils.isEmpty(url)) {
+                 // this is the feed image
+                 // prefer to all other images
+-                if (!TextUtils.isEmpty(url)) {
+-                    state.getFeed().setImageUrl(url);
+-                }
++                state.getFeed().setImageUrl(url);
+             }
+         }
+         return new SyndElement(localName, this);

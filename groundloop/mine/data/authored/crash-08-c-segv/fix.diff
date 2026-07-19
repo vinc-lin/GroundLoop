@@ -1,0 +1,23 @@
+diff --git a/src/offlinelogstorage/dlt_offline_logstorage_behavior.c b/src/offlinelogstorage/dlt_offline_logstorage_behavior.c
+index ae8f444..3b91b84 100644
+--- a/src/offlinelogstorage/dlt_offline_logstorage_behavior.c
++++ b/src/offlinelogstorage/dlt_offline_logstorage_behavior.c
+@@ -279,6 +279,18 @@ unsigned int dlt_logstorage_get_idx_of_log_file(DltLogStorageUserConfig *file_co
+      *       From here --+    +--- To this position
+      */
+     basename_len = strlen(config->file_name);
++
++    /* Advancing sptr to 'file + basename_len + 1' assumes the on-disk file name
++     * is at least as long as the configured base name. A stray or truncated file
++     * in the storage directory can be shorter, which pushes sptr past the end of
++     * the string so the strchr()/strtol() below read out of bounds and fault. */
++    if (strlen(file) < basename_len + 1) {
++        dlt_vlog(LOG_ERR,
++                 "dlt_logstorage_get_idx_of_log_file: file name '%s' shorter than base name '%s', skipping\n",
++                 file, config->file_name);
++        return (unsigned int)-1;
++    }
++
+     sptr = file + basename_len + 1;
+     eptr = strchr(sptr, file_config->logfile_delimiter);
+     idx = strtol(sptr, &eptr, 10);

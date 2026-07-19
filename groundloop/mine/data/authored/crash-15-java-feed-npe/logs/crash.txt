@@ -1,0 +1,20 @@
+FATAL EXCEPTION: pool-5-thread-2
+Process: com.example.app, PID: 9042
+java.lang.NullPointerException: Attempt to invoke virtual method 'void com.example.app.model.feed.Feed.setImageUrl(java.lang.String)' on a null object reference
+	at com.example.app.parser.feed.namespace.Itunes.handleElementStart(Itunes.java:40)
+	at com.example.app.parser.feed.SyndHandler.startElement(SyndHandler.java:41)
+	at org.apache.harmony.xml.ExpatParser.startElement(ExpatParser.java:518)
+	at org.apache.harmony.xml.ExpatParser.appendBytes(Native Method)
+	at org.apache.harmony.xml.ExpatParser.parseFragment(ExpatParser.java:518)
+	at org.apache.harmony.xml.ExpatParser.parseDocument(ExpatParser.java:479)
+	at org.apache.harmony.xml.ExpatReader.parse(ExpatReader.java:319)
+	at org.apache.harmony.xml.ExpatReader.parse(ExpatReader.java:277)
+	at javax.xml.parsers.SAXParser.parse(SAXParser.java:390)
+	at javax.xml.parsers.SAXParser.parse(SAXParser.java:176)
+	at com.example.app.parser.feed.FeedHandler.parseFeed(FeedHandler.java:32)
+	at com.example.app.net.download.service.feed.remote.FeedParserTask.call(FeedParserTask.java:54)
+	at com.example.app.net.download.service.feed.remote.FeedParserTask.call(FeedParserTask.java:36)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+	at java.lang.Thread.run(Thread.java:1012)

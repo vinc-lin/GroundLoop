@@ -1,0 +1,13 @@
+--- a/app/src/main/java/org/schabi/newpipe/util/ListHelper.java
++++ b/app/src/main/java/org/schabi/newpipe/util/ListHelper.java
+@@ -585,6 +585,9 @@ static int getVideoStreamIndex(
+         for (int idx = 0; idx < videoStreams.size(); idx++) {
+             final MediaFormat format = targetFormat == null
+                     ? null
+                     : videoStreams.get(idx).getFormat();
+-            final String resolution = videoStreams.get(idx).getResolution();
++            final String resolution = videoStreams.get(idx).getResolution();
++            if (resolution == null) {
++                continue;
++            }
+             final String resolutionNoRefresh = resolution.replaceAll("p\\d+$", "p");

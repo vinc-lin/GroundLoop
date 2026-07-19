@@ -1,0 +1,15 @@
+{
+  "id": "crash-22-java-render-npe",
+  "summary": "Head-unit map view force-closes with NullPointerException while drawing road and POI labels when name transliteration is enabled",
+  "description": "The in-vehicle navigation map crashes intermittently while panning or zooming across areas whose road and place names are stored in a non-Latin script (e.g. Cyrillic or Greek). It only happens when the map display setting is configured to transliterate names into the Latin alphabet - with transliteration turned off the same tiles render fine. The crash lands on the background map-draw thread the moment the label layer tries to lay out and wrap a label whose text became null after the transliteration pass, so the whole app process is killed and the map goes black until the head unit relaunches it. Repro: enable 'display names in Latin script', navigate to a region with Cyrillic/Greek labels, and pan around for ~15s until a label with an unmappable character scrolls into view. Attaching the FATAL EXCEPTION captured from logcat on the head unit (Android 14).",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: MapDrawThread-3\nProcess: com.example.mapsapp, PID: 8123\njava.lang.NullPointerException: Attempt to invoke virtual method 'int java.lang.String.length()' on a null object reference\n\tat com.example.mapsapp.render.TextRenderer.drawWrappedText(TextRenderer.java:293)\n\tat com.example.mapsapp.render.TextRenderer.drawTextOverCanvas(TextRenderer.java:224)\n\tat com.example.mapsapp.render.MapVectorRenderer.generateNewBitmap(MapVectorRenderer.java:271)\n\tat com.example.mapsapp.render.MapTileLayer.updateMapTile(MapTileLayer.java:388)\n\tat com.example.mapsapp.MapActivity$MapRenderTask.run(MapActivity.java:1442)\n\tat android.os.Handler.handleCallback(Handler.java:958)\n\tat android.os.Handler.dispatchMessage(Handler.java:99)\n\tat android.os.Looper.loopOnce(Looper.java:230)\n\tat android.os.Looper.loop(Looper.java:319)\n\tat android.os.HandlerThread.run(HandlerThread.java:67)\n"
+    }
+  ]
+}

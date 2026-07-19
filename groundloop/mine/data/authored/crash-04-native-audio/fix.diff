@@ -1,0 +1,18 @@
+diff --git a/src/fifo/FifoBuffer.cpp b/src/fifo/FifoBuffer.cpp
+index c33315d..805c24d 100644
+--- a/src/fifo/FifoBuffer.cpp
++++ b/src/fifo/FifoBuffer.cpp
+@@ -76,6 +76,13 @@ int32_t FifoBuffer::read(void *buffer, int32_t numFrames) {
+     framesToRead = std::min(framesToRead, framesAvailable);
+ 
+     uint32_t readIndex = mFifo->getReadIndex(); // ranges 0 to capacity
++    // Guard the FIFO read cursor: a shared-memory controller whose read/write
++    // counters have drifted can hand back a readIndex past the end of mStorage
++    // (or leave mStorage null), and &mStorage[...] / the memcpy below then read
++    // out-of-bounds memory and crash the audio callback thread with SIGSEGV.
++    if (mStorage == nullptr || readIndex >= mFifo->getFrameCapacity()) {
++        return static_cast<int32_t>(Result::ErrorOutOfRange);
++    }
+     uint8_t *destination = reinterpret_cast<uint8_t *>(buffer);
+     uint8_t *source = &mStorage[convertFramesToBytes(readIndex)];
+     if ((readIndex + framesToRead) > mFifo->getFrameCapacity()) {

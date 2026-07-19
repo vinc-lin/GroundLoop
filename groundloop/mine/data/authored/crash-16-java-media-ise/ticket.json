@@ -1,0 +1,15 @@
+{
+  "id": "crash-16-java-media-ise",
+  "summary": "App crashes with IllegalStateException when resuming an episode from a saved position",
+  "description": "Intermittent crash when the local audio player starts playback of a downloaded episode. Tapping play (or resuming from a bookmarked position) occasionally kills the app with an uncaught IllegalStateException reading \"Player is not in PREPARING state\". It seems to happen when the user quickly changes episode or stops playback right after pressing play, so the player leaves the PREPARING state before the prepared callback runs. The crash comes off a background executor thread, so it is not always reproducible and the player is left in a broken state until the app is restarted. Attaching the logcat FATAL EXCEPTION block.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "--------- beginning of crash\nFATAL EXCEPTION: pool-6-thread-1\nProcess: com.example.app, PID: 11274\njava.lang.IllegalStateException: Player is not in PREPARING state\n\tat com.example.app.playback.service.internal.LocalPSMP.onPrepared(LocalPSMP.java:309)\n\tat com.example.app.playback.service.internal.LocalPSMP.prepare(LocalPSMP.java:300)\n\tat com.example.app.playback.service.internal.LocalPSMP.seekTo(LocalPSMP.java:394)\n\tat com.example.app.playback.service.internal.LocalPSMP.$r8$lambda$seekTo(Unknown Source:6)\n\tat java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:487)\n\tat java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)\n\tat java.lang.Thread.run(Thread.java:1012)\n"
+    }
+  ]
+}

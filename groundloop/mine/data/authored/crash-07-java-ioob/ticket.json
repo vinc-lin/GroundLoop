@@ -1,0 +1,15 @@
+{
+  "id": "crash-07-java-ioob",
+  "summary": "App crashes with IndexOutOfBoundsException when resolving default audio track on multi-track streams",
+  "description": "Opening certain videos that expose more than one audio track crashes the player immediately. Logcat shows java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0 while the app resolves the default audio-track group in ListHelper.getDefaultAudioTrackGroup. It appears one of the grouped audio-track lists is empty, so accessing element 0 during the comparator step throws. The outer null/empty guard only checks the top-level list, not the inner per-track lists. Reproducible on head units when a stream reports an audio track with no concrete streams. Repro: play an affected video, crash on track selection.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: main\nProcess: com.example.app, PID: 12034\njava.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0\n\tat java.util.Objects.checkIndex(Objects.java:365)\n\tat java.util.ArrayList.get(ArrayList.java:428)\n\tat com.example.app.util.ListHelper.lambda$getDefaultAudioTrackGroup$4(ListHelper.java:141)\n\tat java.util.stream.ReferencePipeline$2$1.accept(ReferencePipeline.java:177)\n\tat java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:948)\n\tat java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.util.stream.ReduceOps$ReduceOp.evaluateSequential(ReduceOps.java:921)\n\tat java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.util.stream.ReferencePipeline.max(ReferencePipeline.java:594)\n\tat com.example.app.util.ListHelper.getDefaultAudioTrackGroup(ListHelper.java:140)\n\tat com.example.app.player.helper.PlayerHelper.getDefaultAudioTrack(PlayerHelper.java:214)\n\tat com.example.app.player.Player.onAudioTracksAvailable(Player.java:1893)\n\tat android.os.Handler.handleCallback(Handler.java:958)\n\tat android.os.Handler.dispatchMessage(Handler.java:99)\n\tat android.os.Looper.loop(Looper.java:257)\n\tat android.app.ActivityThread.main(ActivityThread.java:8214)\n\tat java.lang.reflect.Method.invoke(Native Method)\n\tat com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:582)\n\tat com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1071)\n"
+    }
+  ]
+}

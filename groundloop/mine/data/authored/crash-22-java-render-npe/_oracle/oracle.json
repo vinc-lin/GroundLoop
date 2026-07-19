@@ -1,0 +1,9 @@
+{
+  "owning_repo": "osmand",
+  "expected_files": ["OsmAnd/src/net/osmand/plus/render/TextRenderer.java"],
+  "required_apis": ["drawWrappedText", "transliterate"],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "74e6d76d52ce6d07e5b9dae144fdcfbc8cc5418b",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

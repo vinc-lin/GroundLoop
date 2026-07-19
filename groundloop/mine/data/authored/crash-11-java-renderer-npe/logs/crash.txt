@@ -1,0 +1,11 @@
+FATAL EXCEPTION: ExoPlayer:Playback
+Process: com.example.app, PID: 4192
+java.lang.NullPointerException: Attempt to invoke interface method 'com.example.app.player.Metadata com.example.app.player.metadata.MetadataDecoder.decode(com.example.app.decoder.DecoderInputBuffer)' on a null object reference
+	at com.example.app.player.metadata.MetadataRenderer.readMetadata(MetadataRenderer.java:245)
+	at com.example.app.player.metadata.MetadataRenderer.render(MetadataRenderer.java:170)
+	at com.example.app.player.ExoPlayerImplInternal.doSomeWork(ExoPlayerImplInternal.java:1049)
+	at com.example.app.player.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:583)
+	at android.os.Handler.dispatchMessage(Handler.java:102)
+	at android.os.Looper.loopOnce(Looper.java:205)
+	at android.os.Looper.loop(Looper.java:294)
+	at android.os.HandlerThread.run(HandlerThread.java:67)

@@ -1,0 +1,15 @@
+{
+  "id": "crash-11-java-renderer-npe",
+  "summary": "Media playback service force-closes with NullPointerException when a clip carries a timed-metadata (ID3/EMSG) track",
+  "description": "The in-vehicle media app crashes intermittently while playing streamed content that contains a timed-metadata track (e.g. ID3 in the audio elementary stream, or an EMSG box in a fragmented MP4). It does not happen on every clip - only ones that emit metadata samples. The crash lands on the playback thread right after a track/period transition, so it looks like the metadata renderer is being asked to decode a sample before its decoder has been (re)initialized for the new stream. Once it happens the whole player process is killed and audio drops out. Repro: queue a live/DASH stream that publishes in-band metadata, seek across a period boundary, and let it keep playing for ~30s. Attaching the FATAL EXCEPTION captured from logcat on the head unit (Android 14).",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: ExoPlayer:Playback\nProcess: com.example.app, PID: 4192\njava.lang.NullPointerException: Attempt to invoke interface method 'com.example.app.player.Metadata com.example.app.player.metadata.MetadataDecoder.decode(com.example.app.decoder.DecoderInputBuffer)' on a null object reference\n\tat com.example.app.player.metadata.MetadataRenderer.readMetadata(MetadataRenderer.java:245)\n\tat com.example.app.player.metadata.MetadataRenderer.render(MetadataRenderer.java:170)\n\tat com.example.app.player.ExoPlayerImplInternal.doSomeWork(ExoPlayerImplInternal.java:1049)\n\tat com.example.app.player.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:583)\n\tat android.os.Handler.dispatchMessage(Handler.java:102)\n\tat android.os.Looper.loopOnce(Looper.java:205)\n\tat android.os.Looper.loop(Looper.java:294)\n\tat android.os.HandlerThread.run(HandlerThread.java:67)\n"
+    }
+  ]
+}

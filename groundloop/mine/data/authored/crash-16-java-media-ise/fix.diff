@@ -1,0 +1,11 @@
+--- a/playback/service/src/main/java/de/danoeh/antennapod/playback/service/internal/LocalPSMP.java
++++ b/playback/service/src/main/java/de/danoeh/antennapod/playback/service/internal/LocalPSMP.java
+@@ -306,6 +306,7 @@
+      */
+     private void onPrepared(final boolean startWhenPrepared) {
+         if (playerStatus != PlayerStatus.PREPARING) {
+-            throw new IllegalStateException("Player is not in PREPARING state");
++            Log.e(TAG, "onPrepared() called in state " + playerStatus + " (expected PREPARING); aborting prepare");
++            return;
+         }
+         Log.d(TAG, "Resource prepared");

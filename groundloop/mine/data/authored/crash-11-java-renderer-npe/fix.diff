@@ -1,0 +1,13 @@
+--- a/libraries/exoplayer/src/main/java/androidx/media3/exoplayer/metadata/MetadataRenderer.java
++++ b/libraries/exoplayer/src/main/java/androidx/media3/exoplayer/metadata/MetadataRenderer.java
+@@ -242,6 +242,9 @@ public final class MetadataRenderer extends BaseRenderer implements Callback {
+           // Ignore metadata before start position.
+           buffer.subsampleOffsetUs = subsampleOffsetUs;
+           buffer.flip();
+-          @Nullable Metadata metadata = castNonNull(decoder).decode(buffer);
++          if (decoder == null) {
++            return;
++          }
++          @Nullable Metadata metadata = decoder.decode(buffer);
+           if (metadata != null) {
+             List<Metadata.Entry> entries = new ArrayList<>(metadata.length());

@@ -1,0 +1,11 @@
+--- a/android/sdk/src/main/cpp/app/organicmaps/sdk/bookmarks/data/Bookmark.cpp
++++ b/android/sdk/src/main/cpp/app/organicmaps/sdk/bookmarks/data/Bookmark.cpp
+@@ -70,5 +70,7 @@
+ {
+-  auto const * mark = getBookmark(bmk);
++  auto const * mark = getBookmark(bmk);
++  if (mark == nullptr)
++    return;
+
+   // initialize new bookmark
+   kml::BookmarkData bmData(mark->GetData());

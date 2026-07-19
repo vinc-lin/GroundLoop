@@ -1,0 +1,14 @@
+{
+  "owning_repo": "organicmaps",
+  "expected_files": [
+    "android/sdk/src/main/cpp/app/organicmaps/sdk/bookmarks/data/Bookmark.cpp"
+  ],
+  "required_apis": [
+    "getBookmark",
+    "nativeUpdateParams"
+  ],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "9e178e117220a37be02fd45a2cd82f4195d192d2",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "crash-15-java-feed-npe",
+  "summary": "App crashes with NullPointerException while refreshing a podcast feed that declares channel-level artwork",
+  "description": "Steps to reproduce: subscribe to (or pull-to-refresh) a podcast whose RSS/Atom feed places an <itunes:image href=\"...\"> tag at the channel level, before any <item>/<entry> element. The background feed-parser worker dies with a fatal NullPointerException instead of finishing the refresh, so the podcast never shows up in the subscription list and the download is marked failed. The SAX namespace handler that processes the channel-level image tag dereferences the feed object without a null check, while every sibling handler in the parser guards it first. Attaching the logcat FATAL EXCEPTION captured on a Pixel 7 (Android 14). Reproducible with two specific feeds that put the artwork tag high up in the document; feeds that only carry per-episode images are fine.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: pool-5-thread-2\nProcess: com.example.app, PID: 9042\njava.lang.NullPointerException: Attempt to invoke virtual method 'void com.example.app.model.feed.Feed.setImageUrl(java.lang.String)' on a null object reference\n\tat com.example.app.parser.feed.namespace.Itunes.handleElementStart(Itunes.java:40)\n\tat com.example.app.parser.feed.SyndHandler.startElement(SyndHandler.java:41)\n\tat org.apache.harmony.xml.ExpatParser.startElement(ExpatParser.java:518)\n\tat org.apache.harmony.xml.ExpatParser.appendBytes(Native Method)\n\tat org.apache.harmony.xml.ExpatParser.parseFragment(ExpatParser.java:518)\n\tat org.apache.harmony.xml.ExpatParser.parseDocument(ExpatParser.java:479)\n\tat org.apache.harmony.xml.ExpatReader.parse(ExpatReader.java:319)\n\tat org.apache.harmony.xml.ExpatReader.parse(ExpatReader.java:277)\n\tat javax.xml.parsers.SAXParser.parse(SAXParser.java:390)\n\tat javax.xml.parsers.SAXParser.parse(SAXParser.java:176)\n\tat com.example.app.parser.feed.FeedHandler.parseFeed(FeedHandler.java:32)\n\tat com.example.app.net.download.service.feed.remote.FeedParserTask.call(FeedParserTask.java:54)\n\tat com.example.app.net.download.service.feed.remote.FeedParserTask.call(FeedParserTask.java:36)\n\tat java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)\n\tat java.lang.Thread.run(Thread.java:1012)\n"
+    }
+  ]
+}

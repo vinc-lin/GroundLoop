@@ -1,0 +1,14 @@
+FATAL EXCEPTION: main
+Process: com.example.app, PID: 12734
+java.lang.IllegalStateException: Delta-encoded suffix dictionary entry requires previous suffix
+	at com.example.app.search.util.SearchAlgorithms.nameIndexDecodeDictionarySuffix(SearchAlgorithms.java:228)
+	at com.example.app.search.binary.BinaryMapPoiReaderAdapter.readPoiNameIndexData(BinaryMapPoiReaderAdapter.java:680)
+	at com.example.app.search.binary.BinaryMapPoiReaderAdapter.readPoiNameIndex(BinaryMapPoiReaderAdapter.java:612)
+	at com.example.app.search.binary.BinaryMapIndexReader.searchPoiByName(BinaryMapIndexReader.java:1893)
+	at com.example.app.search.core.SearchCoreFactory$SearchAmenityByNameApi.search(SearchCoreFactory.java:1547)
+	at com.example.app.search.SearchUICore$SearchResultCallback.publish(SearchUICore.java:388)
+	at com.example.app.search.SearchUICore.searchInBackground(SearchUICore.java:512)
+	at com.example.app.search.SearchUICore$3.run(SearchUICore.java:461)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+	at java.lang.Thread.run(Thread.java:1012)

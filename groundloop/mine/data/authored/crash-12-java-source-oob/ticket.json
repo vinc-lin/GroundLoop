@@ -1,0 +1,15 @@
+{
+  "id": "crash-12-java-source-oob",
+  "summary": "App force-closes with ArrayIndexOutOfBoundsException when playing an MP3 with a malformed ID3 tag",
+  "description": "Some podcast episodes downloaded from one particular feed crash the player the instant playback starts. Steps to reproduce: add the feed, download an affected episode, and press play. The player service dies immediately and the app returns to the library screen. Other episodes from the same feed play fine, so it looks tied to a specific file. Inspecting the file shows an oversized/truncated ID3 metadata tag at the start of the MP3 whose declared frame size runs past the end of the tag payload; the byte reader then walks off the end of the backing buffer. Attaching the logcat FATAL EXCEPTION captured on the head unit (Android 14). Reproduces every time on the affected file.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: ExoPlayerInternal:Playback\nProcess: com.example.ivi.player, PID: 9271\njava.lang.ArrayIndexOutOfBoundsException: Index 8192 out of bounds for length 8192\n\tat com.example.ivi.player.core.util.ParsableByteArray.readUnsignedByte(ParsableByteArray.java:354)\n\tat com.example.ivi.player.metadata.id3.Id3Decoder.decodeFrame(Id3Decoder.java:290)\n\tat com.example.ivi.player.metadata.id3.Id3Decoder.decode(Id3Decoder.java:144)\n\tat com.example.ivi.player.metadata.SimpleMetadataDecoder.decode(SimpleMetadataDecoder.java:44)\n\tat com.example.ivi.player.metadata.MetadataRenderer.decodeMetadata(MetadataRenderer.java:245)\n\tat com.example.ivi.player.metadata.MetadataRenderer.render(MetadataRenderer.java:196)\n\tat com.example.ivi.player.core.ExoPlayerImplInternal.doSomeWork(ExoPlayerImplInternal.java:1043)\n\tat com.example.ivi.player.core.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:611)\n\tat android.os.Handler.dispatchMessage(Handler.java:99)\n\tat android.os.Looper.loopOnce(Looper.java:205)\n\tat android.os.Looper.loop(Looper.java:294)\n\tat android.os.HandlerThread.run(HandlerThread.java:67)\n"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "owning_repo": "antennapod",
+  "expected_files": ["playback/service/src/main/java/de/danoeh/antennapod/playback/service/internal/LocalPSMP.java"],
+  "required_apis": ["onPrepared", "prepare"],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "b8f8426c8c10e2ce073563049f59bd43337460bb",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

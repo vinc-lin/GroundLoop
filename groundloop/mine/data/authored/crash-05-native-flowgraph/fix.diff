@@ -1,0 +1,19 @@
+--- a/src/flowgraph/MultiToManyConverter.cpp
++++ b/src/flowgraph/MultiToManyConverter.cpp
+@@ -32,6 +32,16 @@ MultiToManyConverter::~MultiToManyConverter() = default;
+ 
+ int32_t MultiToManyConverter::onProcess(int32_t numFrames) {
+     int32_t channelCount = input.getSamplesPerFrame();
+ 
++    // Clamp to the number of output ports this converter was constructed with.
++    // A source that reports more channels than we have outputs (e.g. a 5.1
++    // surround stream reconnected onto a stereo-configured graph) drives ch
++    // past outputs.size(), so outputs[ch] reads a bogus port pointer and the
++    // ->getBuffer() call faults on the render thread.
++    const int32_t maxChannels = static_cast<int32_t>(outputs.size());
++    if (input.getSamplesPerFrame() > maxChannels) {
++        channelCount = maxChannels;
++    }
++
+     for (int ch = 0; ch < channelCount; ch++) {
+         const float *inputBuffer = input.getBuffer() + ch;
