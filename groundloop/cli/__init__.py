@@ -1317,7 +1317,7 @@ def _build_run_fixer(kind: str, max_replan: int = 1):
 def _run_grade_run(args) -> int:
     import json
     from pathlib import Path
-    from groundloop.run.grade_run import grade_run
+    from groundloop.grade.grade_run import grade_run
     from groundloop.run.report import render_run_markdown
     card = grade_run(args.runs, args.dataset, index_db=args.index_db or None, embedder=_build_embedder())
     Path(args.out).write_text(json.dumps(card, indent=2, ensure_ascii=False, default=str))
@@ -1330,7 +1330,7 @@ def _run_grade_run(args) -> int:
           f"isolated@1={iso.get('file@1')} arm={ov['localize'].get('isolated_arm')} · "
           f"fix gradeable={fx.get('n_gradeable')} ungradeable={fx.get('n_ungradeable_no_source')}")
     if args.compare:
-        from groundloop.run.compare import compare_cards
+        from groundloop.grade.compare import compare_cards
         prev = json.loads(Path(args.compare).read_text())
         comp = compare_cards(card, prev)
         Path(args.out).with_suffix(".compare.json").write_text(
@@ -1340,7 +1340,7 @@ def _run_grade_run(args) -> int:
         if regs:
             line += f" ({', '.join(regs)})"
         print(line)
-    from groundloop.run.promotion import promotion_notes
+    from groundloop.grade.promotion import promotion_notes
     for _note in promotion_notes(card):
         print(_note)
     return 0

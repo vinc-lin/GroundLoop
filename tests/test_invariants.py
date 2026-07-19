@@ -142,7 +142,7 @@ def test_selfscore_grader_is_sole_oracle_reader():
     batch = (root / "run" / "batch.py").read_text()
     assert "load_eval_oracle" not in batch and "load_oracle" not in batch, \
         "the batch run loop must be oracle-blind (no oracle-read API)"
-    grade = (root / "run" / "grade_run.py").read_text()
+    grade = (root / "grade" / "grade_run.py").read_text()
     assert "load_eval_oracle" in grade, "grade_run must be the sole oracle reader"
 
 

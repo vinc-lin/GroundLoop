@@ -1,7 +1,7 @@
 """Task 9: reporting-only promotion-eligibility notes over a grade-run card. The note SAYS when a
 [production] number clears a capability's bar (e.g. PlanningFixEngine's Provisional-Core obligation) so a
 human can enact the promotion — it NEVER edits capabilities.md or flips a default."""
-from groundloop.run.promotion import promotion_notes
+from groundloop.grade.promotion import promotion_notes
 
 
 def _card(value, n, fixer):

@@ -1,6 +1,6 @@
 from pytest import approx
 
-from groundloop.run.compare import compare_cards
+from groundloop.grade.compare import compare_cards
 
 
 def _card(*, recall1, file5, resolved, n_gradeable, cases):

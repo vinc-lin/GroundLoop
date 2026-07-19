@@ -3,7 +3,7 @@ from pathlib import Path
 from groundloop.run.record import RunRecordIO, MaterializeOutcome
 from groundloop.core.workflow import RunRecord
 from groundloop.core.types import RepoScore, RepoRef, Patch, Change
-from groundloop.run.grade_run import grade_run
+from groundloop.grade.grade_run import grade_run
 
 
 def _case(ds, out, cid, present, diff, files, owner, expected, applies):

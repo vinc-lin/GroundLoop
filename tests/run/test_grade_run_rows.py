@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from groundloop.cli import main
-from groundloop.run.grade_run import grade_run
+from groundloop.grade.grade_run import grade_run
 from groundloop.run.record import RunRecordIO
 
 _FIX = Path(__file__).parent.parent / "fixtures" / "android_ivi"

@@ -3,7 +3,7 @@ from pathlib import Path
 from groundloop.run.record import RunRecordIO, MaterializeOutcome
 from groundloop.core.workflow import RunRecord
 from groundloop.core.types import RepoScore, RepoRef, Patch, Change
-from groundloop.run.grade_run import grade_run
+from groundloop.grade.grade_run import grade_run
 from groundloop.run.report import render_run_markdown
 
 
@@ -34,7 +34,7 @@ def _case(ds, out, cid, chosen, owner, as_run_loc, expected, bug_kind):
 
 
 def test_isolated_localize_differs_from_as_run(tmp_path, monkeypatch):
-    import groundloop.run.grade_run as gr
+    import groundloop.grade.grade_run as gr
     monkeypatch.setattr(gr, "AtlasIndex", _FakeAtlas)
     ds, out = str(tmp_path / "ds"), str(tmp_path / "out")
     # match MISSED (chosen=beta != owner=alpha): as-run localize runs on beta -> "Wrong.kt" (miss),

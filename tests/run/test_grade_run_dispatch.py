@@ -1,5 +1,5 @@
 import json
-from groundloop.run.grade_run import _localize_index_for, _signals_from_doc
+from groundloop.grade.grade_run import _localize_index_for, _signals_from_doc
 from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.core.types import Signals
 
@@ -45,7 +45,7 @@ def test_signals_from_doc_preserves_prose_mark():
 
 def test_localize_index_for_tokens_needs_no_embedder(tmp_path):
     import json as _json
-    from groundloop.run.grade_run import _localize_index_for
+    from groundloop.grade.grade_run import _localize_index_for
     from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
     (tmp_path / "manifest.json").write_text(_json.dumps({"localize": "tokens"}))
     idx, arm = _localize_index_for(str(tmp_path), "unused.db", None)   # embedder=None
