@@ -3,7 +3,7 @@ from pathlib import Path
 
 from tests.fixtures.atlas_fixture import build_atlas_fixture
 
-from groundloop.adapters.index.text_profile import build_text_profiles
+from groundloop.adapters.index.labs.text_profile import build_text_profiles
 from groundloop.engines.atlas.embed import StubEmbedder
 from groundloop.funceval.runner import run_funceval
 

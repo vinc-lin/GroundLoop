@@ -46,7 +46,7 @@ def test_signals_from_doc_preserves_prose_mark():
 def test_localize_index_for_tokens_needs_no_embedder(tmp_path):
     import json as _json
     from groundloop.run.grade_run import _localize_index_for
-    from groundloop.adapters.index.signal_query import SignalQueryIndex
+    from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
     (tmp_path / "manifest.json").write_text(_json.dumps({"localize": "tokens"}))
     idx, arm = _localize_index_for(str(tmp_path), "unused.db", None)   # embedder=None
     assert isinstance(idx, SignalQueryIndex) and arm == "tokens"
@@ -56,7 +56,7 @@ def test_localize_index_for_rerank_builds_reranklocalizeindex(tmp_path):
     """A `--localize rerank` run grades on the reranker's grounded candidate POOL (judge=None offline):
     with an embedder present the isolated diagnostic reconstructs a RerankLocalizeIndex labelled
     `rerank(no-judge:pool)`."""
-    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
     (tmp_path / "manifest.json").write_text(json.dumps({"localize": "rerank"}))
     idx, arm = _localize_index_for(str(tmp_path), str(tmp_path / "atlas.db"), object())  # embedder present
     assert isinstance(idx, RerankLocalizeIndex) and arm == "rerank(no-judge:pool)"

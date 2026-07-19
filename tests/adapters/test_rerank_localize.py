@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from groundloop.adapters.index.atlas import AtlasIndex
-from groundloop.adapters.index.rerank_localize import (
+from groundloop.adapters.index.labs.rerank_localize import (
     RerankLocalizeIndex,
     StubFileJudge,
 )
@@ -70,7 +70,7 @@ def test_splitindex_fires_reranker_signal_stash(atlas):
     """End-to-end: RerankLocalizeIndex runs wrapped in SplitIndex(match, rerank), and run_ticket calls
     rank_repos then retrieve on the SplitIndex. SplitIndex.rank_repos must propagate the signals into the
     reranker (note_signals) so retrieve keys candidate-gen on the extracted code tokens, not the prose."""
-    from groundloop.adapters.index.split import SplitIndex
+    from groundloop.adapters.index.labs.split import SplitIndex
     from groundloop.core.types import Signals
     rer = _rerank(atlas, judge=None, entity_map=_entity_map())
     split = SplitIndex(AtlasIndex(atlas), rer)

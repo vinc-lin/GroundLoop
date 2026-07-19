@@ -1,6 +1,6 @@
 import inspect
 
-from groundloop.adapters.index import component_prior
+from groundloop.adapters.index.labs import component_prior
 from groundloop.domains.android_ivi import component_affinity, component_signals
 
 

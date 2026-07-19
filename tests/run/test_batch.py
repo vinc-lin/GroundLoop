@@ -160,7 +160,7 @@ def test_combined_cost_model_sums_fixer_and_reranker_judge():
     (the fixer GatewayModel + the `--localize rerank` reranker), so the reranker's LLM file-judge spend
     counts toward $/ticket. A source missing a counter (the reranker exposes only cost_usd) reads 0; None
     sources are skipped."""
-    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
     from groundloop.cli import _CombinedCostModel
 
     class _PaidJudge:

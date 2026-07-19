@@ -20,6 +20,6 @@ def build_fault_arms(index_db: str, names=("flood", "faultslice", "routing")) ->
         elif name == "faultslice":
             made.append(Arm("faultslice", atlas, FaultSignalExtractor(), *_TAU_FTS))
         elif name == "routing":
-            from groundloop.adapters.index.fault_routing import FaultRoutingIndex   # Phase 2
+            from groundloop.adapters.index.labs.fault_routing import FaultRoutingIndex   # Phase 2
             made.append(Arm("routing", FaultRoutingIndex(index_db), FaultSignalExtractor(), *_TAU_RRF))
     return made

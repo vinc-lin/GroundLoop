@@ -14,8 +14,8 @@ def test_localize_cascade_wraps_split_over_cascade_no_embedder(monkeypatch):
     import groundloop.run.batch as batch
     monkeypatch.setattr(batch, "run_dataset",
                         lambda dataset, **kw: (seen.__setitem__("index", kw.get("index")) or 0))
-    from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
-    from groundloop.adapters.index.split import SplitIndex
+    from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
+    from groundloop.adapters.index.labs.split import SplitIndex
     from groundloop.cli import main
     try:
         main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
@@ -43,9 +43,9 @@ def test_localize_cascade_builds_semantic_tier_with_embedder(monkeypatch, tmp_pa
     import groundloop.run.batch as batch
     monkeypatch.setattr(batch, "run_dataset",
                         lambda dataset, **kw: (seen.__setitem__("index", kw.get("index")) or 0))
-    from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-    from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
-    from groundloop.adapters.index.split import SplitIndex
+    from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
+    from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
+    from groundloop.adapters.index.labs.split import SplitIndex
     from groundloop.cli import main
     try:
         main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",

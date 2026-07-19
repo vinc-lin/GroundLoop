@@ -1,5 +1,5 @@
 from tests.fixtures.atlas_fixture import build_atlas_fixture
-from groundloop.adapters.index.fault_routing import FaultRoutingIndex
+from groundloop.adapters.index.labs.fault_routing import FaultRoutingIndex
 from groundloop.core.types import RepoRef, Signals
 
 CATALOG = [RepoRef(r) for r in ("organicmaps", "androidx-media", "cameraview", "android-gpuimage-plus")]

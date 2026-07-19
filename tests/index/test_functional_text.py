@@ -1,5 +1,5 @@
-from groundloop.adapters.index.functional_text import FunctionalTextIndex
-from groundloop.adapters.index.text_profile import build_text_profiles
+from groundloop.adapters.index.labs.functional_text import FunctionalTextIndex
+from groundloop.adapters.index.labs.text_profile import build_text_profiles
 from groundloop.core.types import RepoRef
 from groundloop.domains.android_ivi.functional_signals import FunctionalTextExtractor
 from groundloop.core.types import Ticket

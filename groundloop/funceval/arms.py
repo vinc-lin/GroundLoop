@@ -2,8 +2,8 @@
 split after the first proxy run (spec §6)."""
 from __future__ import annotations
 
-from groundloop.adapters.index.fault_routing import FaultRoutingIndex
-from groundloop.adapters.index.functional_text import DispatchIndex, FunctionalTextIndex
+from groundloop.adapters.index.labs.fault_routing import FaultRoutingIndex
+from groundloop.adapters.index.labs.functional_text import DispatchIndex, FunctionalTextIndex
 from groundloop.domains.android_ivi.functional_signals import DispatchExtractor, FunctionalTextExtractor
 from groundloop.eval.arms import Arm
 from groundloop.faulteval.arms import _TAU_RRF, build_fault_arms

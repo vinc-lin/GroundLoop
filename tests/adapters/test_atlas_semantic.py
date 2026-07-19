@@ -1,7 +1,7 @@
 import pytest
 
 from groundloop.engines.atlas.store import Store, Unit
-from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
 from groundloop.core.types import RepoRef, Signals
 
 

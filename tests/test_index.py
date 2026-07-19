@@ -1,5 +1,5 @@
 import json
-from groundloop.adapters.index.simple import TokenIndex
+from groundloop.adapters.index.labs.simple import TokenIndex
 from groundloop.core.types import Signals, RepoRef
 
 

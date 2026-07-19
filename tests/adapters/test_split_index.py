@@ -1,4 +1,4 @@
-from groundloop.adapters.index.split import SplitIndex
+from groundloop.adapters.index.labs.split import SplitIndex
 
 
 class _Idx:

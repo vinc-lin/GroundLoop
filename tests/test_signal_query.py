@@ -15,7 +15,7 @@ class _EchoRetriever:
 
 
 def _sq():
-    from groundloop.adapters.index.signal_query import SignalQueryIndex
+    from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
     return SignalQueryIndex(_FakeMatch(), _EchoRetriever())
 
 

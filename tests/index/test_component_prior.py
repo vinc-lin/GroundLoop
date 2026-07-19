@@ -1,4 +1,4 @@
-from groundloop.adapters.index.component_prior import ComponentPriorIndex
+from groundloop.adapters.index.labs.component_prior import ComponentPriorIndex
 from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
 from groundloop.domains.android_ivi.component_signals import COMPONENT_MARK
 from groundloop.core.types import RepoRef, RepoScore, Signals

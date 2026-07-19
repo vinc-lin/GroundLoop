@@ -1,4 +1,4 @@
-from groundloop.adapters.index.atlas_judge import LLMJudgeIndex, StubJudge
+from groundloop.adapters.index.labs.atlas_judge import LLMJudgeIndex, StubJudge
 from groundloop.core.types import RepoRef, RepoScore, Signals
 
 

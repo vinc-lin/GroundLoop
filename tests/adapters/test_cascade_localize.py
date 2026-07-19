@@ -1,4 +1,4 @@
-from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
+from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
 from groundloop.core.types import RepoRef, Signals
 
 

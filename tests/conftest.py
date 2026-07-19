@@ -16,7 +16,7 @@ import pytest
 from groundloop.adapters.estate import MockEstate
 from groundloop.adapters.fix.canned import CannedFixEngine
 from groundloop.adapters.index.atlas import AtlasIndex
-from groundloop.adapters.index.simple import TokenIndex
+from groundloop.adapters.index.labs.simple import TokenIndex
 from groundloop.adapters.mock.gerrit import MockGerrit
 from groundloop.adapters.mock.jira import MockJira
 from groundloop.adapters.mock.model import CannedModel

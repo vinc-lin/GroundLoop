@@ -8,7 +8,7 @@ _GATE = bool(os.environ.get("KLOOP_EMBED_API_KEY", "").strip())
 def test_semantic_arm_ranks_over_live_atlas(tmp_path):
     """Live: SemanticAtlasIndex over a real bge-m3 atlas ranks a known repo for a known signal.
     RUNBOOK: needs KLOOP_EMBED_{BASE_URL,API_KEY,MODEL=bge-m3} + a built atlas.db at KLOOP_ATLAS_DB."""
-    from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+    from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
     from groundloop.engines.atlas.embed import GatewayEmbedder
     from groundloop.core.types import RepoRef, Signals
 

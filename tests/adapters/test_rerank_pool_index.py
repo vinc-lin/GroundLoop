@@ -1,4 +1,4 @@
-from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex, StubFileJudge
+from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex, StubFileJudge
 from groundloop.core.types import RepoRef, Signals
 
 

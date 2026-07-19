@@ -16,7 +16,7 @@ def test_semantic_arm_builds_index_when_embedder_present(monkeypatch):
     """With an embedder present, the semantic branch constructs SemanticAtlasIndex (passes the guard).
     We stub the embedder + the index so no live gateway is hit; the run fails LATER (no real dataset),
     but the point is the guard was passed and the vector index was built."""
-    import groundloop.adapters.index.atlas_semantic as sem_mod
+    import groundloop.adapters.index.labs.atlas_semantic as sem_mod
     import groundloop.cli as cli
     built = {}
 
@@ -61,7 +61,7 @@ def test_functional_arm_fail_closed_without_embedder(monkeypatch, capsys):
 
 def test_dispatch_arm_builds_when_deps_present(monkeypatch):
     monkeypatch.setattr("groundloop.cli._build_embedder", lambda: object())
-    import groundloop.adapters.index.functional_text as ft
+    import groundloop.adapters.index.labs.functional_text as ft
     built = {}
 
     class _FT:  # FunctionalTextIndex stub

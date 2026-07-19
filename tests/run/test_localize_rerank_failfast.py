@@ -31,8 +31,8 @@ def test_localize_rerank_builds_when_embedder_present(monkeypatch):
     import groundloop.run.batch as batch
     monkeypatch.setattr(batch, "run_dataset",
                         lambda dataset, **kw: (seen.__setitem__("index", kw.get("index")) or 0))
-    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
-    from groundloop.adapters.index.split import SplitIndex
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.labs.split import SplitIndex
     from groundloop.cli import main
     try:
         main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from groundloop.adapters.index.atlas import AtlasIndex
-from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
 from groundloop.core.types import RepoRef, Signals
 from groundloop.engines.atlas.store import Store, Unit
 

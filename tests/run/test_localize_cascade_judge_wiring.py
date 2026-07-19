@@ -14,9 +14,9 @@ def test_cascade_judge_wraps_rerank_over_cascade_pool(monkeypatch):
     import groundloop.run.batch as batch
     monkeypatch.setattr(batch, "run_dataset",
                         lambda dataset, **kw: (seen.__setitem__("index", kw.get("index")) or 0))
-    from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
-    from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
-    from groundloop.adapters.index.split import SplitIndex
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
+    from groundloop.adapters.index.labs.split import SplitIndex
     from groundloop.cli import main
     try:
         main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",

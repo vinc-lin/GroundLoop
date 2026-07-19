@@ -38,10 +38,10 @@ def _localize_index_for(runs_dir, index_db, embedder):
         except (json.JSONDecodeError, OSError):
             arm = "atlas"
     if arm == "tokens":
-        from groundloop.adapters.index.signal_query import SignalQueryIndex
+        from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
         return SignalQueryIndex(AtlasIndex(index_db), AtlasIndex(index_db)), arm
     if arm == "semantic" and embedder is not None:
-        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+        from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
         return SemanticAtlasIndex(index_db, embedder), arm
     if arm == "rerank":
         # The offline grader has no LLM judge, so the reranker degrades to its grounded candidate POOL
@@ -54,7 +54,7 @@ def _localize_index_for(runs_dir, index_db, embedder):
                 "grade-run localize=rerank: no embedder — set KLOOP_EMBED_BASE_URL (bge-m3 gateway) "
                 "so the isolated diagnostic matches the live rerank run instead of silently degrading "
                 "to a keyword-only reranker.")
-        from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+        from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
         from groundloop.engines.atlas.store import Store
         return (RerankLocalizeIndex(AtlasIndex(index_db), store=Store(index_db),
                                     embedder=embedder, judge=None), "rerank(no-judge:pool)")
@@ -62,8 +62,8 @@ def _localize_index_for(runs_dir, index_db, embedder):
         # Recall-first RRF cascade, reconstructed for the isolated diagnostic. The semantic tier degrades
         # gracefully: with no embedder it is omitted (crash-tokens + literal-anchor FTS tiers still fire),
         # so — unlike rerank — cascade never fails-fast offline.
-        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-        from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
+        from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
+        from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
         from groundloop.engines.atlas.store import Store
         sem = SemanticAtlasIndex(index_db, embedder) if embedder is not None else None
         cascade = CascadeLocalizeIndex(AtlasIndex(index_db), fts=AtlasIndex(index_db), semantic=sem,
@@ -75,9 +75,9 @@ def _localize_index_for(runs_dir, index_db, embedder):
         # -> the cascade pool order) — an honest rank-1 ceiling. Like cascade (and unlike rerank), the
         # missing-embedder path never fails-fast: the cascade omits its semantic tier and the reranker
         # draws its POOL from the cascade's retrieve() (not vector candidate-gen), so embedder=None is fine.
-        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-        from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
-        from groundloop.adapters.index.rerank_localize import RerankLocalizeIndex
+        from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
+        from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
+        from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
         from groundloop.engines.atlas.store import Store
         sem = SemanticAtlasIndex(index_db, embedder) if embedder is not None else None
         cascade = CascadeLocalizeIndex(AtlasIndex(index_db), fts=AtlasIndex(index_db), semantic=sem,

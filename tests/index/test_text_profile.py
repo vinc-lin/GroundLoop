@@ -1,4 +1,4 @@
-from groundloop.adapters.index.text_profile import build_text_profiles, gather_repo_texts
+from groundloop.adapters.index.labs.text_profile import build_text_profiles, gather_repo_texts
 from groundloop.engines.atlas.embed import StubEmbedder
 from groundloop.engines.atlas.store import Store
 

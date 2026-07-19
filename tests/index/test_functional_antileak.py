@@ -1,6 +1,6 @@
 import inspect
 
-from groundloop.adapters.index import functional_text, text_profile
+from groundloop.adapters.index.labs import functional_text, text_profile
 from groundloop.domains.android_ivi import functional_signals
 
 

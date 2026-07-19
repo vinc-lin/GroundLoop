@@ -7,7 +7,7 @@ from pathlib import Path
 
 from groundloop.adapters.estate import MockEstate
 from groundloop.adapters.index.atlas import AtlasIndex
-from groundloop.adapters.index.component_prior import ComponentPriorIndex
+from groundloop.adapters.index.labs.component_prior import ComponentPriorIndex
 from groundloop.adapters.mock.jira import MockJira
 from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
 from groundloop.domains.android_ivi.component_signals import ComponentExtractor

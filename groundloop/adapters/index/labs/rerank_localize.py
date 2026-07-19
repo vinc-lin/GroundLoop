@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Protocol, Sequence
 
-from groundloop.adapters.index.atlas_judge import _parse_order
+from groundloop.adapters.index.labs.atlas_judge import _parse_order
 from groundloop.core.types import RepoRef, RepoScore, Signals
 from groundloop.domains.android_ivi.functional_signals import code_query
 from groundloop.eval.cost import cost_of

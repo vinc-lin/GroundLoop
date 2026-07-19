@@ -6,7 +6,7 @@ from groundloop.adapters.mock.jira import MockJira
 from groundloop.adapters.mock.gerrit import MockGerrit
 from groundloop.adapters.mock.model import CannedModel
 from groundloop.adapters.estate import MockEstate
-from groundloop.adapters.index.simple import TokenIndex
+from groundloop.adapters.index.labs.simple import TokenIndex
 from groundloop.adapters.index.atlas import AtlasIndex
 from groundloop.adapters.fix.canned import CannedFixEngine
 from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
@@ -194,7 +194,7 @@ def _run_eval(args) -> int:
                         tau_margin=args.tau_margin, tau_score=args.tau_score)
     semantic_index = None
     if args.semantic:
-        from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+        from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
         from groundloop.engines.atlas.embed import GatewayEmbedder
         from groundloop.config.settings import Settings
         st = Settings.load()
@@ -202,7 +202,7 @@ def _run_eval(args) -> int:
         semantic_index = SemanticAtlasIndex(args.index_db, emb)
     judge_index = None
     if args.judge:
-        from groundloop.adapters.index.atlas_judge import LLMJudgeIndex, GatewayJudge
+        from groundloop.adapters.index.labs.atlas_judge import LLMJudgeIndex, GatewayJudge
         from groundloop.config.settings import Settings as _S
         s = _S.load()
         gj = GatewayJudge(s.produce_base_url, s.produce_api_key, s.produce_main_model)
@@ -685,7 +685,7 @@ def _run_build_textprofile(args) -> int:
     import json
     import os
     from pathlib import Path
-    from groundloop.adapters.index.text_profile import build_text_profiles, gather_repo_texts
+    from groundloop.adapters.index.labs.text_profile import build_text_profiles, gather_repo_texts
     names = [c["name"] for c in json.loads(Path(args.catalog).read_text())]
     profiles = {n: gather_repo_texts(os.path.join(args.corpus, n))
                 for n in names if os.path.isdir(os.path.join(args.corpus, n))}
@@ -1221,7 +1221,7 @@ def _build_rerank_localize(match_index, args, embedder, pool_index=None):
     `pool_index` (set by `--localize cascade_judge`) supplies the recall POOL via its retrieve() instead of
     the reranker's own candidate-gen — the judge then reorders that higher-recall pool."""
     import os
-    from groundloop.adapters.index.rerank_localize import GatewayFileJudge, RerankLocalizeIndex
+    from groundloop.adapters.index.labs.rerank_localize import GatewayFileJudge, RerankLocalizeIndex
     from groundloop.engines.atlas.store import Store
     judge = None
     if os.environ.get("KLOOP_PRODUCE_API_KEY", "").strip():
@@ -1377,13 +1377,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.index_db:
             index = AtlasIndex(args.index_db)
             if arm_req == "routing":
-                from groundloop.adapters.index.fault_routing import FaultRoutingIndex
+                from groundloop.adapters.index.labs.fault_routing import FaultRoutingIndex
                 from groundloop.domains.android_ivi.fault_signals import FaultSignalExtractor
                 index, extractor = FaultRoutingIndex(args.index_db), FaultSignalExtractor()
             elif arm_req == "component":
                 affinity_path = args.affinity or os.environ.get("KLOOP_AFFINITY", "").strip()
                 if affinity_path:
-                    from groundloop.adapters.index.component_prior import ComponentPriorIndex
+                    from groundloop.adapters.index.labs.component_prior import ComponentPriorIndex
                     from groundloop.domains.android_ivi.component_affinity import ComponentAffinity
                     from groundloop.domains.android_ivi.component_signals import ComponentExtractor
                     index = ComponentPriorIndex(AtlasIndex(args.index_db),
@@ -1403,7 +1403,7 @@ def main(argv: list[str] | None = None) -> int:
                     print("gloop run --match-arm semantic: no embedder — set KLOOP_EMBED_BASE_URL "
                           "(bge-m3 gateway). This arm needs the vector index.")
                     return 2
-                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
+                from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
                 index = SemanticAtlasIndex(args.index_db, emb)
             elif arm_req in ("functional", "dispatch"):
                 emb = _build_embedder()
@@ -1413,14 +1413,14 @@ def main(argv: list[str] | None = None) -> int:
                           "(KLOOP_EMBED_BASE_URL) AND a repo-text profile "
                           "(--functional-profile / KLOOP_FUNCTIONAL_PROFILE, built by `gloop build-textprofile`).")
                     return 2
-                from groundloop.adapters.index.functional_text import DispatchIndex, FunctionalTextIndex
+                from groundloop.adapters.index.labs.functional_text import DispatchIndex, FunctionalTextIndex
                 from groundloop.domains.android_ivi.functional_signals import (
                     DispatchExtractor, FunctionalTextExtractor)
                 ftext = FunctionalTextIndex(profile_db, emb, atlas_db=args.index_db)
                 if arm_req == "functional":
                     index, extractor = ftext, FunctionalTextExtractor()
                 else:
-                    from groundloop.adapters.index.fault_routing import FaultRoutingIndex
+                    from groundloop.adapters.index.labs.fault_routing import FaultRoutingIndex
                     from groundloop.funceval.arms import _FAULT_SCALE   # tuned fault/functional scale (SSOT)
                     index = DispatchIndex(FaultRoutingIndex(args.index_db), ftext, fault_scale=_FAULT_SCALE)
                     extractor = DispatchExtractor()
@@ -1428,13 +1428,13 @@ def main(argv: list[str] | None = None) -> int:
             # localize still runs FTS5 (atlas); --localize tokens rewrites the FTS5 query to code tokens;
             # --localize rerank wraps the match index in a grounded LLM file-reranker (rank from the match).
             if localize_req == "atlas" and arm_req == "semantic":
-                from groundloop.adapters.index.split import SplitIndex
+                from groundloop.adapters.index.labs.split import SplitIndex
                 index = SplitIndex(index, AtlasIndex(args.index_db))
             elif localize_req == "tokens":
-                from groundloop.adapters.index.signal_query import SignalQueryIndex
+                from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
                 index = SignalQueryIndex(index, AtlasIndex(args.index_db))
             elif localize_req == "rerank":
-                from groundloop.adapters.index.split import SplitIndex
+                from groundloop.adapters.index.labs.split import SplitIndex
                 emb = _build_embedder()
                 if emb is None:
                     print("gloop run --localize rerank: no embedder — set KLOOP_EMBED_BASE_URL "
@@ -1450,9 +1450,9 @@ def main(argv: list[str] | None = None) -> int:
                 # literal-anchor FTS tiers still fire) — so NO fail-fast on a MISSING embedder. A present-but
                 # -dim-mismatched embedder still fails loud at SemanticAtlasIndex construction (the
                 # reuse-contract dim check), by design. Rank stays with the match arm (wrapped in SplitIndex).
-                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-                from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
-                from groundloop.adapters.index.split import SplitIndex
+                from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
+                from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
+                from groundloop.adapters.index.labs.split import SplitIndex
                 from groundloop.engines.atlas.store import Store
                 emb = _build_embedder()
                 sem = SemanticAtlasIndex(args.index_db, emb) if emb is not None else None
@@ -1464,9 +1464,9 @@ def main(argv: list[str] | None = None) -> int:
                 # gracefully with no embedder (semantic tier omitted); the judge is creds-gated (judge=None
                 # without gateway creds), not embedder-gated — so, like cascade, NO fail-fast on a missing
                 # embedder. Rank stays with the match arm (wrapped in SplitIndex).
-                from groundloop.adapters.index.atlas_semantic import SemanticAtlasIndex
-                from groundloop.adapters.index.cascade_localize import CascadeLocalizeIndex
-                from groundloop.adapters.index.split import SplitIndex
+                from groundloop.adapters.index.labs.atlas_semantic import SemanticAtlasIndex
+                from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
+                from groundloop.adapters.index.labs.split import SplitIndex
                 from groundloop.engines.atlas.store import Store
                 emb = _build_embedder()
                 sem = SemanticAtlasIndex(args.index_db, emb) if emb is not None else None
