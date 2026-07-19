@@ -833,8 +833,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--localize",
                    choices=["atlas", "tokens", "rerank", "cascade", "cascade_judge", "atlas_rerank"],
                    default=None,
-                   help="localize retriever, chosen independently of --match-arm (default atlas in both "
-                        "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
+                   help="localize retriever, chosen independently of --match-arm (default atlas_rerank in "
+                        "both profiles, Provisional-Core since 2026-07-19): atlas_rerank (the plain FTS5 "
+                        "AtlasIndex.retrieve POOL reordered by the rerank LLM judge — no embedder at all; "
+                        "fail-safe, degrading to the byte-identical FTS5 `atlas` order without gateway "
+                        "creds) | atlas (FTS5 prose query — the [production]-validated FTS5 floor; the "
+                        "explicit opt-out from the atlas_rerank default) | tokens "
                         "(signal-aware FTS5: query the extracted code tokens, fallback prose; no embedder — "
                         "the [proxy] file@1 lever) | rerank (opt-in Candidate: hybrid candidate pool + "
                         "per-candidate code-understanding context (source + CodeWiki + live CBM when "
@@ -846,10 +850,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "semantic tier; falls back to the FTS floor when no tier fires) | cascade_judge "
                         "(opt-in Candidate: the recall-first cascade POOL reordered by the rerank LLM judge "
                         "+ code-understanding context — combines the cascade's higher-recall pool with the "
-                        "judge's precision; degrades to the cascade pool order without gateway creds) | "
-                        "atlas_rerank (opt-in Candidate: the plain FTS5 AtlasIndex.retrieve POOL reordered "
-                        "by the same rerank LLM judge — no embedder at all, unlike cascade_judge's optional "
-                        "semantic tier; degrades to the FTS5 pool order without gateway creds). When "
+                        "judge's precision; degrades to the cascade pool order without gateway creds). When "
                         "it differs "
                         "from the match arm's native retrieve (a vector --match-arm semantic), the index is "
                         "wrapped in a SplitIndex so localize still runs FTS5.")
@@ -1094,10 +1095,15 @@ def _env_flag(name: str) -> bool:
 
 def _resolve_arms(args):
     """Resolve requested (match_arm, localize) from flags + the labs profile. Explicit flags win; the labs
-    profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile)."""
+    profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile).
+
+    localize defaults to `atlas_rerank` (Provisional-Core, 2026-07-19: the plain FTS5 `atlas` pool
+    reordered by the LLM file-judge) in BOTH profiles — it is fail-safe, degrading to the byte-identical
+    FTS5 `atlas` order without judge creds and needing no embedder, so the flip can never regress or
+    fail-close a default run. `--localize atlas` remains the explicit opt-out to the plain FTS5 floor."""
     labs = args.profile == "labs" or _env_flag("KLOOP_LABS")
     match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
-    localize = args.localize if args.localize is not None else "atlas"
+    localize = args.localize if args.localize is not None else "atlas_rerank"
     return match_arm, localize, ("labs" if labs else "core")
 
 

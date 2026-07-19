@@ -55,14 +55,42 @@ def test_localize_atlas_explicit_no_wrap(monkeypatch):
     assert not isinstance(idx, (SplitIndex, SignalQueryIndex))
 
 
-def test_localize_default_is_atlas_unwrapped(monkeypatch):
-    """Core default (no --localize) is `atlas` — the [production]-validated FTS5 floor — so the index is
-    left unwrapped (neither a SignalQueryIndex nor a SplitIndex). `tokens` was reverted from the default to
-    a reachable opt-in on 2026-07-15 (the workflow-simplification pass)."""
+def test_localize_default_is_atlas_rerank_wrapped(monkeypatch):
+    """Core default (no --localize) is `atlas_rerank` (Provisional-Core since 2026-07-19) — the plain FTS5
+    AtlasIndex.retrieve POOL reordered by the LLM file-judge — so the built index IS wrapped in a
+    SplitIndex whose retrieve side is a RerankLocalizeIndex over a plain AtlasIndex pool (no cascade tiers,
+    no embedder). With no KLOOP_PRODUCE_API_KEY the judge is None, so the reranker degrades to the FTS5
+    pool order — byte-identical to plain `--localize atlas` (see test_atlas_rerank_localize.py)."""
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
     from groundloop.adapters.index.labs.split import SplitIndex
-    from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
-    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = atlas (unwrapped)
-    assert not isinstance(idx, (SplitIndex, SignalQueryIndex))
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.atlas import AtlasIndex
+    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = atlas_rerank
+    assert isinstance(idx, SplitIndex)
+    assert isinstance(idx._localize, RerankLocalizeIndex)
+    assert idx._localize.judge is None                    # no creds -> degrades to the FTS5 pool order
+    assert isinstance(idx._localize._pool_index, AtlasIndex)  # plain FTS5 pool, no cascade/semantic tier
+
+
+def test_localize_default_no_fail_close_without_embedder(monkeypatch):
+    """The atlas_rerank default must never fail-close a default `gloop run` when no embedder is configured
+    (KLOOP_EMBED_BASE_URL unset): unlike `--localize rerank` (which fail-fasts without an embedder, see
+    tests/run/test_localize_rerank_failfast.py), atlas_rerank's candidate pool is the plain FTS5 AtlasIndex
+    and never asks `_build_embedder()` for one — run_dataset must still be reached."""
+    monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
+    monkeypatch.delenv("KLOOP_LABS", raising=False)
+    seen = {}
+    import groundloop.run.batch as batch
+    monkeypatch.setattr(batch, "run_dataset",
+                        lambda dataset, **kw: (seen.__setitem__("index", kw.get("index")) or 0))
+    from groundloop.cli import main
+    rc = main(["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch",
+               "--index-db", "a.db", "--out", "o", "--repos", "r", "--fixer", "canned"])
+    assert rc == 0
+    assert "index" in seen        # run_dataset was reached -> no fail-close guard fired for localize
+    from groundloop.adapters.index.labs.split import SplitIndex
+    assert isinstance(seen["index"], SplitIndex)   # atlas_rerank default still wraps as expected
 
 
 def test_localize_tokens_explicit_wraps_signalquery(monkeypatch):

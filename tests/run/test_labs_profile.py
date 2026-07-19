@@ -1,7 +1,8 @@
 """`gloop run --profile {core,labs}` (KLOOP_LABS=1) flips the run DEFAULTS to the experimental stack
-(routing match + atlas localize; fix stays plan) — but ONLY where left at default; explicit
---match-arm/--localize always win. --match-arm/--localize parse to a None sentinel resolved by
-_resolve_arms. The manifest records profile + the localize that actually ran (post-degrade)."""
+(routing match; localize stays atlas_rerank in both profiles — the Provisional-Core default since
+2026-07-19; fix stays plan) — but ONLY where left at default; explicit --match-arm/--localize always win.
+--match-arm/--localize parse to a None sentinel resolved by _resolve_arms. The manifest records profile +
+the localize that actually ran (post-degrade)."""
 from __future__ import annotations
 
 
@@ -20,12 +21,12 @@ def test_resolve_arms_core_and_labs(monkeypatch):
             ["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch", "--index-db", "a.db",
              "--out", "o", "--repos", "r", *extra])
     monkeypatch.delenv("KLOOP_LABS", raising=False)
-    assert _resolve_arms(parse([])) == ("component", "atlas", "core")
-    assert _resolve_arms(parse(["--profile", "labs"])) == ("routing", "atlas", "labs")
-    assert _resolve_arms(parse(["--profile", "labs", "--match-arm", "functional"])) == ("functional", "atlas", "labs")
+    assert _resolve_arms(parse([])) == ("component", "atlas_rerank", "core")
+    assert _resolve_arms(parse(["--profile", "labs"])) == ("routing", "atlas_rerank", "labs")
+    assert _resolve_arms(parse(["--profile", "labs", "--match-arm", "functional"])) == ("functional", "atlas_rerank", "labs")
     assert _resolve_arms(parse(["--profile", "labs", "--localize", "atlas"])) == ("routing", "atlas", "labs")
     monkeypatch.setenv("KLOOP_LABS", "1")
-    assert _resolve_arms(parse([])) == ("routing", "atlas", "labs")
+    assert _resolve_arms(parse([])) == ("routing", "atlas_rerank", "labs")
 
 
 def test_kloop_labs_falsey_values_do_not_enable_labs(monkeypatch):
@@ -36,7 +37,7 @@ def test_kloop_labs_falsey_values_do_not_enable_labs(monkeypatch):
                                       "--changes", "ch", "--index-db", "a.db", "--out", "o", "--repos", "r"])
     for falsey in ("0", "false", "no", "off", ""):
         monkeypatch.setenv("KLOOP_LABS", falsey)
-        assert _resolve_arms(args) == ("component", "atlas", "core")   # stays Core-aligned
+        assert _resolve_arms(args) == ("component", "atlas_rerank", "core")   # stays Core-aligned
     monkeypatch.setenv("KLOOP_LABS", "1")
     assert _resolve_arms(args)[2] == "labs"                            # affirmative still works
 
