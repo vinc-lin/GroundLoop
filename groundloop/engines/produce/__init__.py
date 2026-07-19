@@ -8,7 +8,5 @@ __version__ = "1.0.1"
 __author__ = "CodeWiki Contributors"
 __license__ = "MIT"
 
-from groundloop.engines.produce.cli.main import cli
-
-__all__ = ["cli", "__version__"]
+__all__ = ["__version__"]
 
