@@ -12,6 +12,7 @@ from groundloop.mine.filters import is_minable, production_files
 from groundloop.mine.signal import has_crash_signature, split_issue_body
 from groundloop.mine.scrub import build_owner_tokens, scrub, leakage_flags, admit
 from groundloop.mine.emit import MinedCase, emit_case, emit_catalog
+from groundloop.mine.manifest import E2ECase, write_manifest
 
 # Identifier immediately followed by '(' == a call/decl/constructor-type (mirrors scrub._DECL).
 _CALL = re.compile(r"\b([A-Za-z_$][\w$]*)\s*\(")
@@ -126,7 +127,12 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
 
     `require_crash_log`/`require_merged_fix` (both default False -> default behavior unchanged):
     the e2e-corpus admission gate (`admit_e2e`), applied after `is_minable` — selects only crash-log-
-    bearing issues closed by a merged fix touching production files (the representative shape)."""
+    bearing issues closed by a merged fix touching production files (the representative shape). When
+    either is set, each genuinely-admitted case (answerable, not held-out) also gets an `E2ECase`
+    recipe+oracle row, and `out/e2e_manifest.toml` is written at the end of the run
+    (`groundloop.mine.manifest.write_manifest`) — the small, committable seed that regenerates the
+    off-repo eval corpus via `gh` + git at pinned SHAs, reusing data already fetched this run (no
+    extra network calls)."""
     from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows
     missing = missing_owner_rows([repo_name])
     if missing:
@@ -139,6 +145,8 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
     emit_catalog(out, fleet_names)
     kwargs = {"limit": limit} if gh is None else {"gh": gh, "limit": limit}
     answerable_seq = 0
+    e2e_cases: list[E2ECase] = []
+    want_e2e = require_crash_log or require_merged_fix
     for slug in slugs:
         for cand in harvest_repo(slug, **kwargs):
             report["harvested"] += 1
@@ -203,6 +211,19 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
                     report["oof"] += 1
                 else:
                     report["admitted"] += 1
+                    if want_e2e:
+                        # A genuinely admitted, answerable, non-held-out case: a real merged fix
+                        # for this repo — the representative shape the e2e corpus wants. base_sha
+                        # isn't in Candidate/harvest_repo's GraphQL payload (no parent-commit field
+                        # fetched) and we don't refetch from the network here, so it's left "" —
+                        # regenerate-from-manifest can resolve it locally via `git rev-parse
+                        # {fix_sha}~1` against the cloned repo at build time.
+                        e2e_cases.append(E2ECase(
+                            repo=repo_name, issue_number=cand.issue_number, issue_url=cand.issue_url,
+                            pr_number=cand.pr_number,
+                            pr_url=f"https://github.com/{cand.owning_slug}/pull/{cand.pr_number}",
+                            base_sha="", fix_sha=cand.merge_commit_sha, owning_repo=repo_name,
+                            expected_files=tuple(prod), required_apis=tuple(fix_apis)))
 
             case = MinedCase(
                 case_id=_opaque_id(slug, cand.issue_number), summary=s_summary, description=s_desc,
@@ -236,4 +257,7 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
                     is_answerable=False, negative_class="not_a_defect",
                     provenance={"source_method": "label_harvest", "labels": list(cand.labels)}))
                 report["not_a_defect"] += 1
+    if want_e2e:
+        from pathlib import Path
+        write_manifest(e2e_cases, Path(out) / "e2e_manifest.toml")
     return report
