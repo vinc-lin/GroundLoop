@@ -1,0 +1,25 @@
+--- a/src/shared/dlt_common.c
++++ b/src/shared/dlt_common.c
+@@ -1848,9 +1848,22 @@ int dlt_message_read(DltMessage *msg, uint8_t *buffer, unsigned int length, int
+             msg->extendedheader = NULL;
+
+         dlt_message_get_extraparameters(msg, verbose);
+     }
+
++    /* Guard the payload copy: a corrupt or truncated frame (or a resync that
++     * advanced the buffer past the received bytes) can drive the computed
++     * payload source range past what we actually received, so the memcpy below
++     * would read out of bounds. Reject such frames instead of dereferencing. */
++    int32_t payload_offset = (int32_t)msg->headersize - (int32_t)sizeof(DltStorageHeader);
++    if ((payload_offset < 0) || (msg->datasize < 0) ||
++        ((size_t)payload_offset + (size_t)msg->datasize > (size_t)length)) {
++        dlt_vlog(LOG_WARNING,
++                 "dlt_message_read: payload range %d+%d exceeds %u received bytes\n",
++                 payload_offset, msg->datasize, length);
++        return DLT_MESSAGE_ERROR_SIZE;
++    }
++
+     /* check if payload fits length */
+     if (length < (size_t)((int32_t)msg->headersize - (int32_t)sizeof(DltStorageHeader) + msg->datasize))
+         /* dlt_log(LOG_ERR,"length does not fit!\n"); */
+         return DLT_MESSAGE_ERROR_SIZE;

@@ -1,0 +1,18 @@
+FATAL EXCEPTION: main
+Process: com.app.stream, PID: 14237
+java.lang.IndexOutOfBoundsException: Index 3 out of bounds for length 2
+	at java.util.ArrayList.get(ArrayList.java:427)
+	at com.app.stream.util.SecondaryStreamHelper.getStream(SecondaryStreamHelper.java:69)
+	at com.app.stream.download.DownloadDialog.continueSelectedDownload(DownloadDialog.java:1066)
+	at com.app.stream.download.DownloadDialog.prepareSelectedDownload(DownloadDialog.java:922)
+	at com.app.stream.download.DownloadDialog.lambda$onCreateView$4(DownloadDialog.java:352)
+	at android.view.View.performClick(View.java:7659)
+	at android.view.View$PerformClick.run(View.java:29429)
+	at android.os.Handler.handleCallback(Handler.java:958)
+	at android.os.Handler.dispatchMessage(Handler.java:99)
+	at android.os.Looper.loopOnce(Looper.java:205)
+	at android.os.Looper.loop(Looper.java:294)
+	at android.app.ActivityThread.main(ActivityThread.java:8177)
+	at java.lang.reflect.Method.invoke(Native Method)
+	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)

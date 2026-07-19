@@ -1,0 +1,15 @@
+{
+  "id": "crash-02-java-stream-helper",
+  "summary": "App crashes with IndexOutOfBoundsException when starting a video+audio download",
+  "description": "Steps to reproduce: open the download dialog for a video, let the audio stream list refresh (e.g. switch quality once, then tap Download). The app force-closes instead of starting the download. The muxed-audio helper looks up a cached stream position that no longer matches the current stream list, so the list access goes out of bounds. Attaching the logcat FATAL EXCEPTION captured on a Pixel 6 (Android 14). Happens every time once the stream list has been re-fetched.",
+  "component": "",
+  "status": "Open",
+  "comments": [],
+  "logs": [
+    {
+      "path": "logs/crash.txt",
+      "kind": "stacktrace",
+      "content": "FATAL EXCEPTION: main\nProcess: com.app.stream, PID: 14237\njava.lang.IndexOutOfBoundsException: Index 3 out of bounds for length 2\n\tat java.util.ArrayList.get(ArrayList.java:427)\n\tat com.app.stream.util.SecondaryStreamHelper.getStream(SecondaryStreamHelper.java:69)\n\tat com.app.stream.download.DownloadDialog.continueSelectedDownload(DownloadDialog.java:1066)\n\tat com.app.stream.download.DownloadDialog.prepareSelectedDownload(DownloadDialog.java:922)\n\tat com.app.stream.download.DownloadDialog.lambda$onCreateView$4(DownloadDialog.java:352)\n\tat android.view.View.performClick(View.java:7659)\n\tat android.view.View$PerformClick.run(View.java:29429)\n\tat android.os.Handler.handleCallback(Handler.java:958)\n\tat android.os.Handler.dispatchMessage(Handler.java:99)\n\tat android.os.Looper.loopOnce(Looper.java:205)\n\tat android.os.Looper.loop(Looper.java:294)\n\tat android.app.ActivityThread.main(ActivityThread.java:8177)\n\tat java.lang.reflect.Method.invoke(Native Method)\n\tat com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)\n\tat com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)\n"
+    }
+  ]
+}

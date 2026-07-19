@@ -1,0 +1,15 @@
+--- a/src/flowgraph/resampler/MultiChannelResampler.cpp
++++ b/src/flowgraph/resampler/MultiChannelResampler.cpp
+@@ -107,6 +107,12 @@ MultiChannelResampler *MultiChannelResampler::Builder::build() {
+ }
+
+ void MultiChannelResampler::writeFrame(const float *frame) {
++    // Guard the hot resampler write path: an upstream node that has not been
++    // configured yet can push a null frame or a zero-channel frame, which then
++    // dereferences frame[channel] / writes past mX and crashes on the callback.
++    if (frame == nullptr || getChannelCount() <= 0) {
++        return;
++    }
+     // Move cursor before write so that cursor points to last written frame in read.
+     if (--mCursor < 0) {
+         mCursor = getNumTaps() - 1;

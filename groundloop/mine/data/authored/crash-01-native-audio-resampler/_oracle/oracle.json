@@ -1,0 +1,14 @@
+{
+  "owning_repo": "oboe",
+  "expected_files": [
+    "src/flowgraph/resampler/MultiChannelResampler.cpp"
+  ],
+  "required_apis": [
+    "MultiChannelResampler::writeFrame",
+    "getChannelCount"
+  ],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "ed97b3e7451156f123e19b1eef4fc4b72940d6a1",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

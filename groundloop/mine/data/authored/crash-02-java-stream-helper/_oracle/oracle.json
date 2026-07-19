@@ -1,0 +1,9 @@
+{
+  "owning_repo": "newpipe",
+  "expected_files": ["app/src/main/java/org/schabi/newpipe/util/SecondaryStreamHelper.java"],
+  "required_apis": ["getStream", "getStreamsList"],
+  "fix_patch": "fix.diff",
+  "owning_repo_sha": "730705a283dc39de2ecba5b36d8c208e153fb581",
+  "is_answerable": true,
+  "bug_kind": "crash"
+}

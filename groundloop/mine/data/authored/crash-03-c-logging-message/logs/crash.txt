@@ -1,0 +1,34 @@
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+Native crash dump captured by in-vehicle coredump handler
+Build fingerprint: 'ivi-connect/car_arm64/userdebug/2026.06'
+ABI: 'arm64'
+Timestamp: 2026-07-14 09:42:11.318+0000
+Cmdline: /usr/bin/dlt-receive -a diag.trace.sink 127.0.0.1
+pid: 2247, tid: 2247, name: dlt-receive  >>> /usr/bin/dlt-receive <<<
+uid: 1000
+signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x00000000deadbe10
+Cause: bad pointer dereference while parsing a received trace frame
+
+    x0  00000000deadbe00  x1  0000007f9c0a4200  x2  0000000000000fa0  x3  0000000000000000
+    x4  0000000000000041  x5  0000007f9c0a3f80  x6  0000000000000000  x7  00000000000000ff
+    x8  0000000000000090  x9  0000007f9c0a4210  x10 0000000000000000  x11 0000000000000220
+    ...
+    sp  0000007ffb3a1c40  lr  00000078f10be5a4  pc  00000078f10bb3d0
+
+backtrace:
+      #00 pc 000000000001b3d0  /usr/lib/libdlt.so (dlt_message_read+412)
+      #01 pc 000000000001e5a4  /usr/lib/libdlt.so (dlt_client_main_loop+188)
+      #02 pc 0000000000002144  /usr/bin/dlt-receive (main+96)
+      #03 pc 0000000000024083  /lib/libc.so.6 (__libc_start_main+112)
+      #04 pc 000000000000205e  /usr/bin/dlt-receive (_start+46)
+
+memory near x0 (00000000deadbe00):
+    00000000deadbe00  -------- -------- -------- --------  ................
+    00000000deadbe10  <fault>
+
+journal excerpt (preceding the crash):
+  [  912.441] INFO     new client connection accepted on trace log socket
+  [  912.443] WARNING  Plausibility check failed. Complete message size too short (-8)!
+  [  912.444] ERROR    dlt_message_read: corrupt frame from client socket, resync on serial header advanced past received payload
+  [  912.444] ERROR    receiver buffer overrun: computed payload offset exceeds bytesRcvd (220), aborting decode
+  [  912.445] FATAL    signal 11 in dlt_message_read while copying payload from receive buffer

@@ -1,0 +1,15 @@
+--- a/app/src/main/java/org/schabi/newpipe/util/SecondaryStreamHelper.java
++++ b/app/src/main/java/org/schabi/newpipe/util/SecondaryStreamHelper.java
+@@ -66,7 +66,11 @@ public class SecondaryStreamHelper<T extends Stream> {
+     }
+
+     public T getStream() {
+-        return streams.getStreamsList().get(position);
++        final List<T> streamsList = streams.getStreamsList();
++        if (position < 0 || position >= streamsList.size()) {
++            return null;
++        }
++        return streamsList.get(position);
+     }
+
+     public long getSizeInBytes() {
