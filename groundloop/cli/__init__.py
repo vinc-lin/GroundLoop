@@ -590,6 +590,22 @@ def _run_kb_attribute(args) -> int:
     return 0
 
 
+def _run_kb_seed(args) -> int:
+    """Deterministic feedstock -> grounded candidate knowledge store (Task 11; replaces the retired
+    LLM kb-extract). Parses every Skill in the feedstock corpus, grounds it against the given atlas
+    (fleet-wide, oracle-blind), and writes the admitted candidate playbooks."""
+    from groundloop.engines.atlas.store import Store
+    from groundloop.kb.knowledge import save_knowledge
+    from groundloop.kb.knowledge_ground import atlas_resolver
+    from groundloop.kb.seed import seed_to_store
+    from groundloop.kb.validate import SEED_PATH, load_corpus
+
+    store, rejected = seed_to_store(load_corpus(SEED_PATH), atlas_resolver(Store(args.index_db)))
+    save_knowledge(args.out, store)
+    print(f"kb-seed: admitted {len(store)} playbook(s), rejected {len(rejected)} -> {args.out}")
+    return 0
+
+
 def _run_compare(args) -> int:
     import json
     from pathlib import Path
@@ -1026,6 +1042,12 @@ def build_parser() -> argparse.ArgumentParser:
                      help="cap the LOFO-confirm shortlist (bounds the real fix-loop spend)")
     kat.add_argument("--cost-budget", dest="cost_budget", type=float, default=None,
                      help="reject an item if Δcost_per_solved exceeds this (default: advisory only)")
+
+    kse = sub.add_parser("kb-seed",
+                         help="deterministic feedstock -> grounded candidate knowledge store "
+                              "(parses aaos_kb_seed.toml, grounds against a real atlas)")
+    kse.add_argument("--index-db", required=True, help="path to atlas.db to ground against")
+    kse.add_argument("--out", required=True, help="knowledge store JSON path to write")
 
     cmp = sub.add_parser("compare", help="diff two fix-scorecards -> newly_solved/newly_broken")
     cmp.add_argument("--base", required=True, help="base fix-scorecard.json")
@@ -1553,6 +1575,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_kb_ab(args)
     if args.cmd == "kb-attribute":
         return _run_kb_attribute(args)
+    if args.cmd == "kb-seed":
+        return _run_kb_seed(args)
     if args.cmd == "compare":
         return _run_compare(args)
     return 1
