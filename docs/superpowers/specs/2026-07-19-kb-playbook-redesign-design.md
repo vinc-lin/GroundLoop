@@ -56,11 +56,15 @@ class KnowledgePlaybook:
 
 - **Coherence:** one crash class = one record (fixes the 0/60 atomization). The RCA triple
   (signature/localize/fix) + APIs travels and is governed as a unit.
-- **Grounding (oracle-blind):** every symbol named in `localize`/`fix`/`required_apis`/`grounding_refs` must
-  resolve in the atlas — reuse `kb/knowledge_ground.check_knowledge_grounded` + `atlas_resolver`
-  (`Store.keyword_search` recall → whole-identifier regex post-filter), applied **per field**. Grounding
-  proves **existence, never ownership** (leak-safe: no `FLEET_OWNER_TOKENS`), so the gate stays oracle-blind.
-  `signature` prose is not grounded; the symbols it references are.
+- **Grounding (oracle-blind):** `kb/knowledge_ground.check_knowledge_grounded` requires the record to be
+  well-formed (non-empty `signature`, a compilable `applies_when`) AND every `grounding_refs` entry to
+  resolve in the atlas via `atlas_resolver` (`Store.keyword_search` recall → whole-identifier regex
+  post-filter, fleet-wide, existence-only) AND no owner-token leak. There is no separate per-field check
+  on `localize`/`fix`/`required_apis`: seed/mint collect every code entity those fields name into
+  `grounding_refs` (seed sets it to `hint_apis`; mint sets it to the crash-vocab refs), so requiring
+  `grounding_refs` to resolve is how those fields get grounded. Grounding proves **existence, never
+  ownership** (leak-safe: no `FLEET_OWNER_TOKENS`), so the gate stays oracle-blind. `signature` prose is
+  not itself resolved; the symbols it references are, via `grounding_refs`.
 - **Tier ladder:** `candidate → applied → validated → canonical` (+`retired` sink), via
   `kb/lifecycle.py` (hysteresis=2). *(Note: reconcile the stale `knowledge.py` docstring tier list with
   `lifecycle.TIERS` during migration.)*

@@ -90,9 +90,10 @@ class KnowledgePlaybook:
     evidence: dict = ...               # lifecycle bookkeeping
 ```
 
-*(`groundloop/kb/knowledge.py` also keeps a `Knowledge = KnowledgePlaybook` alias and the legacy
-`type`/`content` fields for now, transitional scaffolding from the atomic-claim migration — not part of the
-current design; new code should use `KnowledgePlaybook`/`signature`/`localize`/`fix`.)*
+*(`groundloop/kb/knowledge.py` keeps a `Knowledge = KnowledgePlaybook` transitional alias, but the record
+shape itself is final: the CONTRACT step of the playbook redesign removed the transitional `type`/`content`
+fields now that every constructor/consumer is migrated — `KnowledgePlaybook` is exactly the ten fields above,
+no legacy fields remain.)*
 
 A `KnowledgePlaybook` carries its **own** firing predicate (`applies_when`) and records, in `provenance`,
 *the source Skill id it was parsed from, or the ticket it was minted from* — the one directional statement in
@@ -337,7 +338,7 @@ explicitly configured.
 ## 9. File map
 
 - **The Skill primitive (raw source):** `groundloop/skills/{base,predicate,ctx}.py`
-- **The `KnowledgePlaybook` primitive + store:** `groundloop/kb/knowledge.py` (`KnowledgePlaybook`, `KNOWLEDGE_PATH`, `load_knowledge`/`save_knowledge` over `knowledge.json`; keeps a transitional `Knowledge` alias + legacy `type`/`content` fields)
+- **The `KnowledgePlaybook` primitive + store:** `groundloop/kb/knowledge.py` (`KnowledgePlaybook`, `KNOWLEDGE_PATH`, `load_knowledge`/`save_knowledge` over `knowledge.json`; keeps a transitional `Knowledge` alias — the record shape itself is final, no legacy `type`/`content` fields)
 - **Registries:** `groundloop/adapters/skills/mock.py` (`MockSkillRegistry`, raw Skills) · `groundloop/kb/registry.py` (`PlaybookRegistry` — predicate filter → bge-m3 rerank → top-k bound; `KnowledgeRegistry` transitional alias)
 - **Feedstock + validator:** `groundloop/kb/data/aaos_kb_seed.toml` (12) · `groundloop/kb/validate.py` · `groundloop/kb/data/placebo.toml`
 - **Seed (Skill → playbook, deterministic parse):** `groundloop/kb/seed.py` (`playbook_from_skill`, `seed_to_store`) · `groundloop/kb/knowledge_ground.py` (`check_knowledge_grounded`) · `groundloop/kb/knowledge_placebo.py`. *(The old LLM shredder, `kb/extract.py`, is retired/deleted.)*
