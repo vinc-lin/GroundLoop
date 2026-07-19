@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
+
+_COMMENT_LEADERS = ("//", "/*", "*", "#")
 
 
 def _slug_variants(owning_repo: str) -> set[str]:
@@ -66,7 +69,8 @@ def validate_authored_case(case_dir: Path, repo_root: Path) -> list[str]:
         if any(v and v.lower() in text_blob.lower() for v in variants):
             problems.append(f"owning_repo name leaks into the ticket: {owning_repo}")
 
-    # 5. fix targets: fix.diff must touch an expected_file and reference a required_api on an added line.
+    # 5. fix targets: fix.diff must touch an expected_file and reference a required_api on an added,
+    # non-comment line.
     fix_path = case_dir / oracle.get("fix_patch", "fix.diff")
     if fix_path.is_file():
         diff_text = fix_path.read_text()
@@ -91,5 +95,31 @@ def validate_authored_case(case_dir: Path, repo_root: Path) -> list[str]:
         added_text = "\n".join(added_lines)
         if required_apis and not any(api in added_text for api in required_apis):
             problems.append("fix.diff does not reference any required_api on an added line")
+        elif required_apis:
+            # Narrow further: at least one added line referencing the api must be real code, not a
+            # pure comment (strip the leading "+" then leading whitespace; reject //, /*, *, # leaders).
+            def _is_pure_comment(added_line: str) -> bool:
+                stripped = added_line[1:].strip()
+                return stripped.startswith(_COMMENT_LEADERS)
+
+            code_lines = [ln for ln in added_lines if not _is_pure_comment(ln)]
+            code_text = "\n".join(code_lines)
+            if not any(api in code_text for api in required_apis):
+                problems.append("fix.diff references required_api only in comments, not real code")
+
+        # 6. apply-clean: fix.diff must apply byte-clean against the real repo checkout (catches
+        # hunk-offset / stale-copy defects a text-only check can't see). Degrades gracefully (no
+        # problem) when repo_root/owning_repo isn't a git checkout at all.
+        owning_repo_dir = repo_root / owning_repo
+        if (owning_repo_dir / ".git").is_dir():
+            result = subprocess.run(
+                ["git", "-C", str(owning_repo_dir), "apply", "--check", str(fix_path.resolve())],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                stderr = result.stderr.strip()
+                problems.append(
+                    f"fix.diff does not apply cleanly to {owning_repo} (git apply --check failed): {stderr}"
+                )
 
     return problems
