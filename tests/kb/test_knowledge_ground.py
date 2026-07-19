@@ -24,6 +24,17 @@ def _resolver(known):
     return lambda ref: ref in s
 
 
+def _playbook(**over) -> Knowledge:
+    base = dict(id="pb-1", applies_when={"any_text": ["oncleared"]},
+                signature="ViewModel leaks a Job past onDestroyView",
+                localize=("onDestroyView",), fix=("cancel the callback",),
+                required_apis=("onDestroyView", "Job.cancel"),
+                grounding_refs=("onDestroyView", "Job.cancel"),
+                content="", provenance="viewmodel-job-leak", tier="candidate", evidence={})
+    base.update(over)
+    return Knowledge(**base)
+
+
 def test_grounded_when_all_refs_resolve_and_no_leak():
     chk = check_knowledge_grounded(_knowledge(), _resolver(["GetLongField", "reinterpret_cast"]))
     assert chk.grounded is True
@@ -51,13 +62,29 @@ def test_bad_type_and_empty_content_flagged():
                                    _resolver(["GetLongField", "reinterpret_cast"]))
     assert chk.grounded is False
     assert any(r.startswith("bad_type:") for r in chk.reasons)
-    assert "empty_content" in chk.reasons
+    # shape-tolerant well-formedness: a legacy item with a blank content AND no signature has no body.
+    assert "empty_body" in chk.reasons
 
 
 def test_empty_grounding_refs_not_grounded():
     chk = check_knowledge_grounded(_knowledge(grounding_refs=()), _resolver([]))
     assert chk.grounded is False
     assert "no_grounding_refs" in chk.reasons
+
+
+def test_playbook_grounded_when_refs_resolve_and_wellformed():
+    chk = check_knowledge_grounded(_playbook(), _resolver(["onDestroyView", "Job.cancel"]))
+    assert chk.grounded is True and chk.reasons == ()
+
+
+def test_playbook_ungrounded_when_a_ref_missing():
+    chk = check_knowledge_grounded(_playbook(), _resolver(["onDestroyView"]))     # Job.cancel missing
+    assert chk.grounded is False and any(r.startswith("unresolved_refs") for r in chk.reasons)
+
+
+def test_not_wellformed_when_neither_signature_nor_content():
+    chk = check_knowledge_grounded(_playbook(signature="", content=""), _resolver(["onDestroyView", "Job.cancel"]))
+    assert chk.grounded is False and "empty_body" in chk.reasons
 
 
 def _real_store(tmp_path) -> Store:

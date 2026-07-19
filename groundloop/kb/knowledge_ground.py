@@ -1,7 +1,11 @@
 """Deterministic, oracle-blind ground-check for a candidate Knowledge item (design spec §5.2).
 
-A knowledge item is admitted to the store only if it (a) is WELL-FORMED (valid type, non-empty content, a
-compilable applies_when predicate — reuse skills/predicate.compile_predicate), (b) is GROUNDED — every
+A knowledge item is admitted to the store only if it (a) is WELL-FORMED — a non-empty `signature` OR
+`content` body, a non-empty `id`, an optional `type` that (when set) is one of `_VALID_TYPES`, and a
+compilable applies_when predicate (reuse skills/predicate.compile_predicate). This is shape-tolerant by
+design (expand-migrate-contract): a LEGACY item (from kb/extract.py) sets `type`/`content`; a new
+playbook item (from seed/mint) sets `signature`/`localize`/`fix`/`required_apis` and leaves `type` blank
+— both ground the same way. (b) is GROUNDED — every
 grounding_ref resolves in the atlas (some unit exists for it, fleet-wide) — and (c) is LEAK-SAFE — its
 content / grounding_refs / applies_when name NO fleet-owner token (the same FLEET_OWNER_TOKENS red-test the
 KB corpus passes, via kb/validate.owner_denylist). Checking FLEET-WIDE existence reveals nothing about WHICH
@@ -78,8 +82,17 @@ def atlas_resolver(store, *, k: int = 20) -> Callable[[str], bool]:
 
 
 def _leak_haystack(knowledge) -> str:
-    """Lowercased content + grounding_refs + applies_when values — the same surface validate_corpus scans."""
-    parts = [knowledge.content, " ".join(knowledge.grounding_refs)]
+    """Lowercased signature/localize/fix/required_apis/content/grounding_refs + applies_when values — the
+    same surface validate_corpus scans. Shape-tolerant (getattr with a default) so it scans whichever
+    fields a legacy `content`-shaped item or a new `signature`-shaped playbook item actually carries."""
+    parts = [
+        getattr(knowledge, "signature", "") or "",
+        " ".join(getattr(knowledge, "localize", ()) or ()),
+        " ".join(getattr(knowledge, "fix", ()) or ()),
+        " ".join(getattr(knowledge, "required_apis", ()) or ()),
+        getattr(knowledge, "content", "") or "",
+        " ".join(getattr(knowledge, "grounding_refs", ()) or ()),
+    ]
     for v in (knowledge.applies_when or {}).values():
         if isinstance(v, (list, tuple)):
             parts.append(" ".join(str(x) for x in v))
@@ -95,10 +108,13 @@ def check_knowledge_grounded(knowledge, resolver: Callable[[str], bool], *,
     reasons: list[str] = []
 
     # (a) well-formedness — an item that can't type-check or can't fire is never grounded/effective.
-    if knowledge.type not in _VALID_TYPES:
+    # Shape-tolerant during the expand-migrate-contract reshape: a legacy item carries `type`/`content`,
+    # a new playbook item carries `signature` (+ `localize`/`fix`/`required_apis`) and leaves `type` blank
+    # — so `type` is only checked when non-empty, and the body check accepts EITHER `signature` OR `content`.
+    if knowledge.type and knowledge.type not in _VALID_TYPES:
         reasons.append(f"bad_type:{knowledge.type}")
-    if not (knowledge.content or "").strip():
-        reasons.append("empty_content")
+    if not ((knowledge.signature or "").strip() or (knowledge.content or "").strip()):
+        reasons.append("empty_body")
     if not (knowledge.id or "").strip():
         reasons.append("empty_id")
     if not knowledge.applies_when:
