@@ -163,7 +163,9 @@ def _run_mine(args) -> int:
     report = mine([args.slug], args.out, repo_name=args.repo_name, fleet_names=fleet,
                   limit=args.limit, max_files=args.max_files, holdout_frac=args.holdout_frac,
                   coverage_cutoff=args.coverage_cutoff, leak_index=leak_index,
-                  not_a_defect_limit=args.not_a_defect_limit)
+                  not_a_defect_limit=args.not_a_defect_limit,
+                  require_crash_log=args.require_crash_log,
+                  require_merged_fix=args.require_merged_fix)
     print(f"mine {args.repo_name}: " + " ".join(f"{k}={v}" for k, v in report.items()))
     return 0
 
@@ -924,6 +926,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "(temporal proxy for un-indexed fix)")
     mn.add_argument("--not-a-defect-limit", type=int, default=0,
                     help="cap on label-harvested not_a_defect negatives per repo (0=off)")
+    mn.add_argument("--require-crash-log", action="store_true",
+                    help="admit only issues whose body carries a crash-log signature (e2e corpus)")
+    mn.add_argument("--require-merged-fix", action="store_true",
+                    help="admit only candidates with a merged PR touching >=1 production file")
 
     ma = sub.add_parser("mine-affinity", help="offline: build component->repo affinity json from a dataset")
     ma.add_argument("--dataset", required=True, help="dataset root (ticket.json component + _oracle owner)")

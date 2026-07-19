@@ -9,7 +9,7 @@ from groundloop.domains.android_ivi.owner_tokens import owner_tokens_for
 from groundloop.fix.patch import code_added_lines
 from groundloop.mine.harvest import Candidate, fetch_commit_diff, harvest_repo
 from groundloop.mine.filters import is_minable, production_files
-from groundloop.mine.signal import split_issue_body
+from groundloop.mine.signal import has_crash_signature, split_issue_body
 from groundloop.mine.scrub import build_owner_tokens, scrub, leakage_flags, admit
 from groundloop.mine.emit import MinedCase, emit_case, emit_catalog
 
@@ -50,6 +50,20 @@ def required_apis_from_diff(diff: str, *, cap: int = _API_CAP) -> list[str]:
             if len(out) >= cap:
                 return out
     return out
+
+
+def admit_e2e(candidate: Candidate, *, require_crash_log: bool, require_merged_fix: bool) -> bool:
+    """Pure e2e-corpus admission gate (`--require-crash-log`/`--require-merged-fix`) — no network.
+
+    `require_crash_log`: the raw issue body must carry a crash signature (`has_crash_signature`).
+    `require_merged_fix`: the candidate must have a merged PR (`merge_commit_sha` set) whose
+    `production_files(...)` is non-empty. Both flags default False in `mine()`, so with both False
+    this always admits (existing default mining behavior stays byte-identical)."""
+    if require_crash_log and not has_crash_signature(candidate.issue_body):
+        return False
+    if require_merged_fix and not (candidate.merge_commit_sha and production_files(candidate.files)):
+        return False
+    return True
 
 
 def _opaque_id(slug: str, num: int) -> str:
@@ -99,7 +113,8 @@ def _oracle_for(cand: Candidate, repo_name: str, expected_files: list[str],
 def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name: str,
          fleet_names: list[str], limit: int = 200, max_files: int = 5, holdout_frac: float = 0.0,
          coverage_cutoff: str = "", leak_index=None, not_a_defect_limit: int = 0,
-         diff_fetcher: Optional[Callable[[str, str], str]] = None) -> dict:
+         diff_fetcher: Optional[Callable[[str, str], str]] = None,
+         require_crash_log: bool = False, require_merged_fix: bool = False) -> dict:
     """Mine one repo slug (repo_name = its short catalog name) into `out/`. Returns a report dict.
 
     `diff_fetcher(slug, sha) -> unified diff` supplies each positive's gold merge-commit diff (sets
@@ -107,7 +122,11 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
     production (real gh, `gh is None`) fetches via the REST commits endpoint; an injected fake gh
     (tests) defaults to a no-op "" so the hermetic suite never touches the network — inject an
     explicit `diff_fetcher` to exercise the wiring. A failed/empty fetch is fail-safe: fix_patch=""
-    + required_apis=[] leave the case ungradeable rather than crashing."""
+    + required_apis=[] leave the case ungradeable rather than crashing.
+
+    `require_crash_log`/`require_merged_fix` (both default False -> default behavior unchanged):
+    the e2e-corpus admission gate (`admit_e2e`), applied after `is_minable` — selects only crash-log-
+    bearing issues closed by a merged fix touching production files (the representative shape)."""
     from groundloop.domains.android_ivi.owner_tokens import missing_owner_rows
     missing = missing_owner_rows([repo_name])
     if missing:
@@ -126,6 +145,10 @@ def mine(slugs: list[str], out: str, *, gh: Optional[Callable] = None, repo_name
             prod = production_files(cand.files)
             if not is_minable({"merged": True, "changed_files": cand.files_total,
                                "title": cand.issue_title}, cand.files, max_files=max_files):
+                report["dropped_filters"] += 1
+                continue
+            if not admit_e2e(cand, require_crash_log=require_crash_log,
+                             require_merged_fix=require_merged_fix):
                 report["dropped_filters"] += 1
                 continue
             prose, logs = split_issue_body(cand.issue_body)

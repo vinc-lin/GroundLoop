@@ -66,6 +66,23 @@ def _cut(text: str, spans: list[tuple[int, int]]) -> str:
     return "".join(out)
 
 
+RE_CRASH_STACK_FRAME = re.compile(r"(?m)^\s*at\s+[\w.$]+\([\w.]+:\d+\)")
+RE_CRASH_NATIVE_FRAME = re.compile(r"#\d+\s+pc\s+[0-9a-fA-F]+")
+RE_CRASH_EXC_HEADER = re.compile(r"\b\w+(?:Exception|Error)\b")
+RE_CRASH_LOGCAT_LINE = re.compile(r"(?m)^[VDIWEF]\s+\w+\s*:")
+
+_CRASH_SIGNATURES = (RE_CRASH_STACK_FRAME, RE_CRASH_NATIVE_FRAME, RE_CRASH_EXC_HEADER,
+                     RE_CRASH_LOGCAT_LINE, RE_FATAL, RE_ANDROIDRT)
+
+
+def has_crash_signature(body: str) -> bool:
+    """True if `body` carries a crash-log signature: a Java stack frame, a native backtrace frame,
+    an Exception/Error header, or a logcat priority line (incl. AndroidRuntime/FATAL). The e2e-corpus
+    admission predicate (`gloop mine --require-crash-log`) — admits crash-log-bearing issues, rejects
+    pure feature/UI prose. Pure/no I/O; reuses the classify()/split_issue_body() regex idioms above."""
+    return any(r.search(body) for r in _CRASH_SIGNATURES)
+
+
 def _harvest_unfenced(text: str) -> tuple[str, list[dict]]:
     lines = text.splitlines()
     keep: list[str] = []
