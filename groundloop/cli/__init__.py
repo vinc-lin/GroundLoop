@@ -830,7 +830,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--functional-profile", default="",
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
-    r.add_argument("--localize", choices=["atlas", "tokens", "rerank", "cascade", "cascade_judge"],
+    r.add_argument("--localize",
+                   choices=["atlas", "tokens", "rerank", "cascade", "cascade_judge", "atlas_rerank"],
                    default=None,
                    help="localize retriever, chosen independently of --match-arm (default atlas in both "
                         "profiles): atlas (FTS5 prose query — the [production]-validated default) | tokens "
@@ -845,7 +846,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "semantic tier; falls back to the FTS floor when no tier fires) | cascade_judge "
                         "(opt-in Candidate: the recall-first cascade POOL reordered by the rerank LLM judge "
                         "+ code-understanding context — combines the cascade's higher-recall pool with the "
-                        "judge's precision; degrades to the cascade pool order without gateway creds). When "
+                        "judge's precision; degrades to the cascade pool order without gateway creds) | "
+                        "atlas_rerank (opt-in Candidate: the plain FTS5 AtlasIndex.retrieve POOL reordered "
+                        "by the same rerank LLM judge — no embedder at all, unlike cascade_judge's optional "
+                        "semantic tier; degrades to the FTS5 pool order without gateway creds). When "
                         "it differs "
                         "from the match arm's native retrieve (a vector --match-arm semantic), the index is "
                         "wrapped in a SplitIndex so localize still runs FTS5.")
@@ -1472,6 +1476,16 @@ def main(argv: list[str] | None = None) -> int:
                 cascade = CascadeLocalizeIndex(index, fts=AtlasIndex(args.index_db), semantic=sem,
                                                store=Store(args.index_db))
                 localize_reranker = _build_rerank_localize(index, args, emb, pool_index=cascade)
+                index = SplitIndex(index, localize_reranker)
+            elif localize_req == "atlas_rerank":
+                # Plain FTS5 AtlasIndex.retrieve POOL (no cascade, no semantic tier at all) reordered by the
+                # rerank LLM judge — composed exactly like cascade_judge but with a plain AtlasIndex as the
+                # pool_index and embedder=None (the FTS5 pool needs no embedder, so unlike --localize rerank
+                # there is NO embedder fail-fast here). The judge is creds-gated (judge=None without gateway
+                # creds), degrading to the FTS5 pool order. Rank stays with the match arm (SplitIndex).
+                from groundloop.adapters.index.labs.split import SplitIndex
+                pool = AtlasIndex(args.index_db)
+                localize_reranker = _build_rerank_localize(index, args, None, pool_index=pool)
                 index = SplitIndex(index, localize_reranker)
         else:
             from groundloop.adapters.index.labs.simple import TokenIndex
