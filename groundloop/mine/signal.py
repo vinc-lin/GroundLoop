@@ -69,7 +69,7 @@ def _cut(text: str, spans: list[tuple[int, int]]) -> str:
 RE_CRASH_STACK_FRAME = re.compile(r"(?m)^\s*at\s+[\w.$]+\([\w.]+:\d+\)")
 RE_CRASH_NATIVE_FRAME = re.compile(r"#\d+\s+pc\s+[0-9a-fA-F]+")
 RE_CRASH_EXC_HEADER = re.compile(r"\b\w+(?:Exception|Error)\b")
-RE_CRASH_LOGCAT_LINE = re.compile(r"(?m)^[VDIWEF]\s+\w+\s*:")
+RE_CRASH_LOGCAT_LINE = re.compile(r"(?m)^[VDIWEF](?:/\w+|\s+[A-Z]\w*\s*:)")
 
 _CRASH_SIGNATURES = (RE_CRASH_STACK_FRAME, RE_CRASH_NATIVE_FRAME, RE_CRASH_EXC_HEADER,
                      RE_CRASH_LOGCAT_LINE, RE_FATAL, RE_ANDROIDRT)

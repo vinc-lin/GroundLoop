@@ -23,6 +23,17 @@ def test_prose_rejected():
     assert not has_crash_signature("")
 
 
+def test_sentence_prose_not_mistaken_for_logcat():
+    # "I"/"E"/... + a single word + colon is sentence-y prose, not a logcat tag line.
+    assert not has_crash_signature("I think: this is broken.")
+    assert not has_crash_signature("I expected: a value")
+    assert not has_crash_signature("I have: nothing")
+    # real logcat tags (slash form + uppercase space form) still fire
+    assert has_crash_signature("E AudioTrack: could not create track")
+    assert has_crash_signature("E/AudioTrack( 1234): boom")
+    assert has_crash_signature("W System: low memory")
+
+
 def _candidate(body: str, *, merge_commit_sha: str = "sha1", files=None) -> Candidate:
     return Candidate(
         owning_slug="owner/repo", issue_number=1, issue_title="t", issue_body=body, issue_url="u",
