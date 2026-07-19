@@ -21,6 +21,8 @@ class Settings:
     embed_batch: int = 128              # inputs per embed request (server BGE_MAX_BATCH=256)
     embed_max_chars: int = 2000         # truncate each input (server BGE_MAX_CHARS=100000 → 413)
     index_camelcase: bool = False       # opt-in: append identifier sub-words to symbol text at index time
+    kb_store: str = ""
+    kb_topk: int = 2
 
     @classmethod
     def load(cls, env: dict | None = None) -> "Settings":
@@ -41,6 +43,8 @@ class Settings:
             embed_batch=int(_pos_float(e.get("KLOOP_EMBED_BATCH"), 128.0)),
             embed_max_chars=int(_pos_float(e.get("KLOOP_EMBED_MAX_CHARS"), 2000.0)),
             index_camelcase=_bool_env(e.get("KLOOP_INDEX_CAMELCASE")),
+            kb_store=e.get("KLOOP_KB_STORE", ""),
+            kb_topk=int(_pos_float(e.get("KLOOP_KB_TOPK"), 2.0)),
         )
 
 

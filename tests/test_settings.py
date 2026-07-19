@@ -34,3 +34,11 @@ def test_embed_batch_and_max_chars_configurable():
     assert o.embed_batch == 256 and o.embed_max_chars == 512      # env override (ints)
     bad = Settings.load(env={"KLOOP_EMBED_BATCH": "junk"})
     assert bad.embed_batch == 128                                 # invalid → default
+
+
+def test_kb_settings_load_with_defaults():
+    from groundloop.config.settings import Settings
+    s = Settings.load({"KLOOP_KB_STORE": "/tmp/kb.json", "KLOOP_KB_TOPK": "2"})
+    assert s.kb_store == "/tmp/kb.json" and s.kb_topk == 2
+    d = Settings.load({})
+    assert d.kb_store == "" and d.kb_topk == 2
