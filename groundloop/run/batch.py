@@ -12,7 +12,10 @@ from groundloop.run.record import MaterializeOutcome, RunRecordIO
 
 
 def run_dataset(dataset: str, *, issues, extractor, estate, index, fixer, changes, match_arm: str,
-                out: str, extractor_rec=None, cost_model=None, fixer_kind: str = "") -> int:
+                out: str, extractor_rec=None, cost_model=None, fixer_kind: str = "", mint=None) -> int:
+    """`mint`, when given, is called `mint(case_id, signals, locations, patch_diff)` once per case whose
+    patch cleanly applies (opt-in; `None` — the default — leaves this function byte-identical to before
+    the KB mint hook existed)."""
     Path(out).mkdir(parents=True, exist_ok=True)                      # ChangeSink may write under out/ mid-run
     cases = load_cases(dataset)                                        # never reads _oracle/
     for case in cases:
@@ -32,6 +35,8 @@ def run_dataset(dataset: str, *, issues, extractor, estate, index, fixer, change
         if outcome is None:                                           # non-recording estate fallback
             outcome = MaterializeOutcome(rec.chosen.name, "", False, 0)
         applies = patch_applies(rec.patch.diff, outcome.path) if outcome.present else False
+        if mint is not None and applies:
+            mint(case.case_id, sig, list(rec.locations), rec.patch.diff)
         bind_kind = "mock" if isinstance(changes, MockGerrit) else "live"
         RunRecordIO.write(f"{out}/runs/{case.case_id}.json", rec, materialize=outcome,
                           match_arm=match_arm, patch_applies=applies,

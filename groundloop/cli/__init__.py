@@ -834,6 +834,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "it differs "
                         "from the match arm's native retrieve (a vector --match-arm semantic), the index is "
                         "wrapped in a SplitIndex so localize still runs FTS5.")
+    r.add_argument("--kb-store", default="",
+                   help="opt-in: path to a knowledge.json playbook store. Unset (default) -> the KB path "
+                        "never engages (byte-identical to a run with no KB); else KLOOP_KB_STORE.")
+    r.add_argument("--kb-topk", type=int, default=0,
+                   help="max playbooks the KB registry injects per selection (default: KLOOP_KB_TOPK or 2; "
+                        "only meaningful with --kb-store)")
     r.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
 
     grun = sub.add_parser("grade-run", help="offline per-stage scorecard over a gloop run --out dir")
@@ -1241,6 +1247,32 @@ class _CombinedCostModel:
         return int(self._sum("calls"))
 
 
+def _wire_kb(fixer, extractor_rec, index_db, kb_store, kb_topk, embedder):
+    """Opt-in: wrap the fixer with validated-playbook injection + return a mint callback. Returns
+    (fixer, None) unchanged when kb_store is falsy — so an unconfigured run is byte-identical to a run
+    with no KB at all (no decorator, no mint, no store I/O)."""
+    if not kb_store:
+        return fixer, None
+    from groundloop.adapters.fix.knowledge_inject import KnowledgeInjectingFixEngine
+    from groundloop.engines.atlas.store import Store
+    from groundloop.kb.knowledge import load_knowledge, save_knowledge
+    from groundloop.kb.knowledge_ground import atlas_resolver
+    from groundloop.kb.mint import mint_playbook
+    from groundloop.kb.registry import PlaybookRegistry
+    reg = PlaybookRegistry.load(kb_store, embedder=embedder, top_k=kb_topk)
+    fixer = KnowledgeInjectingFixEngine(fixer, registry=reg, extractor_rec=extractor_rec, tier_floor="validated")
+    resolver = atlas_resolver(Store(index_db))
+
+    def mint(ticket_id, signals, locations, patch_diff):
+        pb = mint_playbook(ticket_id=ticket_id, signals=signals, locations=locations,
+                           patch_diff=patch_diff, resolver=resolver)
+        if pb is not None:
+            store = load_knowledge(kb_store)
+            store.setdefault(pb.id, pb)                 # dedupe by crash-class id
+            save_knowledge(kb_store, store)
+    return fixer, mint
+
+
 def _build_run_fixer(kind: str, max_replan: int = 1):
     """Returns (FixEngine, cost_model|None). cost_model is the GatewayModel whose .cost_usd the batch
     driver snapshots per case; None for the canned stub. `main` fail-closes on a missing key BEFORE this
@@ -1459,12 +1491,20 @@ def main(argv: list[str] | None = None) -> int:
             # driver's before/after delta captures the judge cost incurred during localize.
             if localize_reranker is not None and getattr(localize_reranker, "judge", None) is not None:
                 cost_model = _CombinedCostModel(cost_model, localize_reranker)
+            # KB: strictly opt-in (see _wire_kb) — with no --kb-store/KLOOP_KB_STORE, fixer/mint pass
+            # through unchanged and this run is byte-identical to a run built with no KB at all.
+            from groundloop.config.settings import Settings as _KbSettings
+            _kb_settings = _KbSettings.load()
+            fixer, mint = _wire_kb(fixer, extractor, args.index_db,
+                                   (args.kb_store or _kb_settings.kb_store),
+                                   (args.kb_topk or _kb_settings.kb_topk), _build_embedder())
             n = run_dataset(args.dataset, issues=issues, extractor=extractor,
                             estate=RecordingEstate(inner), index=index,
                             fixer=fixer,
                             changes=MockGerrit(args.changes, issues),
                             match_arm=match_arm, out=args.out,
-                            extractor_rec=extractor, cost_model=cost_model, fixer_kind=args.fixer)
+                            extractor_rec=extractor, cost_model=cost_model, fixer_kind=args.fixer,
+                            mint=mint)
             from groundloop.run.manifest import write_manifest
             from groundloop.config.settings import Settings as _S
             _s = _S.load()

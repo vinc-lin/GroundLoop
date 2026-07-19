@@ -1,9 +1,13 @@
 import json
+import subprocess
+from pathlib import Path
 from groundloop.adapters.mock.jira import MockJira
 from groundloop.adapters.mock.gerrit import MockGerrit
 from groundloop.adapters.mock.model import CannedModel
 from groundloop.adapters.fix.canned import CannedFixEngine
 from groundloop.adapters.estate import MockEstate, RecordingEstate
+from groundloop.adapters.extractor_recording import RecordingExtractor
+from groundloop.core.types import RepoRef, WorkTree
 from groundloop.domains.android_ivi.signal_extractor import AndroidSignalExtractor
 from groundloop.run.batch import run_dataset
 from groundloop.run.record import RunRecordIO
@@ -193,6 +197,93 @@ def test_run_dataset_cost_zero_without_cost_model(tmp_path):
     assert doc.cost_usd == 0.0 and doc.tokens == {"input": 0, "output": 0}
     assert doc.model_calls == 0 and doc.fixer == "canned"
     assert isinstance(doc.signals, dict)                               # still captured
+
+
+class _GitEstate:
+    """RepoEstate that git-inits each materialized worktree with a Main.kt seeded with the exact
+    '// bug' line CannedFixEngine's stub diff flips to '// fixed for <ticket>' — so `git apply --check`
+    succeeds and `patch_applies` is True, reaching the mint hook's applies-gated branch."""
+    def __init__(self, catalog_path, work_root):
+        self.catalog_path = Path(catalog_path)
+        self.work_root = Path(work_root)
+
+    def catalog(self):
+        return [RepoRef(r["name"]) for r in json.loads(self.catalog_path.read_text())]
+
+    def materialize(self, repo):
+        d = self.work_root / repo.name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "Main.kt").write_text("// bug\n")
+        for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
+                     ["add", "-A"], ["commit", "-q", "-m", "base"]):
+            subprocess.run(["git", "-C", str(d), *args], check=True)
+        return WorkTree(repo=repo, path=str(d))
+
+
+class _MintSpy:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, case_id, signals, locations, patch_diff):
+        self.calls.append((case_id, signals, locations, patch_diff))
+
+
+def test_run_dataset_mints_on_clean_applying_patch(tmp_path):
+    ds, cat = _dataset(tmp_path)
+    out = tmp_path / "out"
+    issues = MockJira(ds)
+    estate = RecordingEstate(_GitEstate(cat, str(tmp_path / "work")))
+    extractor = RecordingExtractor(AndroidSignalExtractor())
+    spy = _MintSpy()
+    run_dataset(ds, issues=issues, extractor=extractor, estate=estate,
+                index=_StubIndex(), fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                changes=MockGerrit(str(out / "changes.jsonl"), issues),
+                match_arm="component", out=str(out),
+                extractor_rec=extractor, mint=spy)
+    doc = RunRecordIO.read(str(out / "runs" / "GEI-1.json"))
+    assert doc.patch_applies is True                                   # sanity: the clean-apply setup works
+    assert len(spy.calls) == 1
+    case_id, signals, locations, patch_diff = spy.calls[0]
+    assert case_id == "GEI-1"
+    assert signals is extractor.last_signals
+    assert locations == ["Main.kt"]
+    assert patch_diff == doc.patch["diff"]
+
+
+def test_run_dataset_does_not_mint_when_patch_does_not_apply(tmp_path):
+    ds, cat = _dataset(tmp_path)
+    out = tmp_path / "out"
+    issues = MockJira(ds)
+    # plain MockEstate -> an empty, non-git worktree -> git apply --check fails -> patch_applies False
+    estate = RecordingEstate(MockEstate(cat, str(tmp_path / "work")))
+    extractor = RecordingExtractor(AndroidSignalExtractor())
+    spy = _MintSpy()
+    run_dataset(ds, issues=issues, extractor=extractor, estate=estate,
+                index=_StubIndex(), fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                changes=MockGerrit(str(out / "changes.jsonl"), issues),
+                match_arm="component", out=str(out),
+                extractor_rec=extractor, mint=spy)
+    doc = RunRecordIO.read(str(out / "runs" / "GEI-1.json"))
+    assert doc.patch_applies is False
+    assert spy.calls == []
+
+
+def test_run_dataset_mint_none_default_is_unchanged(tmp_path):
+    """mint=None (the default) must not error and must leave the run-record untouched — the opt-in
+    contract: an unconfigured caller (no mint kwarg at all) behaves exactly as before this feature."""
+    ds, cat = _dataset(tmp_path)
+    out = tmp_path / "out"
+    issues = MockJira(ds)
+    estate = RecordingEstate(_GitEstate(cat, str(tmp_path / "work")))
+    extractor = RecordingExtractor(AndroidSignalExtractor())
+    n = run_dataset(ds, issues=issues, extractor=extractor, estate=estate,
+                    index=_StubIndex(), fixer=CannedFixEngine(CannedModel({"default": "patch"})),
+                    changes=MockGerrit(str(out / "changes.jsonl"), issues),
+                    match_arm="component", out=str(out),
+                    extractor_rec=extractor)          # no mint kwarg passed at all
+    assert n == 1
+    doc = RunRecordIO.read(str(out / "runs" / "GEI-1.json"))
+    assert doc.patch_applies is True                   # unaffected: still computed and persisted normally
 
 
 def test_read_back_compat_on_old_record(tmp_path):
