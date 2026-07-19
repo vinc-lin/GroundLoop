@@ -22,8 +22,11 @@ Every component carries one tag:
 | **build-time** | off the JIRA loop; produces an artifact the runtime later reads |
 | **labs** | eval / benchmark only; the loop never imports it (see §5) |
 
-**Reality check (the honesty overlay).** The loop is *not* a delivered closed loop. **Match** and **localize**
-are `[production]`-validated; **fix** is a real engine but **unproven** (safety default = abstain);
+**Reality check (the honesty overlay).** The loop is *not* a delivered closed loop. **Match** is
+`[production]`-validated; **localize**'s *floor* (`AtlasIndex.retrieve`) is `[production]`-validated, but its
+run **default** (`atlas_rerank`) is Provisional-Core — safety-proven (degrades byte-identical to the
+`[production]` floor without judge creds), effectiveness still an open `[proxy]` A/B; **fix** is a real engine
+but **unproven** (safety default = abstain);
 **submit/bind are MOCK**, and `run_ticket` returns **`bound=True` as a hardcoded literal** (`core/workflow.py:42`)
 — it is *not* derived from the `bind()` call (whose return is discarded at L39). A doc "structured by the
 end-to-end workflow" must not read as if steps ⑦–⑧ are real. They aren't yet.
@@ -128,10 +131,20 @@ Signature: `run_ticket(ticket_id, *, issues, extractor, estate, index, fixer, ch
     dir ⇒ honest abstain. **[MOCK]**
 - **Type:** `WorkTree` (`core/types.py:54`) — `repo`, `path`.
 
-### ⑤ localize — `CodeIndex.retrieve` · [production] floor (+ Candidate rerankers)
+### ⑤ localize — `CodeIndex.retrieve` · Provisional-Core default (`atlas_rerank`) over a [production] FTS5 floor (+ Candidate rerankers)
 - **Call:** `index.retrieve(chosen, ticket.summary) -> [str]` (file paths) (`workflow.py:33`).
 - **Core floor:** `AtlasIndex.retrieve` = FTS5 over `kind='symbol'` units within the chosen repo — plain keyword
-  search. This is the **`[production]` 7/10 file@5** floor (`--localize atlas`, the default). **[production]**
+  search. This is the **`[production]` 7/10 file@5** floor (`--localize atlas`) — no longer the run default (see
+  below), but the explicit opt-out / fail-safe degrade target every reranker below falls back to. **[production]**
+- **Run default (Provisional-Core, since 2026-07-19):** `--localize atlas_rerank` — `RerankLocalizeIndex`
+  (`adapters/index/labs/rerank_localize.py`) composed via the `pool_index` seam over a **plain `AtlasIndex`**
+  pool (no cascade, no embedder anywhere in the arm) and reordered by the rerank LLM file-judge. Fail-safe: with
+  no gateway judge creds it returns the FTS5 pool order **byte-identical to `--localize atlas`**, so a
+  credential-less run can't regress and — unlike `--localize rerank` — it never fail-closes on a missing
+  embedder. Honest gap: *with* creds the judge can rank the true file below where raw FTS5 had it (a `file@1`
+  regression vs `atlas`), unmeasured for this arm; the `[proxy]` file@1 A/B (`atlas` vs `atlas_rerank` vs
+  `cascade_judge`) is an open resolver, not done. Admitted on the same fail-safe argument as Bug Plan Mode —
+  see `docs/capabilities.md` §"Provisional-Core".
 - **Opt-in rerankers** (`adapters/index/labs/`, wrapped in `SplitIndex` so localize is chosen independently of the
   match arm — all **Candidate**):
   - `SignalQueryIndex` (`signal_query.py`, `--localize tokens`) — rewrites the query to extracted CODE tokens.
@@ -143,7 +156,9 @@ Signature: `run_ticket(ticket_id, *, issues, extractor, estate, index, fixer, ch
     floor + crash code-tokens + literal anchors + optional bge-m3 semantic tier.
   - **`cascade_judge`** (composed, `cli/__init__.py:1461`) — the CascadeLocalizeIndex passed as the `pool_index`
     to a RerankLocalizeIndex = cascade recall pool reordered by the LLM judge. **Best localize file@1 to date**
-    (`[proxy]`), leading Candidate.
+    (`[proxy]` 0.245/0.469 file@1/@5), leading Candidate — a richer pool than `atlas_rerank`'s, but needs an
+    embedder, which is why `atlas_rerank` (zero-embedder + the degrade-to-`atlas` floor) is the run default
+    instead of this higher-ceiling arm.
 
 ### ⑥ fix — `FixEngine.propose` · Candidate (unproven; abstains, never fabricates)
 - **Call:** `fixer.propose(wt, ticket, locations) -> Patch` (`workflow.py:35`).
@@ -208,9 +223,10 @@ in `grade/`, §4):
   the product-surface half split out of `eval/dataset.py`. **[production].**
 
 ### Composition root — `cli/__init__.py` (`gloop run`)
-Wires every port from flags. **Core-aligned defaults:** match `component` · localize `atlas` · fixer `plan`
+Wires every port from flags. **Core/Provisional-Core-aligned defaults:** match `component` · localize
+`atlas_rerank` (Provisional-Core, since 2026-07-19 — `--localize atlas` is the opt-out) · fixer `plan`
 (`_resolve_arms`, ~L1091). Key flags: `--match-arm {flood,routing,component,semantic,functional,dispatch}`,
-`--localize {atlas,tokens,rerank,cascade,cascade_judge}`, `--fixer {canned,model,plan}`, `--repos`, `--index`/
+`--localize {atlas,tokens,rerank,cascade,cascade_judge,atlas_rerank}`, `--fixer {canned,model,plan}`, `--repos`, `--index`/
 `--index-db` (required, mutually-exclusive), `--profile {core,labs}`, `--affinity`, `--functional-profile`,
 `--kb-store`/`--kb-topk`, hidden `--dev`. **Fail-closed** (returns 2, never fabricates): real fixer without
 gateway creds or without repo snapshots; `semantic`/`functional`/`dispatch`/`rerank` without an embedder.

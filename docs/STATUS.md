@@ -13,6 +13,37 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 
 ## Done
 
+### Localize — `--localize atlas_rerank` shipped as the Provisional-Core default (2026-07-19) ✅
+Shipped **`--localize atlas_rerank`**: the plain FTS5 `AtlasIndex.retrieve` recall pool reordered by the rerank
+LLM file-judge, composed via the same additive `pool_index` seam `cascade_judge` uses on `RerankLocalizeIndex`
+— but with a plain `AtlasIndex` pool instead of the cascade, so it needs **no embedder at all** (unlike
+`--localize rerank`, which fails closed without one). Three commits: `1c32b35`/`4d2d442` (spec+plan),
+`c87f7a5` (the arm), `b91ae58` (made it the run default), `f8ef049` (grade-run isolated-localize diagnostic
+fix so `atlas_rerank` runs attribute correctly instead of falling through to a generic `atlas` label, + a
+stale `--profile` help-string fix).
+- **Made the production DEFAULT localize arm** (replaced `atlas`), in **both** `--profile core` and
+  `--profile labs` — classified **Provisional-Core** (the existing governance tier: default-on on a fail-safe
+  argument, before a `[production]` effectiveness read, reverting on debt), on the same admission logic as Bug
+  Plan Mode.
+- **The fail-safe argument (proven):** with no judge creds (`KLOOP_PRODUCE_API_KEY` unset) it returns the FTS5
+  pool order **byte-identical to `--localize atlas`** — a credential-less production run cannot regress, and it
+  never fail-closes (no embedder dependency anywhere in the arm). `--localize atlas` stays the explicit
+  opt-out / revert path. Cost while creds are present: ~$0.0014/case.
+- **The one honest NEW failure mode (not covered by the fail-safe, unmeasured for this arm):** *with* judge
+  creds, the LLM judge can rank the true file **below** where raw FTS5 had it — a `file@1` regression vs
+  `atlas`.
+- **Context:** `cascade_judge` stays the opt-in **higher-ceiling** Candidate (richer recall pool, best
+  `[proxy]` file@1 0.245/file@5 0.469) but needs an embedder; `atlas_rerank` trades that ceiling for
+  zero-embedder + the degrade-to-`atlas` floor, which is why it (not `cascade_judge`) is the default.
+- **OPEN — the resolver is NOT done yet:** a `[proxy]` isolated `file@1` A/B comparing `atlas` vs
+  `atlas_rerank` vs `cascade_judge` on the existing mine74 harness (n=108) — gated Type-2 (needs a live
+  gateway + a real atlas + `--repos`), so it cannot run hermetically. Decision rule: `atlas_rerank file@1 ≥
+  atlas` → keep the default (then a `[production]` GEI read is the path toward Core); `< atlas` → revert the
+  default to `--localize atlas`. Docs updated (`capabilities.md`, `CLAUDE.md`, `module-map.md`) to record
+  `atlas_rerank` as Provisional-Core/unproven — **not** `[production]`-validated. Spec/plan:
+  `docs/superpowers/specs/2026-07-19-atlas-rerank-localize-design.md`,
+  `docs/superpowers/plans/2026-07-19-atlas-rerank-localize.md`.
+
 ### First-principles review — Phase-2 structural cleanup complete, Cycle 4 = produce relocation+strip (2026-07-19) ✅
 The 2026-07-18 aggressive first-principles review (`docs/superpowers/specs/2026-07-18-first-principles-review.md`;
 verdict: GroundLoop is honestly a **validated Stage-1 matcher + research lab, not a delivered closed loop**)
@@ -437,6 +468,13 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
    disentangle-CodeWiki arm (`judge + doc→source pool, no wiki-context`); and a **crash-with-fix substrate** so
    the fix-context question (CBM in fix is genuinely untested — it never fired on signal-less tickets) becomes
    answerable at all. Detail: `docs/data-flow.md`, `docs/superpowers/specs/2026-07-16-localize-fix-design-logic.md`.
+6. **Resolve `--localize atlas_rerank`'s Provisional-Core status — the `[proxy]` isolated `file@1` A/B, not yet
+   run.** `atlas_rerank` is now the `gloop run` localize default (2026-07-19), admitted Provisional-Core on the
+   fail-safe argument alone (degrades byte-identical to `--localize atlas` without judge creds); the
+   *effectiveness* half is open. Next step: the isolated `file@1` comparison of `atlas` vs `atlas_rerank` vs
+   `cascade_judge` on the mine74 harness (n=108, gated Type-2 — needs a live gateway + a real atlas + `--repos`).
+   Decision rule: `atlas_rerank file@1 ≥ atlas` → keep the default, then chase a `[production]` GEI read toward
+   Core; `< atlas` → revert the default to `--localize atlas`.
 
 ## Services / environment
 - **LiteLLM gateway** — creds in the gitignored `/mnt/x/code/loop-agent/.env`, reused by

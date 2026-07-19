@@ -115,8 +115,11 @@ GL-M1 plan (for provenance):
 - CLI: `.venv/bin/gloop {run,grade-run,index,produce,doctor,build-atlas,build-textprofile,mine,mine-affinity,eval,label-bugkind,fixeval,funceval,faulteval,synth,combine-oracle,compare,kb-ab,kb-seed,kb-attribute}`.
   `gloop run` defaults (Core-aligned): match `component` arm + **`--fixer plan`** (the Provisional-Core
   `PlanningFixEngine` "Bug Plan Mode", default since 2026-07-13; `--fixer` = `canned|model|plan`; safety default —
-  abstains not fabricates, effectiveness production-gated) + localize `atlas` (the [production]-validated
-  FTS5 floor; the `tokens`/`SignalQueryIndex` default was reverted to a reachable opt-in on 2026-07-15 —
+  abstains not fabricates, effectiveness production-gated) + localize `atlas_rerank` (Provisional-Core
+  default since 2026-07-19, both profiles: the FTS5 `atlas` pool reordered by the LLM file-judge, needs no
+  embedder; degrades byte-identical to `atlas` without judge creds, so it never regresses or fail-closes;
+  `--localize atlas` is the explicit opt-out to the [production]-validated FTS5 floor; the
+  `tokens`/`SignalQueryIndex` default was reverted to a reachable opt-in on 2026-07-15 —
   see `docs/superpowers/specs/2026-07-15-workflow-overdesign-audit-and-simplification.md`), fail-closed
   without gateway creds / a valid `--repos`. Experimental Candidate arms are opt-in, never the silent default:
   `--match-arm {semantic,judge,functional,dispatch}`, `--localize {tokens,semantic,dispatch}`,
