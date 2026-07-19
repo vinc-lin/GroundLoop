@@ -228,6 +228,31 @@ verdict, and reporting-only **promotion-eligibility notes**, 2026-07-13) · `syn
 `combine-oracle` / `label-bugkind` · `build-atlas` · `doctor` · `GitFixtureEstate`. This is the machinery that
 *enforces* the promotion rule — it stays in Dev Labs by design.
 
+> **Follow-on 2026-07-19 (realistic e2e eval corpus — machinery only, no live read yet).** `mine` gained a
+> crash-log + merged-fix admission gate (`has_crash_signature` + `admit_e2e`, reachable via `gloop mine
+> --require-crash-log --require-merged-fix`) and a committed case manifest (`mine/manifest.py` +
+> `mine/data/e2e_manifest.toml` — a git-versioned recipe+oracle; bulky logs/checkouts/atlas stay off-repo,
+> regenerable from it); `fixeval` gained an honest end-to-end funnel report (`render_e2e_funnel`) that grades
+> match→localize→fix on the SAME cases and reports submit/bind as the mock it is, never as `bound`. All three
+> are Dev-Labs Infra like the rest of this list — hermetic-tested, but **no live corpus has been mined and no
+> funnel read has run**; that is an open gated-live follow-up (mine → commit the populated manifest → build the
+> atlas off ext4 → run the funnel, `[proxy]`), not a merge gate.
+>
+> This machinery targets the **mine74** prose regime (OSS feature/UI issues, ~0 logs) as its replacement: mine74
+> is a shape production never sends, and is why the one `[proxy]`-vs-`[production]` localize check (`dispatch`,
+> Candidate section below) came back `0/10` INERT. Read literally: mine74 is **superseded as the intended
+> primary `[proxy]` localize substrate, pending the live read** — until the e2e corpus is actually populated and
+> the funnel runs, mine74 remains the only substrate any `[proxy]` number (e.g. the `atlas_rerank` resolver row
+> above) can actually be read against.
+>
+> Also retired as genuinely dead (zero non-test callers, confirmed before deletion): `eval/metrics.py::
+> ndcg_at_k` + standalone `mrr()`/`success_at_k`, and `synth/functional.py::build_functional_negatives`. The
+> pre-existing honesty/selective/abstention/negatives stack (`abstention_recall_oof`, per-class abstain,
+> `Φ_c`-over-unanswerable) and the KB-as-eval arm stay in Dev-Labs Infra, now labeled in `docs/evaluation.md` as
+> **"not exercised by any read"** (quarantined, not deleted) — this corpus is positives-only and doesn't feed
+> them. Spec/plan: `docs/superpowers/specs/2026-07-19-e2e-eval-corpus-design.md`,
+> `docs/superpowers/plans/2026-07-19-e2e-eval-corpus.md`.
+
 ### Fixture — permanent hermetic Type-1 doubles (must be explicit, never default)
 `CannedFixEngine` · `MockEstate` · `MockJira` · `MockGerrit` · `CannedModel` · `TokenIndex` (M0 stub) ·
 legacy `grade()` **+ the hidden-oracle bridge it uses** — `core.types.Oracle`/`Scores` and

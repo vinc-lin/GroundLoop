@@ -13,6 +13,34 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 
 ## Done
 
+### Realistic end-to-end eval corpus — hermetic machinery shipped, no live read yet (2026-07-19) ✅
+Shipped the **hermetic machinery** for a realistic, full-end-to-end `[proxy]` eval corpus (branch
+`feat/e2e-eval-corpus`, ~6 commits). **This is machinery, ready to run — no live read has run yet.**
+- **The problem it targets:** every effectiveness read to date ran on the **mine74 prose regime** (OSS
+  feature/UI issues, ~0 logs) — a shape production never sends; the one `[proxy]`-vs-`[production]`
+  localize check (the `dispatch` arm) came back **0/10 INERT** for exactly that reason. First principle:
+  **grounding over narrative — small-real over large-fake.**
+- **New machinery (all labs, hermetic-tested):** a crash-log + merged-fix admission gate
+  (`has_crash_signature` + `admit_e2e` in `groundloop/mine/{signal,gh_miner}.py`, surfaced as `gloop mine
+  --require-crash-log --require-merged-fix`); a committed case manifest (`groundloop/mine/manifest.py` +
+  `groundloop/mine/data/e2e_manifest.toml` — a git-versioned repo/issue/pr/SHA/oracle recipe; bulky data —
+  logs, checkouts, the atlas.db — stays off-repo, regenerable from it); and an honest end-to-end funnel
+  report (`render_e2e_funnel` in `groundloop/fixeval/report.py`) that grades match → localize → fix on the
+  SAME cases, with **submit/bind always reported as mock, never scored as bound**.
+- **The trim:** retired genuinely-dead `ndcg_at_k` / standalone `mrr()` / `success_at_k`
+  (`eval/metrics.py`) and the orphaned `build_functional_negatives` (`synth/functional.py`) — both
+  confirmed caller-free before deletion. The honesty/selective/abstention/negatives stack + the KB-as-eval
+  arm are **quarantined** ("not exercised by any read" in `docs/evaluation.md`), **not deleted**.
+- **Scope honored:** Tier B only (uniform full-end-to-end; no match-localize-only Tier A cases); no
+  honest-refusal negatives; **not closing the loop** — this is measurement, not a real fix / live Gerrit.
+- **`core/` + atlas schema zero-diff.**
+- **OPEN — the gated-live follow-up (not done):** run `gloop mine --require-crash-log
+  --require-merged-fix` over a broadened Android/native repo set → commit the populated manifest → build
+  the atlas (off ext4) → run the end-to-end funnel read (`[proxy]`). Needs `gh` + the gateway + a built
+  atlas, so it can't run hermetically — it's the next step, not done here. Spec/plan:
+  `docs/superpowers/specs/2026-07-19-e2e-eval-corpus-design.md`,
+  `docs/superpowers/plans/2026-07-19-e2e-eval-corpus.md`.
+
 ### Localize — `--localize atlas_rerank` shipped as the Provisional-Core default (2026-07-19) ✅
 Shipped **`--localize atlas_rerank`**: the plain FTS5 `AtlasIndex.retrieve` recall pool reordered by the rerank
 LLM file-judge, composed via the same additive `pool_index` seam `cascade_judge` uses on `RerankLocalizeIndex`
@@ -476,6 +504,11 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
    `cascade_judge` on the mine74 harness (n=108, gated Type-2 — needs a live gateway + a real atlas + `--repos`).
    Decision rule: `atlas_rerank file@1 ≥ atlas` → keep the default, then chase a `[production]` GEI read toward
    Core; `< atlas` → revert the default to `--localize atlas`.
+7. **Run the realistic e2e eval corpus build + first funnel read (gated, not done).** The hermetic machinery
+   (crash-log + merged-fix mine filter, committed manifest, honest funnel report) shipped 2026-07-19; the open
+   step is `gloop mine --require-crash-log --require-merged-fix` over a broadened Android/native repo set →
+   commit the populated manifest → build the atlas (off ext4) → run the end-to-end funnel (`[proxy]`). Needs
+   `gh` + the gateway + a built atlas, so it isn't hermetic — run by the user, not a merge gate.
 
 ## Services / environment
 - **LiteLLM gateway** — creds in the gitignored `/mnt/x/code/loop-agent/.env`, reused by

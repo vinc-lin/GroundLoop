@@ -421,6 +421,57 @@ at `coverage = 1.0`.
 
 ---
 
+## What's actually exercised vs idle (2026-07-19)
+
+An eval-surface audit this session found the scorecard machinery above is **over-built relative to what any
+read actually consumes**. Every effectiveness read to date (§10, `results-log.md`) reads only: `repo_recall@1/
+@3/@5`, `repo_mrr`/`mean_repo_rank` (§7.1), `file_recall@1/@5` (localization), `patch_apply_rate`,
+`resolved_rate_strict`, `required_api_pass_rate` (the `fixeval` metrics), and the `by_bug_kind` split. The rest
+of §7.2/§7.3's **honesty/selective/abstention/negatives stack** — `coverage`, `selective_accuracy`/
+`selective_risk`, the risk-coverage curve, `AURC`/`AUGRC`, `accuracy@70%-coverage`/`coverage@5%-risk`, `Φ_c`,
+`abstention_recall_oof` — and the **KB-as-eval arm** (§6.4) are **built but not exercised by any effectiveness
+read that has actually run**. This is not a defect to fix by deleting them: they encode intended future
+evaluation (real honest-refusal negatives, a KB efficacy A/B) that the current dataset doesn't populate. They
+are recorded here as **quarantined — "not exercised by any read"** — kept in place, not deleted, so nobody
+mistakes idle machinery for a validated capability. See `docs/capabilities.md` for the governance framing.
+
+**The substrate problem this idleness sits on top of:** every read that *has* run, ran on the **mine74 prose
+regime** — real OSS GitHub issues, mostly feature/UI requests, carrying ~0 crash logs. That is a shape
+**production never sends** (real AAOS tickets carry logcat/native-backtrace). The one time a `[proxy]` localize
+positive was checked against `[production]` GEI (the `dispatch` arm, `capabilities.md` §"Candidate"), it came
+back **0/10 INERT** — precisely because the proxy tested prose-only tickets while real tickets carry logcat.
+
+**What this branch (`feat/e2e-eval-corpus`) shipped in response — machinery, no live read yet:**
+- A **crash-log + merged-fix admission gate** in `groundloop/mine/` — `has_crash_signature(body)`
+  (`mine/signal.py`) + `admit_e2e(candidate, *, require_crash_log, require_merged_fix)` (`mine/gh_miner.py`),
+  reachable via `gloop mine --require-crash-log --require-merged-fix`. It selects only real, crash-log-bearing
+  GitHub issues closed by a merged PR that touches production files — the representative shape.
+- A **committed case manifest** (`groundloop/mine/manifest.py` + the placeholder
+  `groundloop/mine/data/e2e_manifest.toml`): a git-versioned recipe+oracle per case (`repo`, `issue_number`,
+  `issue_url`, `pr_number`, `pr_url`, `base_sha`, `fix_sha`, `owning_repo`, `expected_files`, `required_apis`).
+  Bulky data (full logs, repo checkouts, the multi-GB atlas.db) stays off-repo and is regenerable from the
+  manifest via `gh` + git at the pinned SHAs — this closes the "datasets are unversioned dev-box memory" gap.
+  `base_sha` is resolved at build time as `fix_sha~1`, not stored. Public GitHub data only.
+- An **honest end-to-end funnel report** — `render_e2e_funnel(scorecard, per_case)` in
+  `groundloop/fixeval/report.py`: one markdown view grading match → localize → fix **on the same cases**,
+  reusing `grade_fix_all`'s existing numbers (nothing recomputed). **submit/bind is always reported as the mock
+  it is, never scored as `bound`.**
+- **The trim:** retired genuinely-dead `eval/metrics.py::ndcg_at_k` + standalone `mrr()`/`success_at_k` (never
+  called outside tests — the scorecard's `repo_mrr` is computed inline, not via this helper) and the orphaned
+  `synth/functional.py::build_functional_negatives` (no caller). Nothing load-bearing was touched.
+
+**State plainly: no live read has run.** The mining filter, manifest writer/loader, and funnel renderer are
+hermetic-tested (fixtures, no network/no real LLM) — this is *machinery, ready to run*, not a result. The open
+follow-up (gated Type-2, needs `gh` + gateway + a built atlas, so it cannot run hermetically) is: run `gloop
+mine --require-crash-log --require-merged-fix` over a broadened Android/native repo set → commit the populated
+manifest → build the atlas off ext4 → run the funnel (`[proxy]`). Expect **small n** (real crash-with-clean-fix
+issues are scarce) and expect **fix to be measured, not targeted** — `resolved_rate_strict` on this corpus is a
+number to observe, likely weak, not a bar this branch claims to clear. Spec/plan:
+`docs/superpowers/specs/2026-07-19-e2e-eval-corpus-design.md`,
+`docs/superpowers/plans/2026-07-19-e2e-eval-corpus.md`.
+
+---
+
 ## 8. Harness architecture
 
 Pure **ports & adapters** at the edges; **`core/` is frozen** (never edited for this feature — behavior is
