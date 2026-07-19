@@ -96,6 +96,9 @@ cross-stage evaluation and the first production run) live in `docs/results-log.m
   engine, testing + scoring — every efficacy number `[proxy]`/`[production]`-tagged; links down into the docs above.
 - `docs/stages-concept.md` — the **concept behind the three working stages** (Match · Localize · Fix): the
   core idea and *why* each is shaped that way (companion deep-dive to `stakeholder-overview.md` §5; synthesis, not SSOT).
+- `docs/module-map.md` — a **working map: every built module walked through the 8-stage JIRA loop** (port →
+  adapter → where-wired → maturity, per stage) + 3 ASCII component diagrams + the off-loop/labs stack + the
+  Core/Labs boundary; per-stage `[production]`/Candidate/MOCK honesty overlay (synthesis, not SSOT).
 GL-M1 plan (for provenance):
 `/mnt/x/code/loop-agent/docs/superpowers/plans/2026-07-04-groundloop-m1-index-build.md`.
 
