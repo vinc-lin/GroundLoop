@@ -1,6 +1,6 @@
 # GroundLoop — Status
 
-**As of 2026-07-18.** Read this first when resuming; see
+**As of 2026-07-19.** Read this first when resuming; see
 `CLAUDE.md` for durable project context.
 
 **Docs are the single source of truth** (re-consolidated 2026-07-11 → 13 top-level docs, + `capabilities.md`
@@ -12,6 +12,31 @@ the **`[proxy]`**/**`[production]`** result-tag convention used throughout this 
 [`results-log.md`](results-log.md) · [`capabilities.md`](capabilities.md) · [`workflows.md`](workflows.md).
 
 ## Done
+
+### First-principles review — Phase-2 structural cleanup complete, Cycle 4 = produce relocation+strip (2026-07-19) ✅
+The 2026-07-18 aggressive first-principles review (`docs/superpowers/specs/2026-07-18-first-principles-review.md`;
+verdict: GroundLoop is honestly a **validated Stage-1 matcher + research lab, not a delivered closed loop**)
+queued a 6-item Phase-2 menu; **all items are now shipped + pushed across 4 subagent-driven cycles.** Cycle 4
+(just merged, `225f4eb`) is the deferred **produce *physical* relocation + strip**:
+- **Relocated** the vendored CodeWiki doc-generator out of the product package: `groundloop/engines/produce/` → a
+  **top-level `codewiki/`** package (56 live `.py`), pure `git mv` + `groundloop.engines.produce.*`→`codewiki.*`
+  prefix-rewrite (symmetric diff, **no logic drift** in survivors).
+- **Stripped ~30 reachability-dead files** — web app `src/fe/`, CodeWiki's own `mcp/` server (NOT the CBM you
+  depend on), the standalone `codewiki` CLI (`cli/main.py`+`cli/commands/`), the copy-paste config lane, dead
+  utils, `DocumentationGenerator.run()`, the guarded dead-HTML branch — anchored on a static reachability trace
+  from the **only** build entry `CLIDocumentationGenerator.generate()`. **Net −6,628 LOC** (422 add / 7,050 del).
+- `gloop produce` stays a thin **lazy bridge** (`cli/__init__.py:113`, function-local seam); the import contract's
+  FORBIDDEN now guards product↛`codewiki` (**proven to bite** via a revert-clean sanity mutation); `pyproject.toml`
+  packages both `groundloop*`+`codewiki*`; `codewiki/` is **self-contained** (no back-import into `groundloop`).
+  `core/`+atlas schema **zero-diff**, suite **754 passed / 8 skipped**, ruff clean, final holistic review = clean
+  merge gate. Spec/plan `docs/superpowers/{specs,plans}/2026-07-19-produce-relocate-strip*.md`.
+- **Verification caveat (spec §5):** the hermetic suite mocks/gates produce doc-gen → strip-correctness rests on
+  static reachability + import-smoke + suite; a real `gloop produce` run is a **gateway-gated Type-2 follow-up,
+  NOT a merge gate**.
+- **Prior cycles (all merged+pushed):** C1 honest structural cleanup + produce dep/import/build externalization
+  (`eb98cf1`); C2 KB 3-axis redesign → the `KnowledgePlaybook` self-improving crash-RCA system, KB **Dormant →
+  Candidate** (`0c8b644`); C3 Core/Labs boundary → a CI-enforced import contract, 11 index arms + MockSkillRegistry
+  + offline-grade tooling relocated out of product dirs (`80d2f92`).
 
 ### Localize recall — cascade→judge shipped + [proxy] WIN (2026-07-18) ✅
 Shipped **`--localize cascade_judge`**: the recall-first cascade POOL reordered by the LLM file-judge, built as
@@ -410,8 +435,8 @@ Gate check (prints `200` when healthy): see `docs/build-setup.md` → "Embedding
   1024-dim) + `mxbai-embed-large` + `qwen3` (GPU/Ollama-backed — `qwen3` DOWN at last check).
 - **Corpora** — `/mnt/x/code/corpora/` at pinned SHAs (`corpus.toml`): android-gpuimage-plus, libxcam,
   ndk-samples. Registry: `corpora/atlas.toml`. Built atlas.db target: `~/.groundloop/atlas.db`.
-- **Git** — `master` @ `62f6035` (CodeWiki+CBM localize/fix A/B + docs), pushed to `origin`
-  (`github.com:vinc-lin/GroundLoop.git`) and in sync. **Local branches pruned 2026-07-11:** the merged
+- **Git** — `master` @ `225f4eb` (first-principles Phase-2 Cycle 4: produce → top-level `codewiki/` + strip),
+  pushed to `origin` (`github.com:vinc-lin/GroundLoop.git`) and in sync. **Local branches pruned 2026-07-11:** the merged
   feature branches (`self-scoring-pipeline` + the 8 older `feat/*`: claim-centric-kb, plan-format-fix-stage,
   type2-{eval-e1c,judge-e3,miner-e1b,semantic-e2,substrate-build,symbols-index}) were deleted with `git
   branch -d` after confirming each was merged; **only `master` remains local.**
