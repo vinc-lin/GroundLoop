@@ -24,8 +24,9 @@ def test_kb_attribute_gated_on_archive(tmp_path, capsys):
 
 def test_kb_attribute_promotes_via_seam(tmp_path, monkeypatch):
     store = tmp_path / "knowledge.json"
-    save_knowledge(str(store), {"c1": Knowledge(id="c1", applies_when={"any_text": ["x"]}, type="fix_step",
-                                                content="advice", grounding_refs=("GetLongField",),
+    save_knowledge(str(store), {"c1": Knowledge(id="c1", applies_when={"any_text": ["x"]},
+                                                signature="advice", fix=("advice",),
+                                                grounding_refs=("GetLongField",),
                                                 provenance="p", tier="candidate", evidence={})})
     d = tmp_path / "plans"
     d.mkdir()

@@ -15,8 +15,9 @@ def _ctx() -> SkillCtx:
 
 
 def _k(kid="k-seg") -> Knowledge:
-    return Knowledge(id=kid, applies_when={"always": True}, type="fix_step",
-                     content="Reject the 0 handle at entry.", grounding_refs=(), provenance="skill-x",
+    return Knowledge(id=kid, applies_when={"always": True},
+                     signature="Native SIGSEGV null-pointer deref crash at a JNI boundary",
+                     fix=("Reject the 0 handle at entry.",), grounding_refs=(), provenance="skill-x",
                      tier="candidate", evidence={})
 
 
@@ -42,7 +43,8 @@ def test_populated_store_kb_and_placebo_fire(monkeypatch):
     pl_sel = ab._registry_for("placebo", None).select(_ctx(), "candidate")
     assert [k.id for k in kb_sel] == ["k-seg"]
     assert len(pl_sel) == 1 and pl_sel[0].id == "placebo-k-seg"
-    assert pl_sel[0].content != kb_sel[0].content     # placebo is scrambled/irrelevant
+    assert pl_sel[0].signature != kb_sel[0].signature   # placebo is scrambled/irrelevant
+    assert pl_sel[0].fix != kb_sel[0].fix
 
 
 def test_run_ab_threads_knowledge_not_skills(monkeypatch, tmp_path):

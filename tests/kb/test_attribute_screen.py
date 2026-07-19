@@ -17,7 +17,7 @@ def _payload(case, fired, groundedness):
 
 
 def _knowledge(kid):
-    return Knowledge(id=kid, applies_when={"any_text": ["x"]}, type="fix_step", content="c",
+    return Knowledge(id=kid, applies_when={"any_text": ["x"]}, signature="c", fix=("c",),
                      grounding_refs=(), provenance="p", tier="candidate", evidence={})
 
 
@@ -58,7 +58,7 @@ def test_load_archive_missing_dir_is_empty():
 def test_screen_skips_retired_knowledge():
     # a retired item with lingering fired_knowledge in the archive must NOT consume a LOFO/--max-lofo slot.
     archive = [_payload("a", ["c1"], 0.9), _payload("b", [], 0.2)]         # strong contrast on paper
-    retired = Knowledge(id="c1", applies_when={"any_text": ["x"]}, type="fix_step", content="c",
+    retired = Knowledge(id="c1", applies_when={"any_text": ["x"]}, signature="c", fix=("c",),
                         grounding_refs=(), provenance="p", tier="retired", evidence={})
     assert screen_knowledge(archive, {"c1": retired}, threshold=0.0) == []    # retired never shortlisted
 

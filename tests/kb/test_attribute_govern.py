@@ -6,8 +6,9 @@ from groundloop.kb.knowledge import Knowledge
 
 
 def _knowledge(kid="c1", tier="candidate", ev=None):
-    return Knowledge(id=kid, applies_when={"any_text": ["x"]}, type="fix_step", content=f"advice {kid}",
-                     grounding_refs=("GetLongField",), provenance="p", tier=tier, evidence=ev or {})
+    return Knowledge(id=kid, applies_when={"any_text": ["x"]}, signature=f"advice {kid}",
+                     fix=(f"advice {kid}",), grounding_refs=("GetLongField",), provenance="p", tier=tier,
+                     evidence=ev or {})
 
 
 # --- the KnowledgeRecord bridge onto the reused apply_verdict ladder ---
