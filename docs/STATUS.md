@@ -30,9 +30,18 @@ queued a 6-item Phase-2 menu; **all items are now shipped + pushed across 4 suba
   packages both `groundloop*`+`codewiki*`; `codewiki/` is **self-contained** (no back-import into `groundloop`).
   `core/`+atlas schema **zero-diff**, suite **754 passed / 8 skipped**, ruff clean, final holistic review = clean
   merge gate. Spec/plan `docs/superpowers/{specs,plans}/2026-07-19-produce-relocate-strip*.md`.
-- **Verification caveat (spec §5):** the hermetic suite mocks/gates produce doc-gen → strip-correctness rests on
-  static reachability + import-smoke + suite; a real `gloop produce` run is a **gateway-gated Type-2 follow-up,
-  NOT a merge gate**.
+- **Live confirmation (2026-07-19, `[production]`-path):** the deferred gateway-gated follow-up **ran and PASSED**
+  — a real `gloop produce` (live `deepseek-chat`) on a tiny 4-file repo executed the full 5-stage pipeline
+  end-to-end (EXIT 0, 4m31s), emitting the complete output contract (`metadata.json`, non-empty
+  `module_tree.json`, 4 per-module `.md` + overview, 30,970 chars of real doc content), and the atlas
+  `load_wiki` loader **consumed it cleanly** (4 modules, 5 docs). The stripped generator is proven functional.
+- **Gap found + fixed:** the run first failed with a misleading "requires the produce extra" error — the real
+  cause was that `codewiki` (a NEW top-level package) wasn't registered in the venv's PEP-660 editable finder,
+  so the `gloop` **entry point** (`sys.path[0]=.venv/bin`) couldn't import it (repo-root `python` masked this via
+  CWD-on-path). **Task 3's "no re-sync needed" was verified from repo-root CWD and was wrong for the installed
+  entry point.** Fix = `uv sync --extra dev --extra produce` regenerates the finder to include `codewiki`.
+  `pyproject.toml` was already correct, so a fresh `pip install groundloop[produce]` is unaffected — only an
+  **existing venv pulling this change must re-sync**.
 - **Prior cycles (all merged+pushed):** C1 honest structural cleanup + produce dep/import/build externalization
   (`eb98cf1`); C2 KB 3-axis redesign → the `KnowledgePlaybook` self-improving crash-RCA system, KB **Dormant →
   Candidate** (`0c8b644`); C3 Core/Labs boundary → a CI-enforced import contract, 11 index arms + MockSkillRegistry
