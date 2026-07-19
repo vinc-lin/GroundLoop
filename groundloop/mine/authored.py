@@ -56,8 +56,11 @@ def validate_authored_case(case_dir: Path, repo_root: Path) -> list[str]:
     if not any(sym in log_text for sym in required_apis + basenames):
         problems.append("crash log names no oracle symbol (ungrounded)")
 
-    # 4. leak-safe: the owning_repo name must never leak into the ticket text (summary/description/logs).
-    text_blob = "\n".join([ticket.get("summary", ""), ticket.get("description", ""), log_text])
+    # 4. leak-safe: the owning_repo name must never leak into the ticket text (summary/description/logs)
+    # or the ticket id itself (e.g. an id like "oboe-native-audio-1" leaking the "oboe" repo slug).
+    text_blob = "\n".join([
+        ticket.get("summary", ""), ticket.get("description", ""), log_text, str(ticket.get("id", "")),
+    ])
     if owning_repo:
         variants = _slug_variants(owning_repo)
         if any(v and v.lower() in text_blob.lower() for v in variants):

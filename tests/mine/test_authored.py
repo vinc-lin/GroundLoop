@@ -94,6 +94,15 @@ def test_owning_repo_leak_is_flagged(tmp_path):
     assert any("leak" in p.lower() for p in problems)
 
 
+def test_owning_repo_leak_via_ticket_id_is_flagged(tmp_path):
+    ticket = json.loads(json.dumps(GOOD_TICKET))
+    ticket["id"] = "demo-lib-1"
+    bad_dir = _write_case(tmp_path, "bad-leak-id", ticket=ticket)
+    problems = validate_authored_case(bad_dir, FIXTURES_ROOT)
+    assert problems
+    assert any("leak" in p.lower() for p in problems)
+
+
 def test_fix_diff_touching_wrong_file_is_flagged(tmp_path):
     diff = """--- a/src/other.c
 +++ b/src/other.c
