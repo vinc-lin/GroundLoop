@@ -1,28 +1,15 @@
-"""Dataset loading for the Type-2 eval. `load_cases` and `case_catalog` are oracle-blind; only
-`load_oracle` / `load_eval_oracle` (used solely by the offline scorecard) touch _oracle/."""
+"""Dataset loading for the Type-2 eval. `load_cases` and `case_catalog` are oracle-blind (moved to the
+product surface `groundloop.run.dataset`, re-exported here for compatibility); only `load_oracle` /
+`load_eval_oracle` (used solely by the offline scorecard) touch _oracle/."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
 from groundloop.core.types import Oracle
+from groundloop.run.dataset import CaseRef, case_catalog, load_cases  # noqa: F401  (moved to product surface)
 
 _ORACLE_KEYS = ("owning_repo", "expected_files", "required_apis")
-
-
-@dataclass(frozen=True)
-class CaseRef:
-    case_id: str
-    case_dir: str
-
-
-def load_cases(root: str) -> list[CaseRef]:
-    """Discover case dirs (those containing ticket.json). Never reads _oracle/."""
-    out: list[CaseRef] = []
-    for d in sorted(Path(root).iterdir()):
-        if d.is_dir() and (d / "ticket.json").is_file():
-            out.append(CaseRef(case_id=d.name, case_dir=str(d)))
-    return out
 
 
 def load_oracle(case: CaseRef) -> Oracle:
@@ -59,15 +46,3 @@ def load_eval_oracle(case: CaseRef) -> EvalOracle:
         expected_files=tuple(raw.get("expected_files", [])),
         required_apis=tuple(raw.get("required_apis", [])),
     )
-
-
-def case_catalog(case: CaseRef):
-    """Loop-visible per-case candidate catalog (a catalog.json in the case dir), or None to fall back
-    to the estate's global catalog. Used for OOF hold-out — the owner is removed from THIS ticket's
-    candidate list. Reads only the loop-visible catalog.json, never _oracle/."""
-    import json
-    from groundloop.core.types import RepoRef
-    p = Path(case.case_dir) / "catalog.json"
-    if not p.is_file():
-        return None
-    return [RepoRef(r["name"]) for r in json.loads(p.read_text())]

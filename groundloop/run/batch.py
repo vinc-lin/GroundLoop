@@ -6,8 +6,8 @@ from pathlib import Path
 
 from groundloop.adapters.mock.gerrit import MockGerrit
 from groundloop.core.workflow import run_ticket
-from groundloop.eval.dataset import load_cases
 from groundloop.fix.patch import patch_applies
+from groundloop.run.dataset import load_cases
 from groundloop.run.record import MaterializeOutcome, RunRecordIO
 
 
