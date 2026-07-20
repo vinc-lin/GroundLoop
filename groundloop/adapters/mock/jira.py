@@ -15,7 +15,10 @@ class MockJira:
         raw = json.loads((d / "ticket.json").read_text())
         logs = tuple(
             LogAttachment(path=a["path"], kind=a.get("kind", "other"),
-                          content=(d / a["path"]).read_text())
+                          # errors="replace": a real logcat can carry non-UTF-8 bytes; a strict decode would
+                          # raise UnicodeDecodeError and abort intake for the whole case. Byte-identical for
+                          # well-formed UTF-8 (only invalid bytes become U+FFFD).
+                          content=(d / a["path"]).read_text(errors="replace"))
             for a in raw.get("logs", [])
         )
         return Ticket(id=raw["id"], summary=raw.get("summary", ""), description=raw.get("description", ""),

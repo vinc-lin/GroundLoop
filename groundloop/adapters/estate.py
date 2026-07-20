@@ -46,7 +46,11 @@ class GitFixtureEstate:
         dst.mkdir(parents=True)
         src = self.fixtures_root / repo.name
         if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+            # Exclude the source .git: a real clone (not a plain-file snapshot) carries committed history
+            # that the fresh `git init` below would sit on top of, so `git add -A`/`commit -m base` then
+            # fails "nothing to commit" (check=True). Ignoring .git guarantees a clean single base commit;
+            # a no-op for plain-file fixtures (no .git present).
+            shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
             for args in (["init", "-q"], ["config", "user.email", "t@t"],
                          ["config", "user.name", "fixeval"], ["add", "-A"],
                          ["commit", "-q", "-m", "base"]):
@@ -100,7 +104,11 @@ class CheckoutEstate(MockEstate):
         dst.mkdir(parents=True)
         src = self.fixtures_root / repo.name
         if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+            # Exclude the source .git: a real clone (not a plain-file snapshot) carries committed history
+            # that the fresh `git init` below would sit on top of, so `git add -A`/`commit -m base` then
+            # fails "nothing to commit" (check=True). Ignoring .git guarantees a clean single base commit;
+            # a no-op for plain-file fixtures (no .git present).
+            shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
             for a in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "run"],
                       ["add", "-A"], ["commit", "-q", "-m", "base"]):
                 subprocess.run(["git", "-C", str(dst), *a], check=True)

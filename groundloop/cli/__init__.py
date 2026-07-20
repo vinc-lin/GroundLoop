@@ -1090,8 +1090,11 @@ def _repos_has_snapshots(repos: str, catalog_path: str) -> bool:
     # tolerate a {"repos": [...]} wrapper too.
     entries = cat if isinstance(cat, list) else cat.get("repos", [])
     names = {e["name"] for e in entries if isinstance(e, dict) and "name" in e}
-    subdirs = {p.name for p in root.iterdir() if p.is_dir()}
-    return bool(names & subdirs)
+    # A catalog name may be a NESTED registry path (e.g. "gkui_wh/apps/XCIPadMediaService") — exactly what
+    # CheckoutEstate.materialize joins as <root>/<name>. Check that path directly rather than intersecting
+    # top-level subdir names (which only ever see "gkui_wh" and falsely report no snapshot for a nested
+    # layout). Superset of the flat case (a flat name still resolves at depth 0), so never regresses it.
+    return any((root / n).is_dir() for n in names)
 
 
 def _env_flag(name: str) -> bool:

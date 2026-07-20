@@ -67,6 +67,8 @@ class GatewayFileJudge:
         self._timeout = timeout
         self.cost_usd = 0.0
         self.calls = 0
+        self.input_tokens = 0
+        self.output_tokens = 0
 
     def rerank(self, query: str, candidates: list[tuple[str, str]]) -> list[str]:
         import httpx
@@ -89,8 +91,10 @@ class GatewayFileJudge:
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
-            self.cost_usd += cost_of(int(usage.get("prompt_tokens", 0)),
-                                     int(usage.get("completion_tokens", 0)), self._model)
+            pt, ct = int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0))
+            self.input_tokens += pt
+            self.output_tokens += ct
+            self.cost_usd += cost_of(pt, ct, self._model)
         except Exception:      # noqa: BLE001 — never sink localize on a judge hiccup
             return list(paths)
         return _parse_order(text, paths)
@@ -137,6 +141,21 @@ class RerankLocalizeIndex:
         """Cumulative USD spent by the LLM file-judge (0.0 when there is no gateway judge). The run cost
         plane sums this alongside the fixer model's cost so the reranker's spend counts toward $/ticket."""
         return float(getattr(self.judge, "cost_usd", 0.0) or 0.0)
+
+    # calls / input_tokens / output_tokens proxy the judge so _CombinedCostModel counts the judge's
+    # activity in the run-record (else model_calls shows only the fixer's calls and the judge reads as
+    # "never fired" — the Tier-1 cost-accounting blind spot). 0 when there is no gateway judge.
+    @property
+    def calls(self) -> int:
+        return int(getattr(self.judge, "calls", 0) or 0)
+
+    @property
+    def input_tokens(self) -> int:
+        return int(getattr(self.judge, "input_tokens", 0) or 0)
+
+    @property
+    def output_tokens(self) -> int:
+        return int(getattr(self.judge, "output_tokens", 0) or 0)
 
     def retrieve(self, repo: RepoRef, query: str) -> list[str]:
         try:

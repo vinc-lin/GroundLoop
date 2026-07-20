@@ -234,6 +234,48 @@ def test_cost_usd_reads_judge(atlas):
     assert _rerank(atlas, judge=_PaidJudge()).cost_usd == 0.0042
 
 
+def test_calls_and_tokens_proxy_judge(atlas):
+    """calls / input_tokens / output_tokens surface the judge's counters (0 without a gateway judge) so
+    _CombinedCostModel counts the judge's activity in the run-record — else a fired judge reads as 'never
+    ran' (the Tier-1 model_calls=2 blind spot: the fixer's 2 calls counted, the judge's 1 invisible)."""
+    none = _rerank(atlas, judge=None)
+    assert none.calls == 0 and none.input_tokens == 0 and none.output_tokens == 0
+
+    class _CountingJudge:
+        cost_usd = 0.0
+        calls = 3
+        input_tokens = 1200
+        output_tokens = 45
+
+        def rerank(self, query, candidates):
+            return [p for p, _ in candidates]
+
+    idx = _rerank(atlas, judge=_CountingJudge())
+    assert idx.calls == 3 and idx.input_tokens == 1200 and idx.output_tokens == 45
+
+
+def test_gateway_judge_accumulates_tokens(monkeypatch):
+    """GatewayFileJudge accumulates input/output tokens from the usage payload (not just cost_usd), so the
+    proxy above has real counters to surface. Hermetic: httpx.post is monkeypatched (no network)."""
+    import httpx
+
+    from groundloop.adapters.index.labs.rerank_localize import GatewayFileJudge
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "a.java, b.java"}}],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 7}}
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _Resp())
+    j = GatewayFileJudge("http://x", "k", "deepseek-chat")
+    out = j.rerank("q", [("a.java", ""), ("b.java", "")])
+    assert out == ["a.java", "b.java"]
+    assert j.calls == 1 and j.input_tokens == 100 and j.output_tokens == 7
+
+
 def test_note_signals_drives_code_query(atlas):
     """note_signals seeds the stashed signals so candidate-gen keys on the extracted code tokens
     (the grade-run isolated-diagnostic path), independent of the prose retrieve query."""

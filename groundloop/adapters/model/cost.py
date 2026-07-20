@@ -9,6 +9,10 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5-20251001": (1.0, 5.0),
     "claude-sonnet-5": (3.0, 15.0),
     "claude-opus-4-8": (15.0, 75.0),
+    # Self-hosted via the LiteLLM gateway — $0/token. Registered EXPLICITLY so a fired judge on this model
+    # records cost_usd=0 by design, not by the unknown-model→0 fallthrough (which reads the same as "judge
+    # never ran"). The judge's .calls/.tokens (now surfaced) distinguish fired-at-$0 from never-fired.
+    "openai/qwen3p6-27b-mtp-q8": (0.0, 0.0),
 }
 
 

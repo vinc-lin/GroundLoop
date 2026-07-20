@@ -21,3 +21,16 @@ def test_fetch_loads_logs_and_writeback_appends_ledger(tmp_path):
     j.transition("GP-1", "Resolved")
     ledger = (root / "GP-1" / "ledger.jsonl").read_text().strip().splitlines()
     assert any('"transition"' in ln and "Resolved" in ln for ln in ledger)
+
+
+def test_fetch_tolerates_non_utf8_log_bytes(tmp_path):
+    """A real logcat can carry non-UTF-8 bytes; fetch must not raise UnicodeDecodeError (errors='replace').
+    Byte-identical for well-formed UTF-8; an invalid byte becomes U+FFFD rather than aborting intake."""
+    case = tmp_path / "GP-2"
+    (case / "logs").mkdir(parents=True)
+    (case / "logs" / "crash.txt").write_bytes(b"boom \xad frame org.x")   # 0xad = invalid UTF-8
+    (case / "ticket.json").write_text(json.dumps({
+        "id": "GP-2", "summary": "s", "description": "d", "component": "",
+        "logs": [{"path": "logs/crash.txt", "kind": "logcat"}]}))
+    t = MockJira(str(tmp_path)).fetch("GP-2")            # must NOT raise
+    assert t.logs[0].content.startswith("boom") and "�" in t.logs[0].content

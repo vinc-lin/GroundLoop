@@ -91,3 +91,22 @@ def test_helper_false_when_catalog_unreadable(tmp_path):
     repos = tmp_path / "repos"
     (repos / "repo-a").mkdir(parents=True)
     assert _repos_has_snapshots(str(repos), str(tmp_path / "no-such-catalog.json")) is False
+
+
+def test_helper_true_for_nested_registry_name(tmp_path):
+    """A catalog name may be a NESTED registry path (e.g. gkui_wh/apps/XCIPadMediaService) — the guard must
+    resolve it at <root>/<name> (exactly what CheckoutEstate.materialize joins), not intersect top-level
+    subdir names (which only ever see 'gkui_wh' and would falsely report no snapshot)."""
+    cat = _write_catalog(tmp_path, ["gkui_wh/apps/XCIPadMediaService", "repo-b"])
+    repos = tmp_path / "repos"
+    (repos / "gkui_wh" / "apps" / "XCIPadMediaService").mkdir(parents=True)
+    assert _repos_has_snapshots(str(repos), str(cat)) is True
+
+
+def test_helper_false_when_only_nested_parent_present(tmp_path):
+    """The FULL nested snapshot path must exist — a present parent dir alone is not a snapshot (guards
+    against the inverse of the top-level-intersection bug)."""
+    cat = _write_catalog(tmp_path, ["gkui_wh/apps/XCIPadMediaService"])
+    repos = tmp_path / "repos"
+    (repos / "gkui_wh" / "apps").mkdir(parents=True)   # parent exists; the leaf snapshot does not
+    assert _repos_has_snapshots(str(repos), str(cat)) is False
