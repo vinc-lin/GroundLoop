@@ -24,11 +24,13 @@ def test_core_defaults_unchanged_without_labs(monkeypatch):
 _EMBEDDER_GATED_LOCALIZE_ARMS = {"rerank"}
 
 
-def test_localize_default_is_atlas_rerank_in_both_profiles(monkeypatch):
-    """(a) `_resolve_arms` resolves localize to `atlas_rerank` by default in BOTH the core profile and the
-    labs profile (whether selected via --profile labs or KLOOP_LABS=1) — the flip is default-wide, not
-    profile-scoped. (b) that default is never an embedder-gated arm, so a default `gloop run` with no
-    KLOOP_EMBED_BASE_URL configured is never rejected on account of localize."""
+def test_localize_default_core_atlas_rerank_labs_cascade_judge(monkeypatch):
+    """(a) `_resolve_arms` resolves localize per PROFILE: the core (production) default is `atlas_rerank`,
+    the labs default is `cascade_judge` (the peak Candidate stack, opt-in via --profile labs / KLOOP_LABS=1
+    — never the silent production default). (b) NEITHER default is an embedder-gated arm (`{"rerank"}`):
+    both degrade gracefully with no embedder (cascade_judge omits only its bge-m3 semantic tier), so a
+    default `gloop run` with no KLOOP_EMBED_BASE_URL is never rejected on account of localize, in either
+    profile."""
     from groundloop.cli import _resolve_arms, build_parser
 
     def parse(extra):
@@ -41,14 +43,14 @@ def test_localize_default_is_atlas_rerank_in_both_profiles(monkeypatch):
     assert (match_core, localize_core, profile_core) == ("component", "atlas_rerank", "core")
 
     match_labs, localize_labs, profile_labs = _resolve_arms(parse(["--profile", "labs"]))
-    assert (match_labs, localize_labs, profile_labs) == ("routing", "atlas_rerank", "labs")
+    assert (match_labs, localize_labs, profile_labs) == ("routing", "cascade_judge", "labs")
 
     monkeypatch.setenv("KLOOP_LABS", "1")
     _, localize_env_labs, profile_env_labs = _resolve_arms(parse([]))
-    assert (localize_env_labs, profile_env_labs) == ("atlas_rerank", "labs")
+    assert (localize_env_labs, profile_env_labs) == ("cascade_judge", "labs")
 
     assert localize_core not in _EMBEDDER_GATED_LOCALIZE_ARMS
-    assert localize_labs not in _EMBEDDER_GATED_LOCALIZE_ARMS
+    assert localize_labs not in _EMBEDDER_GATED_LOCALIZE_ARMS   # cascade_judge degrades, never fail-closes
 
     # explicit --localize atlas still opts out to the plain FTS5 floor, in either profile
     assert _resolve_arms(parse(["--localize", "atlas"]))[1] == "atlas"

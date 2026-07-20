@@ -1105,13 +1105,22 @@ def _resolve_arms(args):
     """Resolve requested (match_arm, localize) from flags + the labs profile. Explicit flags win; the labs
     profile only fills a left-at-default (None) flag. Returns (match_arm, localize, profile).
 
-    localize defaults to `atlas_rerank` (Provisional-Core, 2026-07-19: the plain FTS5 `atlas` pool
-    reordered by the LLM file-judge) in BOTH profiles — it is fail-safe, degrading to the byte-identical
-    FTS5 `atlas` order without judge creds and needing no embedder, so the flip can never regress or
-    fail-close a default run. `--localize atlas` remains the explicit opt-out to the plain FTS5 floor."""
+    The two profiles pick DIFFERENT default stacks (a left-at-default flag only):
+      - core (production): match `component` (the [production]-validated affinity prior) + localize
+        `atlas_rerank` (Provisional-Core, 2026-07-19: the plain FTS5 `atlas` pool reordered by the LLM
+        file-judge). Both are fail-safe — atlas_rerank degrades to the byte-identical FTS5 `atlas` order
+        without judge creds and needs no embedder, so a default production run never regresses/fail-closes.
+      - labs (experimental): match `routing` + localize `cascade_judge` — the peak per-stage Candidate
+        stack ([proxy] best-to-date localize file@1 0.245/@5 0.469), reachable-as-a-default ONLY under an
+        explicit opt-in (`--profile labs` / KLOOP_LABS=1). These are Candidate, NOT [production]-validated
+        (the proxy flatters — see docs/environments.md); making them the labs default is honest because it
+        is not the silent production default. cascade_judge still degrades gracefully (bge-m3 semantic tier
+        omitted without an embedder; judge=None without creds → the cascade pool order), so it never
+        fail-closes a labs run.
+    `--localize atlas` / an explicit `--match-arm`/`--localize` remain the opt-outs in either profile."""
     labs = args.profile == "labs" or _env_flag("KLOOP_LABS")
     match_arm = args.match_arm if args.match_arm is not None else ("routing" if labs else "component")
-    localize = args.localize if args.localize is not None else "atlas_rerank"
+    localize = args.localize if args.localize is not None else ("cascade_judge" if labs else "atlas_rerank")
     return match_arm, localize, ("labs" if labs else "core")
 
 
