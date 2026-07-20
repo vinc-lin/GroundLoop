@@ -242,6 +242,10 @@ A production deploy is successful when:
   vs the core defaults → **`docs/runbooks/labs-peak-stack-production-ab.md`** (subsumes the localize-only
   `docs/runbooks/cascade-judge-production-gate.md`); promote each arm **per stage** only if it beats the core
   default on real data. Until then both are the *labs* defaults only (`--profile labs`), still Candidate.
+- **CamelCase index tokenization (match+localize, shared root cause):** the FTS index leaves CamelCase
+  compounds opaque (query splits, index doesn't unless `KLOOP_INDEX_CAMELCASE=1`) — the likely cause of the
+  CarPlay match near-tie + localize noise. Prove it cheaply on a 7-repo subset before the full re-index →
+  **`docs/runbooks/camelcase-tokenization-a1.md`** (A1 cheap-proof → A2 full 19-repo re-index if net-positive).
 - **CarPlay Core-vs-Integration disambiguation:** only if the 406 shows CarPlay ambiguity is a broad problem.
 - **Within-component recall@1** ceiling → a non-size-biased base (the bge-m3 functional text arm).
 - **Component-arm abstention `tau`** recalibration for the RRF+affinity margin scale (recall@1/@3 unaffected).
