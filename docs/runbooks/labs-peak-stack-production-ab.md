@@ -71,7 +71,7 @@ mkdir -p "$RUNS" "$CARDS"         # keep everything off v9fs — /var/tmp, /home
    labs match side has no extra gate — but it is **crash-signal-driven**: on prose/functional tickets with no
    crash log it has little to route on (that is the regime where the proxy flattered). The `by_bug_kind` split
    (§4) is what tells you whether routing's `[proxy]` 0.94 was crash-only.
-5. **Off ext4, gateway reachable:** `gloop doctor --index-db "$GEI_ATLAS"`; confirm `KLOOP_PRODUCE_API_KEY` set.
+5. **Off ext4, gateway reachable:** `gloop doctor --atlas-db "$GEI_ATLAS"`; confirm `KLOOP_PRODUCE_API_KEY` set.
 
 ---
 
@@ -119,8 +119,9 @@ gloop grade-run --runs "$RUNS/labs" --dataset "$GEI_DATASET" --index-db "$GEI_AT
                 --out "$CARDS/labs.json" --compare "$CARDS/core.json"
 ```
 `--index-db` enables the **isolated-localize** diagnostic (re-runs `retrieve` on the oracle repo — a localize
-ceiling independent of match error). `--compare` appends a per-stage improved/flat/regressed section (`match` /
-`localize` / `fix`) with the newly-won / newly-lost cases. A `.md` twin is written beside each card.
+ceiling independent of match error). `--compare` appends a per-stage `improved`/`flat`/`regressed` `verdict`
+(driven by the quality metrics, never cost), the per-case `regressions` list (cases that fell from a hit), and a
+**total**-cost delta (`cost` — divide by |cases| for $/case). A `.md` twin is written beside each card.
 
 ---
 
@@ -135,10 +136,10 @@ Open `$CARDS/labs.json` (+ `.md`) and the `--compare` section:
   decision (§0.2). **Read as-run, not isolated** — the isolated pass is judge-less for `cascade_judge` (it
   reconstructs as `cascade_judge(no-judge:cascade-pool)` = the pool recall ceiling, not the judged number). See
   `cascade-judge-production-gate.md` §4.
-- **`fix.resolved` / `fabrication_rate`** — not a stage being promoted here (`plan` is unchanged), but watch it:
+- **`fix.resolved_rate_strict.value` / `fix.fabrication_rate`** (the `--compare` section names it `fix.resolved_rate`) — not a stage being promoted here (`plan` is unchanged), but watch it:
   a *worse* match/localize should not silently drag fix down, and a worse fix number under labs is evidence that
   the upstream arms hurt the downstream stage (the integrated point).
-- The **`--compare` regression section** — the honest per-stage verdict + `$/case` delta.
+- The **`--compare` regression section** — the honest per-stage verdict + per-case `regressions` + total-cost delta.
 
 ---
 

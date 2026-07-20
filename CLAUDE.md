@@ -116,13 +116,16 @@ GL-M1 plan (for provenance):
   `gloop run` defaults (Core-aligned): match `component` arm + **`--fixer plan`** (the Provisional-Core
   `PlanningFixEngine` "Bug Plan Mode", default since 2026-07-13; `--fixer` = `canned|model|plan`; safety default —
   abstains not fabricates, effectiveness production-gated) + localize `atlas_rerank` (Provisional-Core
-  default since 2026-07-19, both profiles: the FTS5 `atlas` pool reordered by the LLM file-judge, needs no
+  core-profile default since 2026-07-19: the FTS5 `atlas` pool reordered by the LLM file-judge, needs no
   embedder; degrades byte-identical to `atlas` without judge creds, so it never regresses or fail-closes;
-  `--localize atlas` is the explicit opt-out to the [production]-validated FTS5 floor; the
-  `tokens`/`SignalQueryIndex` default was reverted to a reachable opt-in on 2026-07-15 —
+  `--localize atlas` is the explicit opt-out to the [production]-validated FTS5 floor; the **labs** profile
+  instead defaults to the peak stack — `routing` match + `cascade_judge` localize (2026-07-20; both stay
+  Candidate — labs changes *defaults* not *validation*, GEI A/B `docs/runbooks/labs-peak-stack-production-ab.md`);
+  the `tokens`/`SignalQueryIndex` default was reverted to a reachable opt-in on 2026-07-15 —
   see `docs/superpowers/specs/2026-07-15-workflow-overdesign-audit-and-simplification.md`), fail-closed
-  without gateway creds / a valid `--repos`. Experimental Candidate arms are opt-in, never the silent default:
-  `--match-arm {semantic,judge,functional,dispatch}`, `--localize {tokens,rerank,cascade,cascade_judge}`,
+  without gateway creds / a valid `--repos`. Experimental Candidate arms are opt-in, never the silent (core)
+  default: `--match-arm {semantic,judge,functional,dispatch}`,
+  `--localize {tokens,tokens_judge,rerank,cascade,cascade_judge}`,
   `--profile labs`/`KLOOP_LABS` (reachable ≠ default — see `docs/capabilities.md`).
 - **Two test surfaces** (`docs/evaluation.md` §14 + `docs/environments.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in

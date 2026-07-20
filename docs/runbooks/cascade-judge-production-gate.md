@@ -59,7 +59,7 @@ mkdir -p "$RUNS" "$CARDS"         # keep everything off v9fs — /var/tmp, /home
    vectors;"` should ≈ `SELECT COUNT(*) FROM units`. If under-populated, the semantic tier is dead.
 4. **`bug_kind` on the oracle** (for the split). `gloop grade-run` reads `oracle.bug_kind`; if the GEI oracles
    lack it, run the labeller first: `gloop label-bugkind --dataset "$GEI_DATASET"` (see `--help`).
-5. **Embedder + judge reachable, off ext4.** `gloop doctor --index-db "$GEI_ATLAS"` (repos ready, embed gateway
+5. **Embedder + judge reachable, off ext4.** `gloop doctor --atlas-db "$GEI_ATLAS"` (repos ready, embed gateway
    OK); confirm `KLOOP_PRODUCE_API_KEY` is set (the judge) and `KLOOP_REGISTRY` points at the GEI entity_maps
    (the CodeWiki doc→source bridge — without it the doc lane can't attach wiki even if doc units exist).
 

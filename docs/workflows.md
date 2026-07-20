@@ -115,10 +115,11 @@ mechanism + safety argument, its *effectiveness* still production-gated).
 - [ ] Load creds (NOT autoloaded): `set -a; . ./.env; set +a`
 - [ ] **`KLOOP_DEV` must be UNSET** — it is the dev-gate that unlocks the hermetic fixtures (`--index`/`--fixer
   canned`/`--case`); a production run leaves it off (only hermetic/Type-1 runs set `KLOOP_DEV=1`)
-- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`atlas`/`plan`). Set
+- [ ] **`KLOOP_LABS`: unset for a real Core production run** (defaults stay `component`/`atlas_rerank`/`plan`). Set
   `KLOOP_LABS=1` (or `--profile labs`) ONLY in a **production-*test*** deployment to default the experimental
-  stack (routing match; localize/fix stay Core) and earn its `[production]` read; the manifest records
-  `profile=labs` so the two are never confused. Individual Candidate arms are also runnable explicitly
+  peak stack (routing match + `cascade_judge` localize; fix stays `plan`) and earn its `[production]` read
+  (runbook `docs/runbooks/labs-peak-stack-production-ab.md`); the manifest records `profile=labs` so the two are
+  never confused. Individual Candidate arms are also runnable explicitly
   (`--match-arm {semantic,functional,dispatch}`) — each fail-closes without its creds/artifact.
 - [ ] Readiness: `gloop doctor --atlas-db $KLOOP_ATLAS_DB` → **READY** (repo/unit counts as expected)
 - [ ] Hermetic gate green (no gateway needed): `.venv/bin/python -m pytest -q`
