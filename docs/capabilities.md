@@ -85,7 +85,7 @@ only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanis
 | `AndroidSignalExtractor` / `ComponentExtractor` — the domain **extract** stage (`domains/android_ivi/`) | Ran in the `[production]` loop; `ComponentExtractor` wraps the base extractor to add the `Ticket.component` join the affinity prior needs. `AndroidSignalExtractor` = the domain adapter (prod == dev). |
 | `GatewayModel` — the live `Model` port (`adapters/model/gateway.py`) | Cross-cutting Core: underlies `--fixer plan`/`model` and any eval rerank, and self-tracks `cost`/`tokens`/`calls` (the run-record data plane reads it). `CannedModel` is the Fixture double. |
 | `SplitIndex` (`adapters/index/labs/split.py`) — 2026-07-13 | Composition-root composite: `rank_repos` from the match index, `retrieve` from the localize index — lets `--localize` differ from `--match-arm` (`run_ticket` uses one `CodeIndex` for both). No `core/` edit. |
-| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 | A per-environment switch (the analogue of `KLOOP_DEV`): flips the match default to the experimental stack (routing; fix stays `plan`) **only where enabled** — localize stays `atlas_rerank` (Provisional-Core, 2026-07-19) in **both** profiles, unchanged by the labs switch. Explicit flags override it; with it **unset the defaults are Core/Provisional-Core-identical** (`component`/`atlas_rerank`/`plan`). The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — the arms it selects are still Candidate until each earns a `[production]` read. |
+| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 (localize 2026-07-20) | A per-environment switch (the analogue of `KLOOP_DEV`): flips **both** default arms to the experimental **peak stack** — match `routing` + localize `cascade_judge` (the best-measured per-stage Candidates; fix stays `plan`) — **only where enabled**. Explicit flags override it; with it **unset the defaults are Core/Provisional-Core-identical** (`component`/`atlas_rerank`/`plan`). The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — `routing`/`cascade_judge` stay **Candidate** until each earns a `[production]` read (the GEI A/B runbook `docs/runbooks/labs-peak-stack-production-ab.md`); `cascade_judge` still degrades gracefully (no embedder → semantic tier omitted; no judge creds → the cascade pool order), so a labs run never fail-closes. |
 
 ### Core-when-configured — production-validated, engaged when their artifact/flags are supplied
 These have real `[production]` validation. **§4 re-points the default *selection*** so a correctly-configured
@@ -168,10 +168,23 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 >   `--repos` (else a bare-path judge) + atlas doc-units (else no CodeWiki context); CBM does not fire through
 >   the `list[str]` pool seam.
 >
-> All three stay **Candidate** — opt-in, Core defaults unchanged (`component`/`atlas`/`plan`); a `[production]`
-> read is the promotion gate.
+> All three stay **Candidate** — a `[production]` read is the promotion gate. The **core** production defaults
+> are unchanged (`component`/`atlas_rerank`/`plan`).
 
-`FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`) · functional/dispatch arm (0.68 `[proxy]` → **0.10 `[production]`** — the canonical "proxy flatters" collapse; see [environments.md](environments.md) §"the proxy is optimistic") ·
+> **Follow-on 2026-07-20 (labs peak stack + `tokens_judge`).** Two additions:
+> - **`--localize tokens_judge`** (NEW opt-in Candidate; the `SignalQueryIndex` crash-token FTS5 pool reranked by
+>   the LLM file-judge — like `atlas_rerank`/`cascade_judge` but a token pool via the same additive `pool_index`
+>   seam): `[authored]` file@1 **0.62 → 0.71** (n=21 hand-authored crash cases — a **mechanics** read, **never**
+>   `[production]`, never blended into a `[proxy]` aggregate). No embedder; judge creds-gated (degrades to the
+>   token-pool order = `--localize tokens`). The run localize menu is now `{atlas, tokens, rerank, cascade,
+>   cascade_judge, atlas_rerank, tokens_judge}`.
+> - **The labs profile now defaults to the peak stack** (`routing` match + `cascade_judge` localize + `plan`),
+>   flipping `cascade_judge` from opt-in-only to the **labs** default — *defaults not validation* (see the
+>   Labs-switch row in §3 Core); core production defaults unchanged, both arms stay Candidate. The `[production]`
+>   GEI A/B that resolves both is `docs/runbooks/labs-peak-stack-production-ab.md` (it subsumes the localize-only
+>   `docs/runbooks/cascade-judge-production-gate.md`).
+
+`FaultRoutingIndex` / log-match v2 (routing 0.94 `[proxy]`; the **labs** match default since 2026-07-20 — GEI A/B `docs/runbooks/labs-peak-stack-production-ab.md`) · functional/dispatch arm (0.68 `[proxy]` → **0.10 `[production]`** — the canonical "proxy flatters" collapse; see [environments.md](environments.md) §"the proxy is optimistic") ·
 `SemanticAtlasIndex` (bge-m3 vector) · `LLMJudgeIndex` · the bge-m3 vector **localize** retrieve
 (`SemanticAtlasIndex.retrieve`, unmeasured for localize; ~~there is **no** LLM/qwen-rerank localize —
 `LLMJudgeIndex.retrieve` delegates to plain FTS5~~ — **superseded 2026-07-16:** `RerankLocalizeIndex` /
