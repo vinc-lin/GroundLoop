@@ -102,3 +102,28 @@ def test_execute_no_preamble_by_default(tmp_path):
     m = RecModel([_GOOD_PLAN, _DIFF])
     PlanningFixEngine(m).propose_with_plan(_wt(tmp_path), _ticket(), ["src/F.java"])
     assert m.prompts[1].startswith("Bug:")           # no preamble -> execute prompt unchanged
+
+
+def test_execute_retry_recovers_empty_diff(tmp_path):
+    # plan grounds; execute whiffs (no extractable diff) once, then succeeds on retry (capable-but-flaky step).
+    m = SeqModel([_GOOD_PLAN, "sorry, I cannot produce a diff", _DIFF])
+    _p, patch, _m = PlanningFixEngine(m, max_execute_retry=1).propose_with_plan(
+        _wt(tmp_path), _ticket(), ["src/F.java"])
+    assert patch.diff.startswith("--- a/src/F.java")   # recovered on the retry
+    assert m.i == 3                                     # plan + execute(empty) + execute(retry)
+
+
+def test_execute_retry_exhausted_abstains(tmp_path):
+    # plan grounds but every execute attempt whiffs -> honest abstain (empty patch), never fabricates.
+    m = SeqModel([_GOOD_PLAN, "", ""])
+    _p, patch, _m = PlanningFixEngine(m, max_execute_retry=1).propose_with_plan(
+        _wt(tmp_path), _ticket(), ["src/F.java"])
+    assert patch.diff == ""                            # fail-safe: still abstains after exhausting retries
+    assert m.i == 3                                     # plan + 2 execute attempts
+
+
+def test_execute_retry_disabled_abstains_immediately(tmp_path):
+    m = SeqModel([_GOOD_PLAN, ""])
+    _p, patch, _m = PlanningFixEngine(m, max_execute_retry=0).propose_with_plan(
+        _wt(tmp_path), _ticket(), ["src/F.java"])
+    assert patch.diff == "" and m.i == 2               # plan + 1 execute attempt, no retry

@@ -12,16 +12,19 @@ from groundloop.fix.plan import (RepairPlan, check_plan_in_world, parse_plan, pl
 
 
 class PlanningFixEngine:
-    def __init__(self, model, *, preamble: str = "", max_replan: int = 1, context_window: int = 120):
+    def __init__(self, model, *, preamble: str = "", max_replan: int = 1, context_window: int = 120,
+                 max_execute_retry: int = 1):
         self.model = model
         self.preamble = preamble
         self.max_replan = max_replan
         self.context_window = context_window
+        self.max_execute_retry = max_execute_retry
 
     def with_preamble(self, preamble: str) -> "PlanningFixEngine":
         """Skills-aware clone sharing self.model (so GatewayModel.cost_usd keeps accruing)."""
         return PlanningFixEngine(self.model, preamble=preamble, max_replan=self.max_replan,
-                                 context_window=self.context_window)
+                                 context_window=self.context_window,
+                                 max_execute_retry=self.max_execute_retry)
 
     def propose(self, worktree: WorkTree, ticket: Ticket, locations: Sequence[str]) -> Patch:
         _plan, patch, _meta = self.propose_with_plan(worktree, ticket, locations)
@@ -65,16 +68,26 @@ class PlanningFixEngine:
 
     def _execute(self, worktree, ticket, plan: RepairPlan) -> Patch:
         ctx = "\n\n".join(self._window(worktree.path, t) for t in plan.targets)
-        prompt = (f"Bug: {ticket.summary}\n{ticket.description}\n\n"
-                  f"Root cause: {plan.root_cause}\nStrategy: {plan.strategy}\n"
-                  f"Targets: {', '.join(t.file for t in plan.targets)}\n"
-                  f"Required APIs: {', '.join(plan.required_apis)}\n\n"
-                  f"Fault-site context:\n{ctx}\n\n"
-                  "Reply ONLY with a unified diff (```diff fenced) implementing this plan, or empty.")
+        base = (f"Bug: {ticket.summary}\n{ticket.description}\n\n"
+                f"Root cause: {plan.root_cause}\nStrategy: {plan.strategy}\n"
+                f"Targets: {', '.join(t.file for t in plan.targets)}\n"
+                f"Required APIs: {', '.join(plan.required_apis)}\n\n"
+                f"Fault-site context:\n{ctx}\n\n"
+                "Reply ONLY with a unified diff (```diff fenced) implementing this plan, or empty.")
         if self.preamble:                                 # so injected context (skills/knowledge/CodeWiki/
-            prompt = self.preamble + "\n\n" + prompt       # CBM) reaches PATCH-WRITING, not just planning
-        diff = extract_unified_diff(self.model.complete(prompt) or "")
-        return Patch(diff=diff, files=tuple(touched_files(diff)))
+            base = self.preamble + "\n\n" + base           # CBM) reaches PATCH-WRITING, not just planning
+        # The plan is already grounded; the model CAN emit a valid diff but occasionally whiffs (returns
+        # prose or an unfenced blob that doesn't extract). Retry on an empty extraction before giving up —
+        # a capable-but-flaky execute step, not a re-plan. Fail-safe: still abstains (empty Patch) if every
+        # attempt fails, so a persistent no-diff never fabricates.
+        prompt = base
+        for _ in range(self.max_execute_retry + 1):
+            diff = extract_unified_diff(self.model.complete(prompt) or "")
+            if diff.strip():
+                return Patch(diff=diff, files=tuple(touched_files(diff)))
+            prompt = base + ("\n\nYour previous reply had no extractable unified diff. Reply with ONLY a "
+                             "```diff fenced unified diff (with ---/+++/@@ hunks) editing a target file.")
+        return Patch(diff="", files=())
 
     def _head(self, wt_path, loc, max_lines: int = 40) -> str:
         p = Path(wt_path) / loc
