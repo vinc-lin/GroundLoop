@@ -834,7 +834,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="repo-text profile db (gloop build-textprofile) for --match-arm functional/dispatch; "
                         "else KLOOP_FUNCTIONAL_PROFILE")
     r.add_argument("--localize",
-                   choices=["atlas", "tokens", "rerank", "cascade", "cascade_judge", "atlas_rerank"],
+                   choices=["atlas", "tokens", "rerank", "cascade", "cascade_judge", "atlas_rerank",
+                            "tokens_judge"],
                    default=None,
                    help="localize retriever, chosen independently of --match-arm (default atlas_rerank in "
                         "both profiles, Provisional-Core since 2026-07-19): atlas_rerank (the plain FTS5 "
@@ -1498,6 +1499,19 @@ def main(argv: list[str] | None = None) -> int:
                 # creds), degrading to the FTS5 pool order. Rank stays with the match arm (SplitIndex).
                 from groundloop.adapters.index.labs.split import SplitIndex
                 pool = AtlasIndex(args.index_db)
+                localize_reranker = _build_rerank_localize(index, args, None, pool_index=pool)
+                index = SplitIndex(index, localize_reranker)
+            elif localize_req == "tokens_judge":
+                # L1: the SIGNAL-QUERY (crash-token) FTS5 pool reordered by the rerank LLM judge — composed
+                # like atlas_rerank but the pool is SignalQueryIndex (crash tokens as the query) instead of the
+                # summary-based AtlasIndex. On crash tickets the token pool already holds the oracle file ~0.90
+                # of the time (vs the summary pool's poor recall), so the judge has the right file to promote
+                # to rank-1 ([authored] file@1: 0.62 tokens -> 0.71 tokens+judge). No embedder; the judge is
+                # creds-gated (judge=None -> the token-pool order, i.e. --localize tokens). Rank stays with the
+                # match arm (SplitIndex).
+                from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
+                from groundloop.adapters.index.labs.split import SplitIndex
+                pool = SignalQueryIndex(index, AtlasIndex(args.index_db))
                 localize_reranker = _build_rerank_localize(index, args, None, pool_index=pool)
                 index = SplitIndex(index, localize_reranker)
         else:

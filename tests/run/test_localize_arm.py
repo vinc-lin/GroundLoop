@@ -101,6 +101,22 @@ def test_localize_tokens_explicit_wraps_signalquery(monkeypatch):
     assert isinstance(idx, SignalQueryIndex)
 
 
+def test_localize_tokens_judge_wraps_signalquery_pool_under_judge(monkeypatch):
+    """L1: `--localize tokens_judge` builds SplitIndex -> RerankLocalizeIndex whose pool_index is a
+    SignalQueryIndex (the crash-token pool) — the token pool reordered by the LLM judge. With no creds the
+    judge is None, so it degrades to the token-pool order (= plain --localize tokens). [authored] file@1:
+    0.62 tokens -> 0.71 tokens+judge (the token pool holds the oracle file ~0.90, so the judge can promote it)."""
+    monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
+    from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
+    from groundloop.adapters.index.labs.signal_query import SignalQueryIndex
+    from groundloop.adapters.index.labs.split import SplitIndex
+    idx = _captured_index(monkeypatch, ["--localize", "tokens_judge"])
+    assert isinstance(idx, SplitIndex)
+    assert isinstance(idx._localize, RerankLocalizeIndex)
+    assert idx._localize.judge is None                             # no creds -> token-pool order
+    assert isinstance(idx._localize._pool_index, SignalQueryIndex)  # the crash-token pool feeds the judge
+
+
 def test_localize_rerank_wraps_split_over_reranker(monkeypatch):
     """`--localize rerank` (opt-in Candidate) wraps the match index in a SplitIndex whose retrieve side is
     the grounded RerankLocalizeIndex — rank stays with the match arm. An embedder must be present (the
