@@ -1,7 +1,7 @@
 """`gloop run --profile {core,labs}` (KLOOP_LABS=1) flips the run DEFAULTS to the experimental peak stack
 (routing match + cascade_judge localize — the best per-stage Candidate arms, [proxy] not [production]; fix
 stays plan) — but ONLY where left at default; explicit --match-arm/--localize always win. The core
-(production) default stack stays component + atlas_rerank + plan. --match-arm/--localize parse to a None
+(production) default stack is component + cascade_judge + plan (localize promoted 2026-07-21). --match-arm/--localize parse to a None
 sentinel resolved by _resolve_arms. The manifest records profile + the localize that actually ran
 (post-degrade)."""
 from __future__ import annotations
@@ -22,7 +22,7 @@ def test_resolve_arms_core_and_labs(monkeypatch):
             ["run", "--dataset", "d", "--catalog", "c", "--work", "w", "--changes", "ch", "--index-db", "a.db",
              "--out", "o", "--repos", "r", *extra])
     monkeypatch.delenv("KLOOP_LABS", raising=False)
-    assert _resolve_arms(parse([])) == ("component", "atlas_rerank", "core")
+    assert _resolve_arms(parse([])) == ("component", "cascade_judge", "core")
     assert _resolve_arms(parse(["--profile", "labs"])) == ("routing", "cascade_judge", "labs")
     # explicit --match-arm wins; localize still fills to the labs default (cascade_judge)
     assert _resolve_arms(parse(["--profile", "labs", "--match-arm", "functional"])) == ("functional", "cascade_judge", "labs")
@@ -40,7 +40,7 @@ def test_kloop_labs_falsey_values_do_not_enable_labs(monkeypatch):
                                       "--changes", "ch", "--index-db", "a.db", "--out", "o", "--repos", "r"])
     for falsey in ("0", "false", "no", "off", ""):
         monkeypatch.setenv("KLOOP_LABS", falsey)
-        assert _resolve_arms(args) == ("component", "atlas_rerank", "core")   # stays Core-aligned
+        assert _resolve_arms(args) == ("component", "cascade_judge", "core")   # stays core (match=component)
     monkeypatch.setenv("KLOOP_LABS", "1")
     assert _resolve_arms(args)[2] == "labs"                            # affirmative still works
 

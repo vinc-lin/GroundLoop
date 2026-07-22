@@ -55,28 +55,30 @@ def test_localize_atlas_explicit_no_wrap(monkeypatch):
     assert not isinstance(idx, (SplitIndex, SignalQueryIndex))
 
 
-def test_localize_default_is_atlas_rerank_wrapped(monkeypatch):
-    """Core default (no --localize) is `atlas_rerank` (Provisional-Core since 2026-07-19) — the plain FTS5
-    AtlasIndex.retrieve POOL reordered by the LLM file-judge — so the built index IS wrapped in a
-    SplitIndex whose retrieve side is a RerankLocalizeIndex over a plain AtlasIndex pool (no cascade tiers,
-    no embedder). With no KLOOP_PRODUCE_API_KEY the judge is None, so the reranker degrades to the FTS5
-    pool order — byte-identical to plain `--localize atlas` (see test_atlas_rerank_localize.py)."""
+def test_localize_default_is_cascade_judge_wrapped(monkeypatch):
+    """Core default (no --localize) is `cascade_judge` (promoted to the core default 2026-07-21 on an owner
+    override, `[production]` read pending) — the cascade recall pool (FTS ∪ crash-tokens ∪ literal-anchors ∪
+    bge-m3 semantic) reordered by the LLM file-judge — so the built index IS a SplitIndex whose retrieve side
+    is a RerankLocalizeIndex whose `_pool_index` is a CascadeLocalizeIndex. With no creds the judge is None
+    (degrades to the cascade pool order); with no embedder the cascade omits its bge-m3 tier — neither
+    fail-closes."""
     monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
-    from groundloop.adapters.index.labs.split import SplitIndex
+    from groundloop.adapters.index.labs.cascade_localize import CascadeLocalizeIndex
     from groundloop.adapters.index.labs.rerank_localize import RerankLocalizeIndex
-    from groundloop.adapters.index.atlas import AtlasIndex
-    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = atlas_rerank
+    from groundloop.adapters.index.labs.split import SplitIndex
+    idx = _captured_index(monkeypatch, [])   # no --localize -> core default = cascade_judge
     assert isinstance(idx, SplitIndex)
     assert isinstance(idx._localize, RerankLocalizeIndex)
-    assert idx._localize.judge is None                    # no creds -> degrades to the FTS5 pool order
-    assert isinstance(idx._localize._pool_index, AtlasIndex)  # plain FTS5 pool, no cascade/semantic tier
+    assert idx._localize.judge is None                              # no creds -> cascade pool order
+    assert isinstance(idx._localize._pool_index, CascadeLocalizeIndex)  # the cascade recall pool
 
 
 def test_localize_default_no_fail_close_without_embedder(monkeypatch):
-    """The atlas_rerank default must never fail-close a default `gloop run` when no embedder is configured
+    """The cascade_judge default must never fail-close a default `gloop run` when no embedder is configured
     (KLOOP_EMBED_BASE_URL unset): unlike `--localize rerank` (which fail-fasts without an embedder, see
-    tests/run/test_localize_rerank_failfast.py), atlas_rerank's candidate pool is the plain FTS5 AtlasIndex
-    and never asks `_build_embedder()` for one — run_dataset must still be reached."""
+    tests/run/test_localize_rerank_failfast.py), cascade_judge asks `_build_embedder()` but DEGRADES when it
+    returns None (the bge-m3 semantic tier is omitted; the FTS/crash-token/literal-anchor tiers still run) —
+    run_dataset must still be reached."""
     monkeypatch.delenv("KLOOP_EMBED_BASE_URL", raising=False)
     monkeypatch.delenv("KLOOP_PRODUCE_API_KEY", raising=False)
     monkeypatch.delenv("KLOOP_LABS", raising=False)
@@ -90,7 +92,7 @@ def test_localize_default_no_fail_close_without_embedder(monkeypatch):
     assert rc == 0
     assert "index" in seen        # run_dataset was reached -> no fail-close guard fired for localize
     from groundloop.adapters.index.labs.split import SplitIndex
-    assert isinstance(seen["index"], SplitIndex)   # atlas_rerank default still wraps as expected
+    assert isinstance(seen["index"], SplitIndex)   # cascade_judge default still wraps as expected
 
 
 def test_localize_tokens_explicit_wraps_signalquery(monkeypatch):

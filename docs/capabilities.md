@@ -85,7 +85,7 @@ only kind that qualifies for Core); `[proxy]` = the OSS-9-repo dev box (mechanis
 | `AndroidSignalExtractor` / `ComponentExtractor` — the domain **extract** stage (`domains/android_ivi/`) | Ran in the `[production]` loop; `ComponentExtractor` wraps the base extractor to add the `Ticket.component` join the affinity prior needs. `AndroidSignalExtractor` = the domain adapter (prod == dev). |
 | `GatewayModel` — the live `Model` port (`adapters/model/gateway.py`) | Cross-cutting Core: underlies `--fixer plan`/`model` and any eval rerank, and self-tracks `cost`/`tokens`/`calls` (the run-record data plane reads it). `CannedModel` is the Fixture double. |
 | `SplitIndex` (`adapters/index/labs/split.py`) — 2026-07-13 | Composition-root composite: `rank_repos` from the match index, `retrieve` from the localize index — lets `--localize` differ from `--match-arm` (`run_ticket` uses one `CodeIndex` for both). No `core/` edit. |
-| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 (localize 2026-07-20) | A per-environment switch (the analogue of `KLOOP_DEV`): flips **both** default arms to the experimental **peak stack** — match `routing` + localize `cascade_judge` (the best-measured per-stage Candidates; fix stays `plan`) — **only where enabled**. Explicit flags override it; with it **unset the defaults are Core/Provisional-Core-identical** (`component`/`atlas_rerank`/`plan`). The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — `routing`/`cascade_judge` stay **Candidate** until each earns a `[production]` read (the GEI A/B runbook `docs/runbooks/labs-peak-stack-production-ab.md`); `cascade_judge` still degrades gracefully (no embedder → semantic tier omitted; no judge creds → the cascade pool order), so a labs run never fail-closes. |
+| **Labs switch** `KLOOP_LABS` / `--profile labs` (`cli/__init__.py`) — 2026-07-13 | A per-environment switch (the analogue of `KLOOP_DEV`): flips the **match** default to `routing` **only where enabled** (localize is `cascade_judge` core-wide since the 2026-07-21 override above; fix stays `plan`). Explicit flags override it; with it **unset the defaults are** `component`/`cascade_judge`/`plan`. The manifest records `profile`/`localize`. It changes *defaults*, not *validation* — `routing` stays **Candidate** until a `[production]` read (the GEI A/B runbook `docs/runbooks/labs-peak-stack-production-ab.md`). |
 
 ### Core-when-configured — production-validated, engaged when their artifact/flags are supplied
 These have real `[production]` validation. **§4 re-points the default *selection*** so a correctly-configured
@@ -123,6 +123,24 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 > `--profile core` and `--profile labs` (the labs switch does not touch localize, see the Labs-switch row in
 > §3 Core). Spec/plan: `docs/superpowers/specs/2026-07-19-atlas-rerank-localize-design.md`,
 > `docs/superpowers/plans/2026-07-19-atlas-rerank-localize.md`.
+
+> **Amendment 2026-07-21 (OWNER OVERRIDE — `cascade_judge` core default + CamelCase default-on).** The owner
+> directed promoting the session's measured findings to the production defaults *now*, so the next production
+> run tests them (the Provisional-Core "default-then-test" bargain, taken one step more aggressive than the
+> §2 fail-safe bar). Recorded honestly — this is an **override on `[proxy]`/`[authored]` evidence, NOT a
+> `[production]` read**, and nothing here is `[production]`-tagged:
+> - **Core localize default `atlas_rerank` → `cascade_judge`** (the 2026-07-19 amendment + the row below are
+>   SUPERSEDED as the *default*; `atlas_rerank`/`atlas` are now the explicit reverts). Evidence: `[proxy]`
+>   mine74 file@1 0.245 + `[authored]` crash 0.62→**0.81** (the authored substrate flatters the judge —
+>   exact symbols + real source). Fail-SAFE but NOT byte-identical-degrade (adds embedder/judge cost; no
+>   embedder → bge-m3 tier omitted; no creds → cascade pool order; no `--repos` → bare-path judge). **Resolver:
+>   the `[production]` GEI file@k read → confirm Core, else revert to `atlas_rerank`.** Runbook
+>   `docs/runbooks/cascade-judge-production-gate.md`.
+> - **CamelCase index expansion default-ON** (`settings.index_camelcase=True`; `KLOOP_INDEX_CAMELCASE=0` opts
+>   out). An `[authored]` **match** lever (recall@1 +0.10..+0.19, 0 match regressions); its localize rank-1
+>   downside (−0.10 raw, unfixable by bm25-weighting) is covered by the `cascade_judge` localize default.
+>   Takes effect on the **next re-index** (a reuse-contract change; the current atlas is unaffected until
+>   rebuilt). Runbook `docs/runbooks/camelcase-tokenization-a1.md`. Both stay Candidate-grade until the GEI reads.
 | Capability | Why default-on (the safety half — proven) | The gate that resolves it (the effectiveness half — open) |
 |---|---|---|
 | **`PlanningFixEngine`** — "Bug Plan Mode" (plan→gate→re-plan→abstain→execute); `--fixer plan`, **the run default** since 2026-07-13 | Fail-safe by construction: the in-world gate scope-checks every target *before any disk read*, and the executed diff is **re-gated** against candidate scope, so it **abstains** (empty patch) rather than emit an out-of-scope or ungrounded fix. Measured `fabrication_rate = 0.0` `[proxy]`, with a recorded case of it abstaining where the direct fixer fabricated. That honesty *is* a charter-aligned production improvement and reduces incorrect-run risk (Ask-3). | **No measured resolution lift** over `ModelPatchEngine` yet — `resolved_rate` was never gradeable (`[proxy]` ungradeable 2026-07-07; 0-floor 2026-07-13). The next instrumented `[production]` run measures `resolved_rate` (grade-run emits a promotion-eligibility note) → **confirm Core** if it clears the bar with `fabrication_rate ≤ 0`, else **revert** to `--fixer model`. Until then it is bounded: it reverts on governance debt. |
@@ -169,7 +187,7 @@ it **must** be resolved by the next instrumented `[production]` run or it revert
 >   the `list[str]` pool seam.
 >
 > All three stay **Candidate** — a `[production]` read is the promotion gate. The **core** production defaults
-> are unchanged (`component`/`atlas_rerank`/`plan`).
+> are unchanged (`component`/`cascade_judge`/`plan`).
 
 > **Follow-on 2026-07-20 (labs peak stack + `tokens_judge`).** Two additions:
 > - **`--localize tokens_judge`** (NEW opt-in Candidate; the `SignalQueryIndex` crash-token FTS5 pool reranked by
@@ -344,5 +362,5 @@ validated components (the affinity prior engaged whenever its artifact is config
 - Never let a Fixture (or an unvalidated Candidate) become a default (CI/regression should assert the
   production defaults are **Core- or Provisional-Core-aligned**, and that `KLOOP_DEV` **and `KLOOP_LABS`** are
   off in the production config — `tests/run/test_core_defaults_unchanged.py` locks the labs half:
-  no-profile/no-env → `component`/`atlas_rerank`/`plan`).
+  no-profile/no-env → `component`/`cascade_judge`/`plan`).
 - When in doubt between Candidate and Fixture: *is anyone trying to promote it?* If no, it's a Fixture.

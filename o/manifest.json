@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-07-22T09:10:03",
+  "atlas_db": "a.db",
+  "atlas_identity": "53248:1784336313",
+  "match_arm": "flood",
+  "profile": "core",
+  "localize": "rerank",
+  "localize_embed_failures": 0,
+  "fixer": "canned",
+  "affinity": "",
+  "model_pins": {
+    "produce": "deepseek-chat",
+    "embed": "bge-m3"
+  },
+  "change_sink": "mock",
+  "n_cases": 0
+}

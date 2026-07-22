@@ -33,8 +33,17 @@ _ORACLE_KEYS = {"owning_repo", "expected_files", "required_apis"}
 def _hermetic_dev_mode(monkeypatch):
     """Type-1 suite is dev by definition — arm the dev gate so CLI paths using the fixture doubles
     (--fixer canned / --case / --index) stay reachable. Production (gate off) is asserted in
-    tests/run/test_dev_gate.py, which opts out per-test via monkeypatch.delenv."""
+    tests/run/test_dev_gate.py, which opts out per-test via monkeypatch.delenv.
+
+    Also clear gateway creds so Type-1 stays HERMETIC no matter the default arm: the core localize default
+    is now `cascade_judge`, whose LLM judge (and the bge-m3 semantic tier) build a live client when
+    KLOOP_PRODUCE_API_KEY / KLOOP_EMBED_BASE_URL are present — a stray or empty value would make a loop-run
+    test hit a real/invalid URL. Tests that exercise a gateway client set these explicitly; gated e2e tests
+    (skipif) require the real values."""
     monkeypatch.setenv("KLOOP_DEV", "1")
+    for _var in ("KLOOP_PRODUCE_API_KEY", "KLOOP_PRODUCE_BASE_URL",
+                 "KLOOP_EMBED_BASE_URL", "KLOOP_EMBED_API_KEY"):
+        monkeypatch.delenv(_var, raising=False)
 
 
 @dataclass

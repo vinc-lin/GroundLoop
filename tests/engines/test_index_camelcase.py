@@ -1,10 +1,11 @@
-"""Opt-in index-time CamelCase expansion behind KLOOP_INDEX_CAMELCASE.
+"""Index-time CamelCase expansion, KLOOP_INDEX_CAMELCASE — **default ON since 2026-07-21 (owner override)**.
 
 The FTS5 tokenizer (unicode61) does not split CamelCase, so an indexed symbol
 `ScreenshotUtils` becomes the atomic token `screenshotutils` and a plain-word
-query `screenshot` cannot match it. With KLOOP_INDEX_CAMELCASE set, index_repo
-appends the identifier sub-words to the unit text so `screenshot` matches. Default
-OFF ⇒ the produced text (and thus the atlas) is byte-identical to today."""
+query `screenshot` cannot match it. With expansion ON (now the default), index_repo
+appends the identifier sub-words to the unit text so `screenshot` matches — an
+`[authored]` match lever. `KLOOP_INDEX_CAMELCASE=0` opts out to the plain atlas.
+Takes effect on the NEXT re-index (a reuse-contract change)."""
 from groundloop.engines.atlas.index import build_units
 from groundloop.engines.atlas.store import Store
 
@@ -30,8 +31,17 @@ def test_camelcase_on_makes_subword_searchable(tmp_path, monkeypatch):
     assert any(u.name == "ScreenshotUtils" for u, _rank in hits)
 
 
-def test_camelcase_off_default_leaves_atomic_token_unmatchable(tmp_path, monkeypatch):
+def test_camelcase_on_by_default_makes_subword_searchable(tmp_path, monkeypatch):
+    """Env UNSET -> expansion is ON (the 2026-07-21 default) -> the sub-word matches."""
     monkeypatch.delenv("KLOOP_INDEX_CAMELCASE", raising=False)
+    store = _index_screenshot_symbol(str(tmp_path / "atlas.db"))
+    hits = store.keyword_search("screenshot", k=5, repos=["r"], kinds=["symbol"])
+    assert any(u.name == "ScreenshotUtils" for u, _rank in hits)
+
+
+def test_camelcase_explicit_off_leaves_atomic_token_unmatchable(tmp_path, monkeypatch):
+    """KLOOP_INDEX_CAMELCASE=0 is the explicit opt-out -> the atomic token stays unmatchable."""
+    monkeypatch.setenv("KLOOP_INDEX_CAMELCASE", "0")
     store = _index_screenshot_symbol(str(tmp_path / "atlas.db"))
     hits = store.keyword_search("screenshot", k=5, repos=["r"], kinds=["symbol"])
     assert hits == []

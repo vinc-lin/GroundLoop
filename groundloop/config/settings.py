@@ -20,7 +20,10 @@ class Settings:
     cbm_index_timeout: float = 1800.0   # per-CBM-call ceiling; must cover a cold graph build
     embed_batch: int = 128              # inputs per embed request (server BGE_MAX_BATCH=256)
     embed_max_chars: int = 2000         # truncate each input (server BGE_MAX_CHARS=100000 → 413)
-    index_camelcase: bool = False       # opt-in: append identifier sub-words to symbol text at index time
+    index_camelcase: bool = True        # default-on (owner override 2026-07-21): append identifier sub-words
+    #     to symbol text at index time. `[authored]` match lever (recall@1 +0.10..+0.19); its localize rank-1
+    #     downside (−0.10 raw) is covered by the cascade_judge localize default. Takes effect on the NEXT
+    #     re-index only (reuse-contract change). Set KLOOP_INDEX_CAMELCASE=0 to build the plain atlas.
     kb_store: str = ""
     kb_topk: int = 2
 
@@ -42,16 +45,20 @@ class Settings:
             cbm_index_timeout=_pos_float(e.get("KLOOP_CBM_INDEX_TIMEOUT"), 1800.0),
             embed_batch=int(_pos_float(e.get("KLOOP_EMBED_BATCH"), 128.0)),
             embed_max_chars=int(_pos_float(e.get("KLOOP_EMBED_MAX_CHARS"), 2000.0)),
-            index_camelcase=_bool_env(e.get("KLOOP_INDEX_CAMELCASE")),
+            index_camelcase=_bool_env(e.get("KLOOP_INDEX_CAMELCASE"), default=True),
             kb_store=e.get("KLOOP_KB_STORE", ""),
             kb_topk=int(_pos_float(e.get("KLOOP_KB_TOPK"), 2.0)),
         )
 
 
-def _bool_env(raw: str | None) -> bool:
-    """True unless `raw` is missing or an explicit negative ('', '0', 'false', 'no', 'off',
-    case-insensitive) — mirrors cli._env_flag so `KLOOP_X=0` disables rather than enabling."""
-    return (raw or "").strip().lower() not in ("", "0", "false", "no", "off")
+def _bool_env(raw: str | None, default: bool = False) -> bool:
+    """Parse a bool from env. Missing/empty -> `default`; an explicit negative ('0','false','no','off',
+    case-insensitive) -> False; anything else -> True. `default` lets a flag be default-ON while
+    `KLOOP_X=0` still disables it (mirrors cli._env_flag for the default=False case)."""
+    s = (raw or "").strip().lower()
+    if s == "":
+        return default
+    return s not in ("0", "false", "no", "off")
 
 
 def _pos_float(raw: str | None, default: float) -> float:

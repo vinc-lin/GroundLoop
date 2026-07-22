@@ -115,17 +115,23 @@ GL-M1 plan (for provenance):
 - CLI: `.venv/bin/gloop {run,grade-run,index,produce,doctor,build-atlas,build-textprofile,mine,mine-affinity,eval,label-bugkind,fixeval,funceval,faulteval,synth,combine-oracle,compare,kb-ab,kb-seed,kb-attribute}`.
   `gloop run` defaults (Core-aligned): match `component` arm + **`--fixer plan`** (the Provisional-Core
   `PlanningFixEngine` "Bug Plan Mode", default since 2026-07-13; `--fixer` = `canned|model|plan`; safety default —
-  abstains not fabricates, effectiveness production-gated) + localize `atlas_rerank` (Provisional-Core
-  core-profile default since 2026-07-19: the FTS5 `atlas` pool reordered by the LLM file-judge, needs no
-  embedder; degrades byte-identical to `atlas` without judge creds, so it never regresses or fail-closes;
-  `--localize atlas` is the explicit opt-out to the [production]-validated FTS5 floor; the **labs** profile
-  instead defaults to the peak stack — `routing` match + `cascade_judge` localize (2026-07-20; both stay
-  Candidate — labs changes *defaults* not *validation*, GEI A/B `docs/runbooks/labs-peak-stack-production-ab.md`);
-  the `tokens`/`SignalQueryIndex` default was reverted to a reachable opt-in on 2026-07-15 —
-  see `docs/superpowers/specs/2026-07-15-workflow-overdesign-audit-and-simplification.md`), fail-closed
-  without gateway creds / a valid `--repos`. Experimental Candidate arms are opt-in, never the silent (core)
-  default: `--match-arm {semantic,judge,functional,dispatch}`,
-  `--localize {tokens,tokens_judge,rerank,cascade,cascade_judge}`,
+  abstains not fabricates, effectiveness production-gated) + localize `cascade_judge` (the cascade recall pool
+  — FTS ∪ crash-tokens ∪ literal-anchors ∪ bge-m3 semantic — reordered by the LLM file-judge). **`cascade_judge`
+  was promoted to the core (production) localize default on an OWNER OVERRIDE 2026-07-21 (was `atlas_rerank`),
+  on `[proxy]`/`[authored]` evidence — file@1 0.62→0.81 authored-crash — NOT a `[production]` read.** Under the
+  Provisional-Core "default it so the next production run tests it" bargain: the `[production]` GEI file@k read
+  is the resolver (confirm→Core, else revert to `--localize atlas_rerank`/`atlas`). Fail-SAFE — degrades, never
+  fail-closes: no embedder → bge-m3 tier omitted; no judge creds → the cascade pool order; no `--repos` →
+  bare-path judge (NOT byte-identical-degrade like the prior `atlas_rerank` default — the added embedder/judge
+  cost + risk is what the production read resolves). `--localize atlas_rerank`/`atlas` are the explicit reverts
+  to the [production]-validated FTS5 floor. Also **CamelCase index expansion is now default-ON**
+  (`KLOOP_INDEX_CAMELCASE`, owner override 2026-07-21) — an `[authored]` **match** lever (recall@1 +0.10..+0.19;
+  its localize rank-1 downside is covered by the cascade_judge default); takes effect on the NEXT re-index (a
+  reuse-contract change), `KLOOP_INDEX_CAMELCASE=0` opts out. The **labs** profile additionally defaults match to
+  `routing` (2026-07-20; Candidate — GEI A/B `docs/runbooks/labs-peak-stack-production-ab.md`). Fail-closed
+  without gateway creds / a valid `--repos`. Other Candidate arms are opt-in: `--match-arm
+  {routing,semantic,judge,functional,dispatch}`,
+  `--localize {atlas,atlas_rerank,tokens,tokens_judge,rerank,cascade}`,
   `--profile labs`/`KLOOP_LABS` (reachable ≠ default — see `docs/capabilities.md`).
 - **Two test surfaces** (`docs/evaluation.md` §14 + `docs/environments.md`): **Type-1 (Test 1)** hermetic
   development tests (no network / no real LLM; runs every change; shared fixtures in
