@@ -10,3 +10,6 @@ __pycache__/
 
 # run artifacts written into the authored corpus dirs by MockJira/MockGerrit during gloop run
 groundloop/mine/data/authored/**/ledger.jsonl
+
+# scratch run-output dir (gloop run --out ./o in tests)
+o/
